@@ -613,6 +613,9 @@ endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_LFR),y)
 CDEFINES += -DFEATURE_WLAN_LFR
+#Begin fjdw67 Motorola, IKJB42MAIN-6385 - LFR roaming instrumentation
+CDEFINES += -DFEATURE_WLAN_LFR_METRICS
+#End IKJB42MAIN-6385
 endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_OKC),y)
