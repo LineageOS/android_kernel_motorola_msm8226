@@ -595,7 +595,7 @@ endif
 CDEFINES += -DFEATURE_WLAN_CH_AVOID
 
 # Fix build for GCC 4.7
-EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function
+EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function -Wno-array-bounds
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 
