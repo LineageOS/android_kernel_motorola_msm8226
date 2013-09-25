@@ -729,6 +729,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
            country_code = command + 8;
 
+           INIT_COMPLETION(pAdapter->change_country_code);
            hdd_checkandupdate_dfssetting(pAdapter, country_code);
 #ifndef CONFIG_ENABLE_LINUX_REG
            hdd_checkandupdate_phymode(pAdapter, country_code);
@@ -751,9 +752,10 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            else
            {
                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
-                       "%s: SME Change Country code fail ret=%d\n",__func__, ret);
-
+                 "%s: SME Change Country code fail ret=%d", __func__, ret);
+               ret = -EINVAL;
            }
+
        }
        /*
           command should be a string having format
@@ -3678,6 +3680,7 @@ static hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMac
       init_completion(&pHddCtx->tx_sus_event_var);
       init_completion(&pHddCtx->rx_sus_event_var);
       init_completion(&pAdapter->ula_complete);
+      init_completion(&pAdapter->change_country_code);
 
       pAdapter->isLinkUpSvcNeeded = FALSE; 
       pAdapter->higherDtimTransition = eANI_BOOLEAN_TRUE;
