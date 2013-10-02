@@ -244,11 +244,11 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
          */
         status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
                msecs_to_jiffies(WAIT_REM_CHAN_READY));
-        if (!status)
+        if (0 >= status)
         {
             hddLog( LOGE, 
-                    "%s: timeout waiting for remain on channel ready indication",
-                    __func__);
+              "%s: timeout waiting for remain on channel ready indication %d",
+                    __func__, status);
         }
 
         INIT_COMPLETION(pAdapter->cancel_rem_on_chan_var);
@@ -276,11 +276,11 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
         status = wait_for_completion_interruptible_timeout(&pAdapter->cancel_rem_on_chan_var,
                msecs_to_jiffies(WAIT_CANCEL_REM_CHAN));
 
-        if (!status)
+        if (0 >= status)
         {
             hddLog( LOGE, 
-                    "%s: timeout waiting for cancel remain on channel ready indication",
-                    __func__);
+                "%s: timeout waiting for cancel remain on channel ready indication %d",
+                   __func__, status);
         }
     }
 }
@@ -564,11 +564,11 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
      * for already issued remain on channel request */
     status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
             msecs_to_jiffies(WAIT_REM_CHAN_READY));
-    if (!status)
+    if (0 >= status)
     {
-        hddLog( LOGE, 
-                "%s: timeout waiting for remain on channel ready indication",
-                __func__);
+        hddLog( LOGE,
+                "%s: timeout waiting for remain on channel ready indication %d",
+                __func__, status);
 
         if (pHddCtx->isLogpInProgress)
         {
@@ -604,8 +604,13 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
                             __func__, pAdapter->device_mode);
        return -EIO;
     }
-    wait_for_completion_interruptible_timeout(&pAdapter->cancel_rem_on_chan_var,
+    status = wait_for_completion_interruptible_timeout(&pAdapter->cancel_rem_on_chan_var,
             msecs_to_jiffies(WAIT_CANCEL_REM_CHAN));
+    if (0 >= status)
+    {
+        hddLog( LOGE,
+              "%s:wait on cancel_rem_on_chan_var failed %d", __func__, status);
+    }
     return 0;
 }
 
@@ -673,6 +678,10 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
         return status;
     }
 
+    hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d type: %d",
+                            __func__, pAdapter->device_mode, type);
+
+
 #ifdef WLAN_FEATURE_P2P_DEBUG
     if ((type == SIR_MAC_MGMT_FRAME) &&
             (subType == SIR_MAC_MGMT_ACTION) &&
@@ -714,9 +723,6 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
     //then set the wait to 200 ms
     if (offchan && !wait)
         wait = ACTION_FRAME_DEFAULT_WAIT;
-
-    hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d",
-                            __func__,pAdapter->device_mode);
 
     //Call sme API to send out a action frame.
     // OR can we send it directly through data path??
@@ -875,10 +881,9 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
         status = wait_for_completion_interruptible_timeout(
                      &pAdapter->offchannel_tx_event,
                      msecs_to_jiffies(WAIT_CHANGE_CHANNEL_FOR_OFFCHANNEL_TX));
-        if(!status)
+        if(0 >= status)
         {
-            hddLog( LOGE, "Not able to complete remain on channel request"
-                          " within timeout period");
+            hddLog( LOGE, "wait on offchannel_tx_event failed %d", status);
             goto err_rem_channel;
         }
     }
@@ -1115,7 +1120,11 @@ int hdd_setP2pNoa( struct net_device *dev, tANI_U8 *command )
 
     param = strnchr(command, strlen(command), ' ');
     if (param == NULL)
-      return -EINVAL;
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+               "%s: strnchr failed to find delimeter",__func__);
+          return -EINVAL;
+    }
     param++;
     ret = sscanf(param, "%d %d %d", &count, &start_time, &duration);
     if (ret < 3)
@@ -1197,7 +1206,11 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
 
     param = strnchr(command, strlen(command), ' ');
     if (param == NULL)
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+               "%s: strnchr failed to find delimeter",__func__);
         return -EINVAL;
+    }
     param++;
     ret = sscanf(param, "%d %d %d", &legacy_ps, &opp_ps, &ctwindow);
     if (ret < 3)
