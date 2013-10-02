@@ -2980,4 +2980,7 @@ void sme_enable_disable_split_scan (tHalHandle hHal, tANI_U8 nNumStaChan,
 eHalStatus smeIssueFastRoamNeighborAPEvent (tHalHandle hHal,
                                             tANI_U8 *bssid,
                                             tSmeFastRoamTrigger fastRoamTrig);
+
+void smeGetCommandQStatus( tHalHandle hHal );
+
 #endif //#if !defined( __SME_API_H )
