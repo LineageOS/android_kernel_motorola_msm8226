@@ -640,10 +640,14 @@ int wlan_hdd_cfg80211_init(struct device *dev,
 
     wiphy->mgmt_stypes = wlan_hdd_txrx_stypes;
 
+    wiphy->flags |= WIPHY_FLAG_STRICT_REGULATORY;
+
+
     /* This will disable updating of NL channels from passive to
      * active if a beacon is received on passive channel. */
     wiphy->flags |=   WIPHY_FLAG_DISABLE_BEACON_HINTS;
     wiphy->flags |=   WIPHY_FLAG_STRICT_REGULATORY;
+
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
     wiphy->flags |= WIPHY_FLAG_HAVE_AP_SME
@@ -651,6 +655,7 @@ int wlan_hdd_cfg80211_init(struct device *dev,
                  |  WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL
                     | WIPHY_FLAG_OFFCHAN_TX;
 #endif
+
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
     if (pCfg->isFastTransitionEnabled
 #ifdef FEATURE_WLAN_LFR
@@ -683,6 +688,8 @@ int wlan_hdd_cfg80211_init(struct device *dev,
        regulatory settings */
 
     wiphy->reg_notifier = wlan_hdd_linux_reg_notifier;
+#else
+    wiphy->reg_notifier = wlan_hdd_crda_reg_notifier;
 #endif
 
     wiphy->max_scan_ssids = MAX_SCAN_SSID;
