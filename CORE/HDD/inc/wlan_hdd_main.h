@@ -137,7 +137,11 @@
 #define WAIT_TIME_TDLS_INITIATOR    600
 
 /* Maximum time to get linux regulatory entry settings */
+#ifdef CONFIG_ENABLE_LINUX_REG
 #define LINUX_REG_WAIT_TIME 300
+#else
+#define CRDA_WAIT_TIME 300
+#endif
 
 /* Scan Req Timeout */
 #define WLAN_WAIT_TIME_SCAN_REQ 100
@@ -961,7 +965,11 @@ struct hdd_context_s
    struct completion mc_sus_event_var;
 
    /* Completion variable for regulatory hint  */
+#ifdef CONFIG_ENABLE_LINUX_REG
    struct completion linux_reg_req;
+#else
+   struct completion driver_crda_req;
+#endif
 
    v_BOOL_t isWlanSuspended;
 
