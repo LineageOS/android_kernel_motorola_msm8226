@@ -1046,6 +1046,8 @@ struct hdd_context_s
     lphbEnableStruct  lphbEnableReq;
 #endif /* FEATURE_WLAN_LPHB */
 
+    v_BOOL_t sus_res_mcastbcast_filter_valid;
+
     /* debugfs entry */
     struct dentry *debugfs_phy;
 
