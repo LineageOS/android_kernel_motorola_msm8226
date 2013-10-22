@@ -956,7 +956,7 @@ eCsrRoamState csrRoamStateChange( tpAniSirGlobal pMac, eCsrRoamState NewRoamStat
     return( PreviousState );
 }
 
-void csrAssignRssiForCategory(tpAniSirGlobal pMac, tANI_U8 catOffset)
+void csrAssignRssiForCategory(tpAniSirGlobal pMac, tANI_S8 bestApRssi, tANI_U8 catOffset)
 {
     int i;
     if(catOffset)
@@ -964,7 +964,7 @@ void csrAssignRssiForCategory(tpAniSirGlobal pMac, tANI_U8 catOffset)
         pMac->roam.configParam.bCatRssiOffset = catOffset;
         for(i = 0; i < CSR_NUM_RSSI_CAT; i++)
         {
-            pMac->roam.configParam.RSSICat[CSR_NUM_RSSI_CAT - i - 1] = (int)CSR_BEST_RSSI_VALUE - (int)(i * catOffset);
+            pMac->roam.configParam.RSSICat[CSR_NUM_RSSI_CAT - i - 1] = (int)bestApRssi - pMac->roam.configParam.nSelect5GHzMargin - (int)(i * catOffset);
         }
     }
 }
@@ -1000,7 +1000,7 @@ static void initConfigParam(tpAniSirGlobal pMac)
     {
         pMac->roam.configParam.BssPreferValue[i] = i;
     }
-    csrAssignRssiForCategory(pMac, CSR_DEFAULT_RSSI_DB_GAP);
+    csrAssignRssiForCategory(pMac, CSR_BEST_RSSI_VALUE, CSR_DEFAULT_RSSI_DB_GAP);
     pMac->roam.configParam.nRoamingTime = CSR_DEFAULT_ROAMING_TIME;
     pMac->roam.configParam.fEnforce11dChannels = eANI_BOOLEAN_FALSE;
     pMac->roam.configParam.fSupplicantCountryCodeHasPriority = eANI_BOOLEAN_FALSE;
@@ -1634,7 +1634,7 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
             pMac->roam.configParam.scanAgeTimeCPS = pParam->scanAgeTimeCPS;   
         }
         
-        csrAssignRssiForCategory(pMac, pParam->bCatRssiOffset);
+        csrAssignRssiForCategory(pMac, CSR_BEST_RSSI_VALUE, pParam->bCatRssiOffset);
         pMac->roam.configParam.nRoamingTime = pParam->nRoamingTime;
         pMac->roam.configParam.fEnforce11dChannels = pParam->fEnforce11dChannels;
         pMac->roam.configParam.fSupplicantCountryCodeHasPriority = pParam->fSupplicantCountryCodeHasPriority;
@@ -1740,6 +1740,7 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         pMac->roam.configParam.enableOxygenNwk = pParam->enableOxygenNwk;
 
         pMac->roam.configParam.isAmsduSupportInAMPDU = pParam->isAmsduSupportInAMPDU;
+        pMac->roam.configParam.nSelect5GHzMargin = pParam->nSelect5GHzMargin;
     }
     
     return status;
@@ -1865,6 +1866,7 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
         pParam->enableOxygenNwk = pMac->roam.configParam.enableOxygenNwk;
 
         pParam->isAmsduSupportInAMPDU = pMac->roam.configParam.isAmsduSupportInAMPDU;
+        pParam->nSelect5GHzMargin = pMac->roam.configParam.nSelect5GHzMargin;
 
         csrSetChannels(pMac, pParam);
 
