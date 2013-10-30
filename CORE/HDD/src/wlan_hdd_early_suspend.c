@@ -976,7 +976,7 @@ VOS_STATUS hdd_conf_arp_offload(hdd_adapter_t *pAdapter, int fenable)
        }
        else
        {
-           hddLog(VOS_TRACE_LEVEL_INFO, FL("IP Address is not assigned"));
+           hddLog(VOS_TRACE_LEVEL_ERROR, FL("IP Address is not assigned"));
        }
 
        if (fenable == 1 && !pAdapter->ipv4_notifier_registered)
@@ -1557,7 +1557,8 @@ void hdd_resume_wlan(void)
       return;
    }
    
-   if (pHddCtx->isLogpInProgress) {
+   if (pHddCtx->isLogpInProgress)
+   {
       hddLog(VOS_TRACE_LEVEL_INFO,
              "%s: Ignore resume wlan, LOGP in progress!", __func__);
       return;
