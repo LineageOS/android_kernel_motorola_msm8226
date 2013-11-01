@@ -553,6 +553,8 @@ struct wiphy *wlan_hdd_cfg80211_init(int priv_size)
         return NULL;
     }
 
+    wiphy->country_ie_pref = NL80211_COUNTRY_IE_IGNORE_CORE;
+
     return wiphy;
 }
 
