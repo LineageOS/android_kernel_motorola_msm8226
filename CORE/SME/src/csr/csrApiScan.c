@@ -3940,7 +3940,7 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription
                     (tSirMacChanInfo *)(&pIesLocal->Country.triplets[0]) ))
         {
             fRet = eANI_BOOLEAN_FALSE;
-            return fRet;
+            break;
         }
 
         // set the indicator of the channel where the country IE was found...
@@ -7725,6 +7725,11 @@ eHalStatus csrScanSavePreferredNetworkFound(tpAniSirGlobal pMac,
    }
    //Add to scan cache
    csrScanAddResult(pMac, pScanResult, pIesLocal);
+
+   if( (pScanResult->Result.pvIes == NULL) && pIesLocal )
+   {
+       vos_mem_free(pIesLocal);
+   }
 
    vos_mem_free(pParsedFrame);
 
