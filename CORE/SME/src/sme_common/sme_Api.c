@@ -2152,6 +2152,7 @@ v_VOID_t sme_FreeMsg( tHalHandle hHal, vos_msg_t* pMsg )
 
   This is a synchronous call
   \param hHal - The handle returned by macOpen
+  \param tHalStopType - reason for stopping
 
   \return eHAL_STATUS_SUCCESS - SME is stopped.
 
@@ -2160,7 +2161,7 @@ v_VOID_t sme_FreeMsg( tHalHandle hHal, vos_msg_t* pMsg )
   \sa
 
   --------------------------------------------------------------------------*/
-eHalStatus sme_Stop(tHalHandle hHal, tANI_BOOLEAN pmcFlag)
+eHalStatus sme_Stop(tHalHandle hHal, tHalStopType stopType)
 {
    eHalStatus status = eHAL_STATUS_FAILURE;
    eHalStatus fail_status = eHAL_STATUS_SUCCESS;
@@ -2175,17 +2176,14 @@ eHalStatus sme_Stop(tHalHandle hHal, tANI_BOOLEAN pmcFlag)
 
    p2pStop(hHal);
 
-   if(pmcFlag)
-   {
-      status = pmcStop(hHal);
-      if ( ! HAL_STATUS_SUCCESS( status ) ) {
-         smsLog( pMac, LOGE, "pmcStop failed during smeStop with status=%d",
-                 status );
-         fail_status = status;
-      }
+   status = pmcStop(hHal);
+   if ( ! HAL_STATUS_SUCCESS( status ) ) {
+      smsLog( pMac, LOGE, "pmcStop failed during smeStop with status=%d",
+              status );
+      fail_status = status;
    }
 
-   status = csrStop(pMac);
+   status = csrStop(pMac, stopType);
    if ( ! HAL_STATUS_SUCCESS( status ) ) {
       smsLog( pMac, LOGE, "csrStop failed during smeStop with status=%d",
               status );
