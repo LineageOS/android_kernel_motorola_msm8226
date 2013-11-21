@@ -615,6 +615,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
    if ((SIOCDEVPRIVATE + 1) == cmd)
    {
        hdd_context_t *pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
+       struct wiphy *wiphy = pHddCtx->wiphy;
 
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                   "%s: Received %s cmd from Wi-Fi GUI***", __func__, command);
@@ -658,6 +659,14 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
                        "%s: SME Change Country code fail ret=%d\n",__func__, ret);
 
+           }
+           /* If you get a 00 country code it means you are world roaming.
+           In case of world roaming, country code should be updated by
+           DRIVER COUNTRY */
+           if (memcmp(pHddCtx->cfg_ini->crdaDefaultCountryCode,
+                            CFG_CRDA_DEFAULT_COUNTRY_CODE_DEFAULT , 2) == 0)
+           {
+              regulatory_hint(wiphy, "00");
            }
        }
        /*
@@ -5867,7 +5876,7 @@ int hdd_wlan_startup(struct device *dev )
    /*
     * cfg80211: wiphy allocation
     */
-   wiphy = wlan_hdd_cfg80211_init(sizeof(hdd_context_t)) ;
+   wiphy = wlan_hdd_cfg80211_wiphy_alloc(sizeof(hdd_context_t)) ;
 
    if(wiphy == NULL)
    {
@@ -5966,13 +5975,13 @@ int hdd_wlan_startup(struct device *dev )
       pHddCtx->cfg_ini->nthBeaconFilter = 1;
    }
    /*
-    * cfg80211: Initialization and registration ...
+    * cfg80211: Initialization  ...
     */
-   if (0 < wlan_hdd_cfg80211_register(dev, wiphy, pHddCtx->cfg_ini))
+   if (0 < wlan_hdd_cfg80211_init(dev, wiphy, pHddCtx->cfg_ini))
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, 
-              "%s: wlan_hdd_cfg80211_register return failure", __func__);
-      goto err_wiphy_reg;
+              "%s: wlan_hdd_cfg80211_init return failure", __func__);
+      goto err_config;
    }
 
    // Update VOS trace levels based upon the cfg.ini
@@ -6029,7 +6038,7 @@ int hdd_wlan_startup(struct device *dev )
       if(!VOS_IS_STATUS_SUCCESS( status ))
       {
          hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_watchdog_open failed",__func__);
-         goto err_wiphy_reg;
+         goto err_wdclose;
       }
    }
 
@@ -6187,6 +6196,14 @@ int hdd_wlan_startup(struct device *dev )
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: hdd_post_voss_start_config failed", 
          __func__);
       goto err_vosstop;
+   }
+   wlan_hdd_cfg80211_update_reg_info( wiphy );
+
+   /* registration of wiphy dev with cfg80211 */
+   if (0 > wlan_hdd_cfg80211_register(wiphy))
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
+       goto err_vosstop;
    }
 
    if (VOS_STA_SAP_MODE == hdd_get_conparam())
@@ -6432,6 +6449,7 @@ err_bap_close:
 
 err_close_adapter:
    hdd_close_all_adapters( pHddCtx );
+   wiphy_unregister(wiphy) ;
 
 err_vosstop:
    vos_stop(pVosContext);
@@ -6451,9 +6469,6 @@ err_clkvote:
 err_wdclose:
    if(pHddCtx->cfg_ini->fIsLogpEnabled)
       vos_watchdog_close(pVosContext);
-
-err_wiphy_reg:
-   wiphy_unregister(wiphy) ; 
 
 err_config:
    kfree(pHddCtx->cfg_ini);
