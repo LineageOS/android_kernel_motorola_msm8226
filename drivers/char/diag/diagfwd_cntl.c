@@ -350,12 +350,17 @@ void diag_send_diag_flush(struct diag_smd_info *smd_info)
 {
 	struct diag_ctrl_msg_diag_flush diag_flush;
 
-	/* For now only allow the modem to receive the message */
-	if (!smd_info || smd_info->peripheral != MODEM_DATA ||
-		smd_info->type != SMD_CNTL_TYPE) {
-		pr_err("diag: returning early smd_info->peripheral: %d,"
-			" smd_info->type: %d\n",
-			smd_info->peripheral, smd_info->type);
+	if (!smd_info || smd_info->type != SMD_CNTL_TYPE) {
+		pr_err("diag: In %s, invalid channel info, smd_info: %p type: %d\n",
+					__func__, smd_info,
+					((smd_info) ? smd_info->type : -1));
+		return;
+	}
+
+	if (smd_info->peripheral < MODEM_DATA ||
+					smd_info->peripheral > WCNSS_DATA) {
+		pr_err("diag: In %s, invalid peripheral %d\n", __func__,
+							smd_info->peripheral);
 		return;
 	}
 
