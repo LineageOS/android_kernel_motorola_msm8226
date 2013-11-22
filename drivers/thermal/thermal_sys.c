@@ -80,6 +80,9 @@ int sensor_get_id(char *name)
 {
 	struct sensor_info *pos, *var;
 
+	if (!name)
+		return -ENODEV;
+
 	list_for_each_entry_safe(pos, var, &sensor_info_list, sensor_list) {
 		if (!strcmp(pos->tz->type, name))
 			return pos->sensor_id;
