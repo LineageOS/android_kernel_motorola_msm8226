@@ -102,6 +102,7 @@ static bool debug_aca_enabled;
 static bool debug_bus_voting_enabled;
 static bool mhl_det_in_progress;
 static int factory_kill_gpio;
+static int factory_kill_gpio_active_high;
 static int factory_cable;
 
 static struct regulator *hsusb_3p3;
@@ -635,6 +636,10 @@ static int msm_otg_reset(struct usb_phy *phy)
 		pm8xxx_usb_id_pullup(1);
 	}
 
+	if (motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED)
+		writel_relaxed(readl_relaxed(USB_OTGSC) & ~(OTGSC_IDPU),
+								USB_OTGSC);
+
 	return 0;
 }
 
@@ -896,6 +901,7 @@ static int msm_otg_suspend(struct msm_otg *motg)
 	unsigned ret;
 	u32 portsc, config2;
 	u32 retries = 3;
+	u32 func_ctrl;
 
 	if (atomic_read(&motg->in_lpm))
 		return 0;
@@ -963,6 +969,15 @@ static int msm_otg_suspend(struct msm_otg *motg)
 		ulpi_write(phy, 0x08, 0x09);
 	}
 
+	if (motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED) {
+		/* put the controller in non-driving mode */
+		func_ctrl = ulpi_read(phy, ULPI_FUNC_CTRL);
+		func_ctrl &= ~ULPI_FUNC_CTRL_OPMODE_MASK;
+		func_ctrl |= ULPI_FUNC_CTRL_OPMODE_NONDRIVING;
+		ulpi_write(phy, func_ctrl, ULPI_FUNC_CTRL);
+		ulpi_write(phy, ULPI_IFC_CTRL_AUTORESUME,
+				ULPI_CLR(ULPI_IFC_CTRL));
+	}
 
 	/* Set the PHCD bit, only if it is not set by the controller.
 	 * PHY may take some time or even fail to enter into low power
@@ -1037,8 +1052,13 @@ static int msm_otg_suspend(struct msm_otg *motg)
 		}
 		if (host_bus_suspend)
 			phy_ctrl_val |= PHY_CLAMP_DPDMSE_EN;
-		writel_relaxed(phy_ctrl_val & ~PHY_RETEN, USB_PHY_CTRL);
-		motg->lpm_flags |= PHY_RETENTIONED;
+
+		if (!(motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED)) {
+			writel_relaxed(phy_ctrl_val & ~PHY_RETEN, USB_PHY_CTRL);
+			motg->lpm_flags |= PHY_RETENTIONED;
+		} else {
+			writel_relaxed(phy_ctrl_val, USB_PHY_CTRL);
+		}
 	}
 
 	/* Ensure that above operation is completed before turning off clocks */
@@ -1079,7 +1099,8 @@ static int msm_otg_suspend(struct msm_otg *motg)
 		motg->lpm_flags |= PHY_REGULATORS_LPM;
 	}
 
-	if (motg->lpm_flags & PHY_RETENTIONED) {
+	if (motg->lpm_flags & PHY_RETENTIONED ||
+		(motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED)) {
 		msm_hsusb_config_vddcx(0);
 		msm_hsusb_mhl_switch_enable(motg, 0);
 	}
@@ -1132,6 +1153,7 @@ static int msm_otg_resume(struct msm_otg *motg)
 	unsigned temp;
 	u32 phy_ctrl_val = 0;
 	unsigned ret;
+	u32 func_ctrl;
 
 	if (!atomic_read(&motg->in_lpm))
 		return 0;
@@ -1175,7 +1197,8 @@ static int msm_otg_resume(struct msm_otg *motg)
 		motg->lpm_flags &= ~PHY_REGULATORS_LPM;
 	}
 
-	if (motg->lpm_flags & PHY_RETENTIONED) {
+	if (motg->lpm_flags & PHY_RETENTIONED ||
+		(motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED)) {
 		msm_hsusb_mhl_switch_enable(motg, 1);
 		msm_hsusb_config_vddcx(1);
 		phy_ctrl_val = readl_relaxed(USB_PHY_CTRL);
@@ -1221,6 +1244,14 @@ static int msm_otg_resume(struct msm_otg *motg)
 	}
 
 skip_phy_resume:
+	if (motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED) {
+		/* put the controller in normal mode */
+		func_ctrl = ulpi_read(phy, ULPI_FUNC_CTRL);
+		func_ctrl &= ~ULPI_FUNC_CTRL_OPMODE_MASK;
+		func_ctrl |= ULPI_FUNC_CTRL_OPMODE_NORMAL;
+		ulpi_write(phy, func_ctrl, ULPI_FUNC_CTRL);
+	}
+
 	if (device_may_wakeup(phy->dev)) {
 		if (motg->async_irq)
 			disable_irq_wake(motg->async_irq);
@@ -3424,7 +3455,8 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 		if (factory_cable) {
 			pr_info("Factory Cable Detached!\n");
 			if (factory_kill_gpio &&
-				!gpio_get_value(factory_kill_gpio)) {
+			    !(gpio_get_value(factory_kill_gpio) ^
+			     factory_kill_gpio_active_high)) {
 				factory_cable = 0;
 				pr_info("Factory Kill Disabled!\n");
 			} else {
@@ -3434,16 +3466,19 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 			}
 		}
 
-	if (id_gnd || !id_flt) {
-		if (!test_and_set_bit(ID, &motg->inputs)) {
-			pr_debug("PMIC: ID set\n");
-			work = 1;
-		}
-	} else {
-		if (test_and_clear_bit(ID, &motg->inputs)) {
-			pr_debug("PMIC: ID clear\n");
-			set_bit(A_BUS_REQ, &motg->inputs);
-			work = 1;
+	if (motg->pdata->mode == USB_OTG &&
+		motg->pdata->otg_control == OTG_PMIC_CONTROL) {
+		if (id_gnd || !id_flt) {
+			if (!test_and_set_bit(ID, &motg->inputs)) {
+				pr_debug("PMIC: ID set\n");
+				work = 1;
+			}
+		} else {
+			if (test_and_clear_bit(ID, &motg->inputs)) {
+				pr_debug("PMIC: ID clear\n");
+				set_bit(A_BUS_REQ, &motg->inputs);
+				work = 1;
+			}
 		}
 	}
 
@@ -4231,6 +4266,9 @@ static void msm_otg_get_id_gpio(struct msm_otg_platform_data *pdata,
 	if (pdata->id_gnd_gpio < 0)
 		pdata->id_gnd_gpio = 0;
 
+	if (pdata->id_gnd_gpio == 0)
+		pdata->id_gnd_gpio = pdata->id_flt_gpio;
+
 	if (!(pdata->id_gnd_gpio && pdata->id_flt_gpio))
 		return;
 	pdata->id_flt_active_high = of_property_read_bool(node,
@@ -4250,26 +4288,30 @@ static void msm_otg_get_id_gpio(struct msm_otg_platform_data *pdata,
 	if (ret)
 		goto free_flt;
 
-	ret = gpio_request_one(pdata->id_gnd_gpio, GPIOF_IN, "id_gnd");
-	if (ret)
-		goto free_flt;
+	if (pdata->id_gnd_gpio != pdata->id_flt_gpio) {
+		ret = gpio_request_one(pdata->id_gnd_gpio, GPIOF_IN, "id_gnd");
+		if (ret)
+			goto free_flt;
 
-	ret = gpio_export(pdata->id_gnd_gpio, 0);
-	if (ret)
-		goto free_gnd;
+		ret = gpio_export(pdata->id_gnd_gpio, 0);
+		if (ret)
+			goto free_gnd;
 
-	ret = gpio_export_link(&pdev->dev, "id_gnd", pdata->id_gnd_gpio);
-	if (ret)
-		goto free_gnd;
+		ret = gpio_export_link(&pdev->dev, "id_gnd",
+				       pdata->id_gnd_gpio);
+		if (ret)
+			goto free_gnd;
+	}
 
-	if (pdata->mode == USB_OTG &&
-		pdata->otg_control == OTG_PMIC_CONTROL)
+	if (pdata->id_gnd_gpio)
 		pdata->pmic_id_irq = gpio_to_irq(pdata->id_gnd_gpio);
 	return;
 
 free_gnd:
-	gpio_free(pdata->id_gnd_gpio);
-	pdata->id_gnd_gpio = 0;
+	if (pdata->id_gnd_gpio != pdata->id_flt_gpio) {
+		gpio_free(pdata->id_gnd_gpio);
+		pdata->id_gnd_gpio = 0;
+	}
 free_flt:
 	gpio_free(pdata->id_flt_gpio);
 	pdata->id_flt_gpio = 0;
@@ -4337,6 +4379,8 @@ struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 				"qcom,hsusb-l1-supported");
 	pdata->enable_ahb2ahb_bypass = of_property_read_bool(node,
 				"qcom,ahb-async-bridge-bypass");
+	pdata->disable_retention_with_vdd_min = of_property_read_bool(node,
+				"qcom,disable-retention-with-vdd-min");
 
 	msm_otg_get_id_gpio(pdata, pdev);
 
@@ -4348,16 +4392,20 @@ static void __init msm_otg_get_factory_kill_gpio(void)
 	struct device_node *n = NULL;
 	int i, gpio_count;
 	struct gpio gpio;
+	enum of_gpio_flags flags;
 
 	n = of_find_compatible_node(n, NULL, "mmi,factory-support-msm8960");
 	if (!n)
 		return;
 	gpio_count = of_gpio_count(n);
 	for (i = 0; i < gpio_count; i++) {
-		gpio.gpio = of_get_gpio(n, i);
+		gpio.gpio = of_get_gpio_flags(n, i, &flags);
+		gpio.flags = flags;
 		of_property_read_string_index(n, "gpio-names", i, &gpio.label);
 		if (!strcmp(gpio.label, "factory_kill_disable")) {
 			factory_kill_gpio = gpio.gpio;
+			factory_kill_gpio_active_high =
+				!((gpio.flags & 0x2) >> 1);
 			break;
 		}
 	}
@@ -4695,23 +4743,21 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 		goto free_async_irq;
 	}
 
-	if (motg->pdata->mode == USB_OTG &&
-		motg->pdata->otg_control == OTG_PMIC_CONTROL) {
-		if (motg->pdata->pmic_id_irq) {
-			ret = request_irq(motg->pdata->pmic_id_irq,
-						msm_pmic_id_irq,
-						IRQF_TRIGGER_RISING |
-						IRQF_TRIGGER_FALLING,
-						"msm_otg", motg);
-			if (ret) {
-				dev_err(&pdev->dev, "request irq failed for PMIC ID\n");
-				goto remove_phy;
-			}
-		} else {
-			ret = -ENODEV;
-			dev_err(&pdev->dev, "PMIC IRQ for ID notifications doesn't exist\n");
+
+	if (motg->pdata->pmic_id_irq) {
+		ret = request_irq(motg->pdata->pmic_id_irq,
+				  msm_pmic_id_irq,
+				  IRQF_TRIGGER_RISING |
+				  IRQF_TRIGGER_FALLING,
+				  "msm_otg", motg);
+		if (ret) {
+			dev_err(&pdev->dev, "request irq failed for PMIC ID\n");
 			goto remove_phy;
 		}
+	} else {
+		ret = -ENODEV;
+		dev_err(&pdev->dev, "PMIC IRQ for ID notifications doesn't exist\n");
+		goto remove_phy;
 	}
 
 	msm_hsusb_mhl_switch_enable(motg, 1);
@@ -4744,6 +4790,9 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 
 	if (motg->pdata->enable_lpm_on_dev_suspend)
 		motg->caps |= ALLOW_LPM_ON_DEV_SUSPEND;
+
+	if (motg->pdata->disable_retention_with_vdd_min)
+		motg->caps |= ALLOW_VDD_MIN_WITH_RETENTION_DISABLED;
 
 	wake_lock(&motg->wlock);
 	pm_runtime_set_active(&pdev->dev);
@@ -4883,7 +4932,8 @@ static int __devexit msm_otg_remove(struct platform_device *pdev)
 		(motg->pdata->mpm_dpshv_int || motg->pdata->mpm_dmshv_int))
 			device_remove_file(&pdev->dev,
 					&dev_attr_dpdm_pulldown_enable);
-	if (motg->pdata->id_gnd_gpio)
+	if ((motg->pdata->id_gnd_gpio) &&
+	    (motg->pdata->id_gnd_gpio != motg->pdata->id_flt_gpio))
 		gpio_free(motg->pdata->id_gnd_gpio);
 	if (motg->pdata->id_flt_gpio)
 		gpio_free(motg->pdata->id_flt_gpio);
