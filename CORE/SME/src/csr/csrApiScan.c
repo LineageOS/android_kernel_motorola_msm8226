@@ -134,7 +134,7 @@ static tCsrIgnoreChannels countryIgnoreList[MAX_COUNTRY_IGNORE] = {
     { {'T','W'}, { 36, 40, 44, 48, 52}, 5},
     { {'I','D'}, { 165}, 1 },
     { {'A','U'}, { 120, 124, 128}, 3 },
-    { {'A','G'}, { 120, 124, 128}, 3 }
+    { {'A','R'}, { 120, 124, 128}, 3 }
     };
 
 //*** This is temporary work around. It need to call CCM api to get to CFG later
@@ -3582,8 +3582,8 @@ void csrApplyCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForce )
                 {
                    smsLog(pMac, LOGW, FL("Domain Changed Old %d, new %d"),
                                       pMac->scan.domainIdCurrent, domainId);
+                   status = WDA_SetRegDomain(pMac, domainId);
                 }
-                status = WDA_SetRegDomain(pMac, domainId);
                 if (status != eHAL_STATUS_SUCCESS)
                 {
                     smsLog( pMac, LOGE, FL("  fail to set regId %d"), domainId );
@@ -3940,7 +3940,7 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription
                     (tSirMacChanInfo *)(&pIesLocal->Country.triplets[0]) ))
         {
             fRet = eANI_BOOLEAN_FALSE;
-            return fRet;
+            break;
         }
 
         // set the indicator of the channel where the country IE was found...
@@ -3950,8 +3950,7 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription
         if ( domainId != pMac->scan.domainIdCurrent )
         {
             tSirMacChanInfo* pMacChnSet = (tSirMacChanInfo *)(&pIesLocal->Country.triplets[0]);
-            WDA_SetRegDomain(pMac, domainId);
-            // Check weather AP provided the 2.4GHZ list or 5GHZ list
+            // Check whether AP provided the 2.4GHZ list or 5GHZ list
             if(CSR_IS_CHANNEL_24GHZ(pMacChnSet[0].firstChanNum))
             {
                 // AP Provided the 2.4 Channels, Update the 5GHz channels from nv.bin
@@ -3962,6 +3961,9 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription
                 // AP Provided the 5G Channels, Update the 2.4GHZ channel list from nv.bin
                 csrGet24GChannels(pMac );
             }
+            csrSetCfgCountryCode(pMac, pIesLocal->Country.country);
+            WDA_SetRegDomain(pMac, domainId);
+            pMac->scan.domainIdCurrent = domainId;
         }
         // Populate both band channel lists based on what we found in the country information...
         csrSetOppositeBandChannelInfo( pMac );
@@ -7726,6 +7728,11 @@ eHalStatus csrScanSavePreferredNetworkFound(tpAniSirGlobal pMac,
    //Add to scan cache
    csrScanAddResult(pMac, pScanResult, pIesLocal);
 
+   if( (pScanResult->Result.pvIes == NULL) && pIesLocal )
+   {
+       vos_mem_free(pIesLocal);
+   }
+
    vos_mem_free(pParsedFrame);
 
    return eHAL_STATUS_SUCCESS;
@@ -7876,3 +7883,15 @@ eHalStatus csrScanCreateEntryInScanCache(tpAniSirGlobal pMac, tANI_U32 sessionId
     }
     return status;
 }
+
+#ifdef FEATURE_WLAN_CCX
+//  Update the TSF with the difference in system time
+void UpdateCCKMTSF(tANI_U32 *timeStamp0, tANI_U32 *timeStamp1, tANI_U32 *incr)
+{
+    tANI_U64 timeStamp64 = ((tANI_U64)*timeStamp1 << 32) | (*timeStamp0);
+
+    timeStamp64 = (tANI_U64)(timeStamp64 + (tANI_U64)*incr);
+    *timeStamp0 = (tANI_U32)(timeStamp64 & 0xffffffff);
+    *timeStamp1 = (tANI_U32)((timeStamp64 >> 32) & 0xffffffff);
+}
+#endif
