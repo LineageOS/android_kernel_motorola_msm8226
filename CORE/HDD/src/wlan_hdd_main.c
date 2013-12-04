@@ -5961,12 +5961,7 @@ int hdd_wlan_startup(struct device *dev )
    init_completion(&pHddCtx->req_bmps_comp_var);
    init_completion(&pHddCtx->scan_info.scan_req_completion_event);
    init_completion(&pHddCtx->scan_info.abortscan_event_var);
-
-#ifdef CONFIG_ENABLE_LINUX_REG
    init_completion(&pHddCtx->linux_reg_req);
-#else
-   init_completion(&pHddCtx->driver_crda_req);
-#endif
 
    spin_lock_init(&pHddCtx->schedScan_lock);
 
@@ -6103,20 +6098,11 @@ int hdd_wlan_startup(struct device *dev )
       goto err_wdclose;
    }
 
-#ifdef CONFIG_ENABLE_LINUX_REG
-   /* registration of wiphy dev with cfg80211 */
-   if (0 > wlan_hdd_cfg80211_register(wiphy))
-   {
-       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
-       goto err_clkvote;
-   }
-#endif
-
    status = vos_open( &pVosContext, 0);
    if ( !VOS_IS_STATUS_SUCCESS( status ))
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_open failed", __func__);
-      goto err_wiphy_unregister;
+      goto err_clkvote;
    }
 
    pHddCtx->hHal = (tHalHandle)vos_get_context( VOS_MODULE_ID_SME, pVosContext );
@@ -6257,8 +6243,6 @@ int hdd_wlan_startup(struct device *dev )
          __func__);
       goto err_vosstop;
    }
-
-#ifndef CONFIG_ENABLE_LINUX_REG
    wlan_hdd_cfg80211_update_reg_info( wiphy );
 
    /* registration of wiphy dev with cfg80211 */
@@ -6267,7 +6251,6 @@ int hdd_wlan_startup(struct device *dev )
        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
        goto err_vosstop;
    }
-#endif
 
    if (VOS_STA_SAP_MODE == hdd_get_conparam())
    {
@@ -6512,10 +6495,7 @@ err_bap_close:
 
 err_close_adapter:
    hdd_close_all_adapters( pHddCtx );
-
-#ifndef CONFIG_ENABLE_LINUX_REG
    wiphy_unregister(wiphy) ;
-#endif
 
 err_vosstop:
    vos_stop(pVosContext);
@@ -6529,14 +6509,7 @@ err_vosclose:
    }
    vos_close(pVosContext );
 
-err_wiphy_unregister:
-
-#ifdef CONFIG_ENABLE_LINUX_REG
-   wiphy_unregister(wiphy);
-
 err_clkvote:
-#endif
-
    vos_chipVoteOffXOBuffer(NULL, NULL, NULL);
 
 err_wdclose:
