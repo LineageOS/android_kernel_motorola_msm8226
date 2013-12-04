@@ -573,13 +573,9 @@ v_REGDOMAIN_t csrGetCurrentRegulatoryDomain(tpAniSirGlobal pMac);
     CSR.
     \param pCountry - Caller allocated buffer with at least 3 bytes specifying the country code
     \param pDomainId - Caller allocated buffer to get the return domain ID upon success return. Can be NULL.
-    \param source - the source of country information.
     \return eHalStatus     
   -------------------------------------------------------------------------------*/
-eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac,
-                                            tANI_U8 *pCountry,
-                                            v_REGDOMAIN_t *pDomainId,
-                                            v_CountryInfoSource_t source);
+eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac, tANI_U8 *pCountry, v_REGDOMAIN_t *pDomainId);
 
 
 tANI_BOOLEAN csrSave11dCountryString( tpAniSirGlobal pMac, tANI_U8 *pCountryCode, tANI_BOOLEAN fForce );
