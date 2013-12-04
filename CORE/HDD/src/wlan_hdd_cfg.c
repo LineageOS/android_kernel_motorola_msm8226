@@ -2773,6 +2773,13 @@ REG_VARIABLE( CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD, WLAN_PARAM_Integer,
                  CFG_PNO_SCAN_TIMER_REPEAT_VALUE_MIN,
                  CFG_PNO_SCAN_TIMER_REPEAT_VALUE_MAX),
 #endif
+
+   REG_VARIABLE( CFG_DISABLE_ATH_NAME , WLAN_PARAM_Integer,
+                 hdd_config_t, cfgAthDisable,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_DISABLE_ATH_DEFAULT,
+                 CFG_DISABLE_ATH_MIN,
+                 CFG_DISABLE_ATH_MAX ),
 };
 
 /*
@@ -4334,6 +4341,14 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
    {
       fStatus = FALSE;
       hddLog(LOGE, "Could not pass on WNI_CFG_ANTENNA_DIVESITY to CCM");
+   }
+
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_ATH_DISABLE,
+                    pConfig->cfgAthDisable, NULL,
+                    eANI_BOOLEAN_FALSE)==eHAL_STATUS_FAILURE)
+   {
+      fStatus = FALSE;
+      hddLog(LOGE, "Could not pass on WNI_CFG_ATH_DISABLE to CCM");
    }
 
    return fStatus;
