@@ -1973,6 +1973,14 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_MIN     ( 0 )
 #define CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_MAX     ( 1 )
 
+//Enable Memory Debug
+#ifdef MEMORY_DEBUG
+#define CFG_ENABLE_MEMORY_DEBUG_NAME             "gEnableMemoryDebug"
+#define CFG_ENABLE_MEMORY_DEBUG_MIN              (0)
+#define CFG_ENABLE_MEMORY_DEBUG_MAX              (1)
+#define CFG_ENABLE_MEMORY_DEBUG_DEFAULT          (0)
+#endif
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -2383,6 +2391,9 @@ typedef struct
    v_U32_t                     cfgBtcSapActiveBtLen;
    v_U8_t                      nSelect5GHzMargin;
    v_BOOL_t                    debugP2pRemainOnChannel;
+#ifdef MEMORY_DEBUG
+   v_BOOL_t                    IsMemoryDebugSupportEnabled;
+#endif
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
