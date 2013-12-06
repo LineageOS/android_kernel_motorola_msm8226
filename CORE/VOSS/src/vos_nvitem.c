@@ -68,6 +68,9 @@
 #include "wlan_hdd_main.h"
 #include <net/cfg80211.h>
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0))
+#define IEEE80211_CHAN_NO_80MHZ		1<<7
+#endif
 
 #ifdef CONFIG_ENABLE_LINUX_REG
 
@@ -3068,6 +3071,7 @@ static int create_linux_regulatory_entry(struct wiphy *wiphy,
             }
 
 
+
         }
     }
 
@@ -3181,6 +3185,39 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
                                      temp_reg_domain);
 
     }
+    else if (request->initiator ==  NL80211_REGDOM_SET_BY_CORE)
+    {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                   "CC from kernel %c %c", request->alpha2[0], request->alpha2[1]);
+
+        /* now pass the country information to sme to make sure driver is in
+           sync in case we are back to world mode*/
+        if (request->alpha2[0] == '0' && request->alpha2[1] == '0')
+        {
+           nBandCapability = pHddCtx->cfg_ini->nBandCapability;
+           isVHT80Allowed = pHddCtx->isVHT80Allowed;
+           if (create_linux_regulatory_entry(wiphy, request,
+                                             pHddCtx->cfg_ini->nBandCapability) == 0)
+           {
+               VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                         (" regulatory entry created"));
+
+           }
+           if (pHddCtx->isVHT80Allowed != isVHT80Allowed)
+           {
+              hdd_checkandupdate_phymode( pHddCtx);
+           }
+
+           cur_reg_domain = REGDOMAIN_WORLD;
+           linux_reg_cc[0] = country_code[0];
+           linux_reg_cc[1] = country_code[1];
+
+           country_code[0] = request->alpha2[0];
+           country_code[1] = request->alpha2[1];
+           sme_GenericChangeCountryCode(pHddCtx->hHal, country_code,
+                                        REGDOMAIN_COUNT);
+        }
+    }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
     return;
@@ -3237,21 +3274,18 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
         wiphy->flags |= WIPHY_FLAG_STRICT_REGULATORY;
     }
 
+    m = 0;
     for (i = 0; i < IEEE80211_NUM_BANDS; i++)
     {
 
         if (wiphy->bands[i] == NULL)
         {
             pr_info("error: wiphy->bands[i] is NULL, i = %d\n", i);
-            return VOS_STATUS_E_FAULT;
+            continue;
         }
 
         /* internal channels[] is one continous array for both 2G and 5G bands
            m is internal starting channel index for each band */
-        if (i == 0)
-            m = 0;
-        else
-            m = wiphy->bands[i-1]->n_channels + m;
 
         for (j = 0; j < wiphy->bands[i]->n_channels; j++)
         {
@@ -3278,6 +3312,8 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
                     (pnvEFSTable->halnv.tables.regDomains[reg_domain].channels[k].pwrLimit)*100;
             }
         }
+
+	m += wiphy->bands[i]->n_channels;
     }
 
     return VOS_STATUS_SUCCESS;
