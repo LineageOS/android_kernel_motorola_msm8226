@@ -206,6 +206,7 @@ void hdd_wlan_initial_scan(hdd_adapter_t *pAdapter);
 int isWDresetInProgress(void);
 
 extern int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr);
+
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
 void hdd_getBand_helper(hdd_context_t *pHddCtx, int *pBand);
 static VOS_STATUS hdd_parse_channellist(tANI_U8 *pValue, tANI_U8 *pChannelList, tANI_U8 *pNumChannels);
@@ -464,7 +465,85 @@ int wlan_hdd_validate_context(hdd_context_t *pHddCtx)
     }
     return 0;
 }
+#ifdef CONFIG_ENABLE_LINUX_REG
+void hdd_checkandupdate_phymode( hdd_context_t *pHddCtx)
+{
+   hdd_adapter_t *pAdapter = NULL;
+   hdd_station_ctx_t *pHddStaCtx = NULL;
+   eCsrPhyMode phyMode;
+   hdd_config_t *cfg_param = NULL;
 
+   if (NULL == pHddCtx)
+   {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+               "HDD Context is null !!");
+       return ;
+   }
+
+   pAdapter = hdd_get_adapter(pHddCtx, WLAN_HDD_INFRA_STATION);
+   if (NULL == pAdapter)
+   {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+               "pAdapter is null !!");
+       return ;
+   }
+
+   pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
+   if (NULL == pHddStaCtx)
+   {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+               "pHddStaCtx is null !!");
+       return ;
+   }
+
+   cfg_param = pHddCtx->cfg_ini;
+   if (NULL == cfg_param)
+   {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+               "cfg_params not available !!");
+       return ;
+   }
+
+   phyMode = sme_GetPhyMode(WLAN_HDD_GET_HAL_CTX(pAdapter));
+
+   if (!pHddCtx->isVHT80Allowed)
+   {
+       if ((eCSR_DOT11_MODE_AUTO == phyMode) ||
+           (eCSR_DOT11_MODE_11ac == phyMode) ||
+           (eCSR_DOT11_MODE_11ac_ONLY == phyMode))
+       {
+            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                    "Setting phymode to 11n!!");
+           sme_SetPhyMode(WLAN_HDD_GET_HAL_CTX(pAdapter), eCSR_DOT11_MODE_11n);
+       }
+   }
+   else
+   {
+       /*New country Supports 11ac as well resetting value back from .ini*/
+       sme_SetPhyMode(WLAN_HDD_GET_HAL_CTX(pAdapter),
+             hdd_cfg_xlate_to_csr_phy_mode(cfg_param->dot11Mode));
+       return ;
+   }
+
+   if ((eConnectionState_Associated == pHddStaCtx->conn_info.connState) &&
+       ((eCSR_CFG_DOT11_MODE_11AC_ONLY == pHddStaCtx->conn_info.dot11Mode) ||
+        (eCSR_CFG_DOT11_MODE_11AC == pHddStaCtx->conn_info.dot11Mode)))
+   {
+       VOS_STATUS vosStatus;
+
+       // need to issue a disconnect to CSR.
+       INIT_COMPLETION(pAdapter->disconnect_comp_var);
+       vosStatus = sme_RoamDisconnect(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                          pAdapter->sessionId,
+                          eCSR_DISCONNECT_REASON_UNSPECIFIED );
+
+       if (VOS_STATUS_SUCCESS == vosStatus)
+           wait_for_completion_interruptible_timeout(&pAdapter->disconnect_comp_var,
+                 msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
+
+   }
+}
+#else
 void hdd_checkandupdate_phymode( hdd_adapter_t *pAdapter, char *country_code)
 {
     hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
@@ -527,6 +606,7 @@ void hdd_checkandupdate_phymode( hdd_adapter_t *pAdapter, char *country_code)
 
     }
 }
+#endif //CONFIG_ENABLE_LINUX_REG
 
 void hdd_checkandupdate_dfssetting( hdd_adapter_t *pAdapter, char *country_code)
 {
@@ -615,7 +695,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
    if ((SIOCDEVPRIVATE + 1) == cmd)
    {
        hdd_context_t *pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
-       struct wiphy *wiphy = pHddCtx->wiphy;
 
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                   "%s: Received %s cmd from Wi-Fi GUI***", __func__, command);
@@ -651,22 +730,29 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            country_code = command + 8;
 
            hdd_checkandupdate_dfssetting(pAdapter, country_code);
+#ifndef CONFIG_ENABLE_LINUX_REG
            hdd_checkandupdate_phymode(pAdapter, country_code);
-           ret = (int)sme_ChangeCountryCode(pHddCtx->hHal, NULL, country_code,
-                    pAdapter, pHddCtx->pvosContext, eSIR_TRUE);
-           if( 0 != ret )
+#endif
+           ret = (int)sme_ChangeCountryCode(pHddCtx->hHal,
+                  (void *)(tSmeChangeCountryCallback)
+                    wlan_hdd_change_country_code_callback,
+                     country_code, pAdapter, pHddCtx->pvosContext, eSIR_TRUE);
+           if (eHAL_STATUS_SUCCESS == ret)
+           {
+               ret = wait_for_completion_interruptible_timeout(
+                       &pAdapter->change_country_code,
+                            msecs_to_jiffies(WLAN_WAIT_TIME_COUNTRY));
+               if (0 >= ret)
+               {
+                   hddLog(VOS_TRACE_LEVEL_ERROR, "%s: SME while setting country code timed out",
+                   __func__);
+               }
+           }
+           else
            {
                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
                        "%s: SME Change Country code fail ret=%d\n",__func__, ret);
 
-           }
-           /* If you get a 00 country code it means you are world roaming.
-           In case of world roaming, country code should be updated by
-           DRIVER COUNTRY */
-           if (memcmp(pHddCtx->cfg_ini->crdaDefaultCountryCode,
-                            CFG_CRDA_DEFAULT_COUNTRY_CODE_DEFAULT , 2) == 0)
-           {
-              regulatory_hint(wiphy, "00");
            }
        }
        /*
@@ -5970,7 +6056,12 @@ int hdd_wlan_startup(struct device *dev )
    init_completion(&pHddCtx->req_bmps_comp_var);
    init_completion(&pHddCtx->scan_info.scan_req_completion_event);
    init_completion(&pHddCtx->scan_info.abortscan_event_var);
+
+#ifdef CONFIG_ENABLE_LINUX_REG
+   init_completion(&pHddCtx->linux_reg_req);
+#else
    init_completion(&pHddCtx->driver_crda_req);
+#endif
 
    spin_lock_init(&pHddCtx->schedScan_lock);
 
@@ -6107,11 +6198,43 @@ int hdd_wlan_startup(struct device *dev )
       goto err_wdclose;
    }
 
+#ifdef CONFIG_ENABLE_LINUX_REG
+   /* initialize the NV module. This is required so that
+      we can initialize the channel information in wiphy
+      from the NV.bin data. The channel information in
+      wiphy needs to be initialized before wiphy registration */
+
+   status = vos_nv_open();
+   if (!VOS_IS_STATUS_SUCCESS(status))
+   {
+       /* NV module cannot be initialized */
+       hddLog( VOS_TRACE_LEVEL_FATAL,
+                "%s: vos_nv_open failed", __func__);
+       goto err_clkvote;
+   }
+
+   status = vos_init_wiphy_from_nv_bin();
+   if (!VOS_IS_STATUS_SUCCESS(status))
+   {
+       /* NV module cannot be initialized */
+       hddLog( VOS_TRACE_LEVEL_FATAL,
+               "%s: vos_init_wiphy failed", __func__);
+       goto err_vos_nv_close;
+   }
+
+   /* registration of wiphy dev with cfg80211 */
+   if (0 > wlan_hdd_cfg80211_register(wiphy))
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
+       goto err_vos_nv_close;
+   }
+#endif
+
    status = vos_open( &pVosContext, 0);
    if ( !VOS_IS_STATUS_SUCCESS( status ))
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_open failed", __func__);
-      goto err_clkvote;
+      goto err_wiphy_unregister;
    }
 
    pHddCtx->hHal = (tHalHandle)vos_get_context( VOS_MODULE_ID_SME, pVosContext );
@@ -6252,6 +6375,8 @@ int hdd_wlan_startup(struct device *dev )
          __func__);
       goto err_vosstop;
    }
+
+#ifndef CONFIG_ENABLE_LINUX_REG
    wlan_hdd_cfg80211_update_reg_info( wiphy );
 
    /* registration of wiphy dev with cfg80211 */
@@ -6260,6 +6385,7 @@ int hdd_wlan_startup(struct device *dev )
        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
        goto err_vosstop;
    }
+#endif
 
    if (VOS_STA_SAP_MODE == hdd_get_conparam())
    {
@@ -6504,21 +6630,35 @@ err_bap_close:
 
 err_close_adapter:
    hdd_close_all_adapters( pHddCtx );
+
+#ifndef CONFIG_ENABLE_LINUX_REG
    wiphy_unregister(wiphy) ;
+#endif
 
 err_vosstop:
    vos_stop(pVosContext);
 
-err_vosclose:    
+err_vosclose:
    status = vos_sched_close( pVosContext );
    if (!VOS_IS_STATUS_SUCCESS(status))    {
       VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
          "%s: Failed to close VOSS Scheduler", __func__);
       VOS_ASSERT( VOS_IS_STATUS_SUCCESS( status ) );
    }
-   vos_close(pVosContext ); 
+   vos_close(pVosContext );
+
+err_wiphy_unregister:
+
+#ifdef CONFIG_ENABLE_LINUX_REG
+   wiphy_unregister(wiphy);
+
+err_vos_nv_close:
+
+   vos_nv_close();
 
 err_clkvote:
+#endif
+
    vos_chipVoteOffXOBuffer(NULL, NULL, NULL);
 
 err_wdclose:

@@ -135,8 +135,13 @@
 
 /** Maximum time(ms) to wait for tdls initiator to start direct communication **/
 #define WAIT_TIME_TDLS_INITIATOR    600
-/* Maximum time to get crda entry settings */
+
+/* Maximum time to get linux regulatory entry settings */
+#ifdef CONFIG_ENABLE_LINUX_REG
+#define LINUX_REG_WAIT_TIME 300
+#else
 #define CRDA_WAIT_TIME 300
+#endif
 
 /* Scan Req Timeout */
 #define WLAN_WAIT_TIME_SCAN_REQ 100
@@ -959,8 +964,12 @@ struct hdd_context_s
    /* Completion  variable to indicate Mc Thread Suspended */
    struct completion mc_sus_event_var;
 
-   /* Completion  variable to wlan_hdd_get_crda_regd_entry  */
+   /* Completion variable for regulatory hint  */
+#ifdef CONFIG_ENABLE_LINUX_REG
+   struct completion linux_reg_req;
+#else
    struct completion driver_crda_req;
+#endif
 
    v_BOOL_t isWlanSuspended;
 
@@ -1088,6 +1097,10 @@ struct hdd_context_s
     vos_timer_t    tx_rx_trafficTmr;
     v_U8_t         drvr_miracast;
     v_U8_t         issplitscan_enabled;
+
+    /* VHT80 allowed*/
+    v_BOOL_t isVHT80Allowed;
+
 };
 
 
@@ -1145,7 +1158,7 @@ v_BOOL_t hdd_is_suspend_notify_allowed(hdd_context_t* pHddCtx);
 void hdd_abort_mac_scan(hdd_context_t *pHddCtx);
 void wlan_hdd_set_monitor_tx_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter );
 void hdd_cleanup_actionframe( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter );
-v_BOOL_t is_crda_regulatory_entry_valid(void);
+
 void crda_regulatory_entry_default(v_U8_t *countryCode, int domain_id);
 void wlan_hdd_set_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode);
 void wlan_hdd_clear_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode);
@@ -1168,5 +1181,8 @@ int wlan_hdd_validate_context(hdd_context_t *pHddCtx);
 VOS_STATUS hdd_issta_p2p_clientconnected(hdd_context_t *pHddCtx);
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType, tANI_U8 sessionId);
+#endif
+#ifdef CONFIG_ENABLE_LINUX_REG
+void hdd_checkandupdate_phymode( hdd_context_t *pHddCtx);
 #endif
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )
