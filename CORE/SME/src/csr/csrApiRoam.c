@@ -3792,6 +3792,10 @@ eHalStatus csrRoamSetBssConfigCfg(tpAniSirGlobal pMac, tANI_U32 sessionId, tCsrR
             {
                 csrApplyCountryInformation(pMac, TRUE);
             }
+            //Let's also update the below to make sure we don't update CC while
+            //connected to an AP which is advertising some CC
+            palCopyMemory(pMac->hHdd, pMac->scan.currentCountryBssid,
+                            pBssDesc->bssId, sizeof(tSirMacAddr));
         }
         if ((csrIs11dSupported (pMac)) && pIes)
         {
