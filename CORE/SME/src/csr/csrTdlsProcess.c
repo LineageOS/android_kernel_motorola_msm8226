@@ -534,7 +534,8 @@ eHalStatus csrTdlsProcessSendMgmt( tpAniSirGlobal pMac, tSmeCmd *cmd )
     if(tdlsSendMgmtCmdInfo->len && tdlsSendMgmtCmdInfo->buf)
     {
         //Done with the buf. Free it.
-        palFreeMemory( pMac->hHdd, tdlsSendMgmtCmdInfo->buf );
+        vos_mem_free( tdlsSendMgmtCmdInfo->buf );
+        tdlsSendMgmtCmdInfo->buf = NULL;
         tdlsSendMgmtCmdInfo->len = 0;
     }
 

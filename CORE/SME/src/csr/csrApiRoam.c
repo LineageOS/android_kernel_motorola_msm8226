@@ -8833,6 +8833,7 @@ void csrRoamRssiRspProcessor(tpAniSirGlobal pMac, void* pMsg)
             ((tCsrRssiCallback)(reqBkp->rssiCallback))(rssi, pRoamRssiRsp->staId, reqBkp->pDevContext);
             reqBkp->rssiCallback = NULL;
             vos_mem_free(reqBkp);
+            pRoamRssiRsp->rssiReq = NULL;
         }
         else
         {
@@ -8840,6 +8841,7 @@ void csrRoamRssiRspProcessor(tpAniSirGlobal pMac, void* pMsg)
             if (NULL != reqBkp)
             {
                 vos_mem_free(reqBkp);
+                pRoamRssiRsp->rssiReq = NULL;
             }
         }
     }
@@ -8872,6 +8874,7 @@ void csrTsmStatsRspProcessor(tpAniSirGlobal pMac, void* pMsg)
                 reqBkp->tsmStatsCallback = NULL;
             }
             vos_mem_free(reqBkp);
+            pTsmStatsRsp->tsmStatsReq = NULL;
         }
         else
         {
@@ -8879,6 +8882,7 @@ void csrTsmStatsRspProcessor(tpAniSirGlobal pMac, void* pMsg)
             if (NULL != reqBkp)
             {
                 vos_mem_free(reqBkp);
+                pTsmStatsRsp->tsmStatsReq = NULL;
             }
         }
     }
