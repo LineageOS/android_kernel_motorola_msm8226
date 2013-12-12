@@ -192,8 +192,9 @@ limCompareCapabilities(tpAniSirGlobal pMac,
         (pAssocReq->capabilityInfo.shortPreamble !=
          pLocalCapabs->shortPreamble))
     {
-        PELOG1(limLog(pMac, LOG1,
-           FL("Allowing a STA requesting short preamble while AP does not support it"));)
+
+        // Allowing a STA requesting short preamble while
+        // AP does not support it
 #if 0
         // AP does not support short preamable
         return false;
@@ -201,7 +202,7 @@ limCompareCapabilities(tpAniSirGlobal pMac,
     }
 
 
-    limLog(pMac, LOGW, "QoS in AssocReq: %d, local ShortP: %d",
+    limLog(pMac, LOG1, "QoS in AssocReq: %d, local capabs qos: %d",
               pAssocReq->capabilityInfo.qos,
               pLocalCapabs->qos);
 
@@ -213,7 +214,8 @@ limCompareCapabilities(tpAniSirGlobal pMac,
           CSR - proper fix needs to be put in place*/
         if ( 0 != vos_get_skip_11e_check())
         {
-             limLog(pMac, LOG1, FL("Received unmatched QOS but cfg to suppress - continuing"));
+             limLog(pMac, LOG1, FL("Received unmatched QOS but cfg to suppress"
+                                                            " - continuing"));
         }
         else
         {
@@ -280,7 +282,6 @@ limCheckRxBasicRates(tpAniSirGlobal pMac, tSirMacRateSet rxRateSet,tpPESession p
     pRateSet = vos_mem_malloc(sizeof(tSirMacRateSet));
     if (NULL == pRateSet)
     {
-        // Log error
         limLog(pMac, LOGP, FL("call to AllocateMemory failed for RATESET"));
 
         return false;
@@ -397,7 +398,9 @@ limCheckMCSSet(tpAniSirGlobal pMac, tANI_U8* supportedMCSSet)
     {
         if( (basicMCSSet[i] & supportedMCSSet[i]) != basicMCSSet[i])
             {
-                PELOGW(limLog(pMac, LOGW, FL("One of Basic MCS Set Rates is not supported by the Station."));)
+                //Log is avaiable in calling function in file limProcessAssocReqFrame.c
+                limLog(pMac, LOGW, FL("One of Basic MCS Set Rates is"
+                             "not supported by the Station."));
                 return false;
             }
     }
@@ -406,7 +409,9 @@ limCheckMCSSet(tpAniSirGlobal pMac, tANI_U8* supportedMCSSet)
     if( ((basicMCSSet[i] & lastByteMCSMask) & (supportedMCSSet[i] & lastByteMCSMask)) !=
           (basicMCSSet[i] & lastByteMCSMask))
         {
-            PELOGW(limLog(pMac, LOGW, FL("One of Basic MCS Set Rates is not supported by the Station."));)
+            //Log is avaiable in calling function in file limProcessAssocReqFrame.c
+            limLog(pMac, LOGW, FL("One of Basic MCS Set Rates is not"
+                     "supported by the Station."));
             return false;
         }
 
@@ -646,7 +651,7 @@ limCleanupRxPath(tpAniSirGlobal pMac, tpDphHashNode pStaDs,tpPESession psessionE
     tSirRetStatus       retCode = eSIR_SUCCESS;
 
 
-    PELOG2(limLog( pMac, LOG2, FL("**Initiate cleanup"));)
+    limLog( pMac, LOG1, FL("**Initiate cleanup"));
 
     limAbortBackgroundScan( pMac );
 
@@ -1072,6 +1077,8 @@ limDecideApProtectionOnHt20Delete(tpAniSirGlobal pMac,
     if (psessionEntry->gLimHt20Params.numSta == 0)
     {
         // disable protection
+        limLog(pMac, LOG1, FL("No 11B STA exists, PESessionID %d"),
+                                  psessionEntry->peSessionId);
         limEnableHT20Protection(pMac, false, false, pBeaconParams,psessionEntry);
     }
 }
@@ -1168,7 +1175,6 @@ limDecideApProtectionOnDelete(tpAniSirGlobal pMac,
             if (psessionEntry->gLim11bParams.numSta == 0)
             {
                 // disable protection
-                PELOG1(limLog(pMac, LOG1, FL("No 11B STA exists"));)
                 limEnable11gProtection(pMac, false, false, pBeaconParams,psessionEntry);
             }
         }
@@ -1320,7 +1326,6 @@ void limDecideShortPreamble(tpAniSirGlobal pMac,
       if (psessionEntry->gLimNoShortParams.numNonShortPreambleSta == 0)
       {
          // enable short preamble
-         PELOG1(limLog(pMac, LOG1, FL("All associated STAs have short preamble support now."));)
          //reset the cache
          vos_mem_set((tANI_U8 *)&psessionEntry->gLimNoShortParams,
                       sizeof(tLimNoShortParams), 0);
@@ -1392,7 +1397,6 @@ limDecideShortSlot(tpAniSirGlobal pMac, tpDphHashNode pStaDs,
          (val && psessionEntry->gLimNoShortSlotParams.numNonShortSlotSta == 0))
       {
          // enable short slot time
-         PELOG1(limLog(pMac, LOG1, FL("All associated STAs have short slot time support now."));)
          //reset the cache
          vos_mem_set((tANI_U8 *)&psessionEntry->gLimNoShortSlotParams,
                      sizeof(tLimNoShortSlotParams), 0);
@@ -1409,7 +1413,6 @@ limDecideShortSlot(tpAniSirGlobal pMac, tpDphHashNode pStaDs,
          if (val && pMac->lim.gLimNoShortSlotParams.numNonShortSlotSta == 0)
          {
             // enable short slot time
-            PELOG1(limLog(pMac, LOG1, FL("All associated STAs have short slot time support now."));)
             //reset the cache
             vos_mem_set((tANI_U8 *)&pMac->lim.gLimNoShortSlotParams,
                         sizeof(tLimNoShortSlotParams), 0);
@@ -3152,8 +3155,10 @@ limCheckAndAnnounceJoinSuccess(tpAniSirGlobal pMac,
 
     if( (psessionEntry->limSystemRole == eLIM_BT_AMP_STA_ROLE)||(psessionEntry->limSystemRole == eLIM_STA_ROLE))
     {
-        PELOG1(limLog(pMac, LOG1, FL("Received Beacon/PR with matching BSSID"));)
-
+        limLog(pMac, LOG1, FL("Received Beacon/PR with matching BSSID"
+               MAC_ADDRESS_STR "PESessionID %d"),
+               MAC_ADDR_ARRAY(psessionEntry->bssId),
+                              psessionEntry->peSessionId );
         // Deactivate Join Failure timer
         limDeactivateAndChangeTimer(pMac, eLIM_JOIN_FAIL_TIMER);
         // Deactivate Periodic Join timer
