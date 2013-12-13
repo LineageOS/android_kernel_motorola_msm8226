@@ -80,7 +80,7 @@
 #include "csrInternal.h"
 #include "wlan_qct_wda.h"
 #include "halMsgApi.h"
-
+#include "vos_trace.h"
 #include "sapApi.h"
 
 
@@ -88,7 +88,7 @@
 extern tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 
 #include <wlan_qct_pal_api.h>
-
+#define LOG_SIZE 256
 #define READ_MEMORY_DUMP_CMD     9
 #define TL_INIT_STATE            0
 
@@ -110,6 +110,8 @@ static void smeAbortCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand, tANI_BOOLEA
 eCsrPhyMode sme_GetPhyMode(tHalHandle hHal);
 
 eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf);
+
+eHalStatus sme_HandleGenericChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf);
 
 eHalStatus sme_HandlePreChannelSwitchInd(tHalHandle hHal);
 
@@ -1913,14 +1915,26 @@ eHalStatus sme_ProcessMsg(tHalHandle hHal, vos_msg_t* pMsg)
                 break;
 
           case eWNI_SME_CHANGE_COUNTRY_CODE:
-                if(pMsg->bodyptr)
+              if(pMsg->bodyptr)
                 {
                    status = sme_HandleChangeCountryCode((void *)pMac, pMsg->bodyptr);
                    vos_mem_free(pMsg->bodyptr);
                 }
                 else
                 {
-                   smsLog(pMac, LOGE, "Empty rsp message for meas (eWNI_SME_COEX_IND), nothing to process");
+                    smsLog(pMac, LOGE, "Empty rsp message for message (eWNI_SME_CHANGE_COUNTRY_CODE), nothing to process");
+                }
+                break;
+
+          case eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE:
+              if (pMsg->bodyptr)
+                {
+                    status = sme_HandleGenericChangeCountryCode((void *)pMac, pMsg->bodyptr);
+                    vos_mem_free(pMsg->bodyptr);
+                }
+                else
+                {
+                   smsLog(pMac, LOGE, "Empty rsp message for message (eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE), nothing to process");
                 }
                 break;
 
@@ -4550,7 +4564,8 @@ eHalStatus sme_GetRegulatoryDomainForCountry(tHalHandle hHal, tANI_U8 *pCountry,
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
 
-    return ( csrGetRegulatoryDomainForCountry( pMac, pCountry, pDomainId ) );
+    return csrGetRegulatoryDomainForCountry(pMac, pCountry, pDomainId,
+                                            COUNTRY_QUERY);
 }
 
 
@@ -4706,6 +4721,76 @@ eHalStatus sme_ChangeCountryCode( tHalHandle hHal,
    }
 
    return (status);
+}
+
+/*--------------------------------------------------------------------------
+
+    \fn sme_GenericChangeCountryCode
+
+    \brief Change Country code from upperlayer during WLAN driver operation.
+           This is a synchronous API.
+
+    \param hHal - The handle returned by macOpen.
+
+    \param pCountry New Country Code String
+
+    \param reg_domain regulatory domain
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+
+-----------------------------------------------------------------------------*/
+eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
+                                         tANI_U8 *pCountry,
+                                         v_REGDOMAIN_t reg_domain)
+{
+    eHalStatus                status = eHAL_STATUS_FAILURE;
+    tpAniSirGlobal            pMac = PMAC_STRUCT( hHal );
+    vos_msg_t                 msg;
+    tAniGenericChangeCountryCodeReq *pMsg;
+
+    if (NULL == pMac)
+    {
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
+            "%s: pMac is null", __func__);
+        return status;
+    }
+
+    status = sme_AcquireGlobalLock( &pMac->sme );
+    if ( HAL_STATUS_SUCCESS( status ) )
+    {
+        smsLog(pMac, LOG1, FL(" called"));
+        status = palAllocateMemory(pMac->hHdd, (void **)&pMsg,
+                                   sizeof(tAniGenericChangeCountryCodeReq));
+
+        if (!HAL_STATUS_SUCCESS(status))
+        {
+            smsLog(pMac, LOGE, " sme_GenericChangeCountryCode: failed to allocate mem for req");
+            sme_ReleaseGlobalLock( &pMac->sme );
+            return status;
+        }
+
+        pMsg->msgType = pal_cpu_to_be16((tANI_U16)eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE);
+        pMsg->msgLen = (tANI_U16)sizeof(tAniGenericChangeCountryCodeReq);
+        palCopyMemory(pMac->hHdd, pMsg->countryCode, pCountry, 3);
+        pMsg->domain_index = reg_domain;
+
+        msg.type = eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE;
+        msg.bodyptr = pMsg;
+        msg.reserved = 0;
+
+        if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MQ_ID_SME, &msg))
+        {
+            smsLog(pMac, LOGE, "sme_GenericChangeCountryCode failed to post msg to self");
+            palFreeMemory(pMac->hHdd, (void *)pMsg);
+            status = eHAL_STATUS_FAILURE;
+        }
+        smsLog(pMac, LOG1, FL(" returned"));
+        sme_ReleaseGlobalLock( &pMac->sme );
+    }
+
+    return (status);
 }
 /* ---------------------------------------------------------------------------
 
@@ -5199,6 +5284,24 @@ VOS_STATUS sme_DbgWriteMemory(tHalHandle hHal, v_U32_t memAddr, v_U8_t *pBuf, v_
    sme_ReleaseGlobalLock(&pMac->sme);
     
    return (status);
+}
+
+
+void pmcLog(tpAniSirGlobal pMac, tANI_U32 loglevel, const char *pString, ...)
+{
+    VOS_TRACE_LEVEL  vosDebugLevel;
+    char    logBuffer[LOG_SIZE];
+    va_list marker;
+
+    /* getting proper Debug level */
+    vosDebugLevel = getVosDebugLevel(loglevel);
+
+    /* extracting arguments from pstring */
+    va_start( marker, pString );
+    vsnprintf(logBuffer, LOG_SIZE, pString, marker);
+
+    VOS_TRACE(VOS_MODULE_ID_PMC, vosDebugLevel, "%s", logBuffer);
+    va_end( marker );
 }
 
 
@@ -6742,7 +6845,7 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
 {
    eHalStatus  status = eHAL_STATUS_SUCCESS;
    tAniChangeCountryCodeReq *pMsg;
-   v_REGDOMAIN_t domainIdIoctl; 
+   v_REGDOMAIN_t domainIdIoctl;
    VOS_STATUS vosStatus = VOS_STATUS_SUCCESS;
    static uNvTables nvTables;
    pMsg = (tAniChangeCountryCodeReq *)pMsgBuf;
@@ -6808,12 +6911,23 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
    palCopyMemory(pMac->hHdd, pMac->scan.countryCodeDefault, pMac->scan.countryCodeCurrent, WNI_CFG_COUNTRY_CODE_LEN);
 
    /* Get Domain ID from country code */
-   status = csrGetRegulatoryDomainForCountry( pMac, pMac->scan.countryCodeCurrent,(v_REGDOMAIN_t *) &domainIdIoctl );
+   status = csrGetRegulatoryDomainForCountry(pMac,
+                   pMac->scan.countryCodeCurrent,
+                   (v_REGDOMAIN_t *) &domainIdIoctl,
+                   COUNTRY_QUERY);
    if ( status != eHAL_STATUS_SUCCESS )
    {
        smsLog( pMac, LOGE, FL("  fail to get regId %d"), domainIdIoctl );
        return status;
    }
+   else if (REGDOMAIN_WORLD == domainIdIoctl)
+   {
+       /* Supplicant country code is invalid, so we are on world mode now. So
+          give 11D chance to update */
+       pMac->roam.configParam.Is11dSupportEnabled = pMac->roam.configParam.Is11dSupportEnabledOriginal;
+       smsLog(pMac, LOG1, FL("Country Code unrecognized by driver"));
+   }
+
 
    status = WDA_SetRegDomain(pMac, domainIdIoctl);
 
@@ -6822,7 +6936,18 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
        smsLog( pMac, LOGE, FL("  fail to set regId %d"), domainIdIoctl );
        return status;
    }
-
+   else
+   {
+       //if 11d has priority, clear currentCountryBssid & countryCode11d to get
+       //set again if we find AP with 11d info during scan
+       if (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
+       {
+           smsLog( pMac, LOGW, FL("Clearing currentCountryBssid, countryCode11d"));
+           vos_mem_zero(&pMac->scan.currentCountryBssid, sizeof(tCsrBssid));
+           vos_mem_zero( pMac->scan.countryCode11d, sizeof( pMac->scan.countryCode11d ) );
+       }
+   }
+#ifndef CONFIG_ENABLE_LINUX_REG
    /* set to default domain ID */
    pMac->scan.domainIdDefault = pMac->scan.domainIdCurrent;
 
@@ -6837,12 +6962,203 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
 
    /* reset info based on new cc, and we are done */
    csrResetCountryInformation(pMac, eANI_BOOLEAN_TRUE, eANI_BOOLEAN_TRUE);
+#endif
    if( pMsg->changeCCCallback )
    {
       ((tSmeChangeCountryCallback)(pMsg->changeCCCallback))((void *)pMsg->pDevContext);
    }
 
    return eHAL_STATUS_SUCCESS;
+}
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_HandleChangeCountryCodeByUser
+
+    \brief Change Country code, Reg Domain and channel list
+
+    If Supplicant country code is priority than 11d is disabled.
+    If 11D is enabled, we update the country code after every scan.
+    Hence when Supplicant country code is priority, we don't need 11D info.
+    Country code from Supplicant is set as current country code.
+
+    \param pMac - The handle returned by macOpen.
+    \param pMsg - Carrying new CC & domain set in kernel by user
+
+    \return eHalStatus
+
+  -------------------------------------------------------------------------------*/
+eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
+                                             tAniGenericChangeCountryCodeReq *pMsg)
+{
+    eHalStatus  status = eHAL_STATUS_SUCCESS;
+    v_REGDOMAIN_t reg_domain_id;
+    v_BOOL_t is11dCountry = VOS_FALSE;
+
+    smsLog(pMac, LOG1, FL(" called"));
+    reg_domain_id =  (v_REGDOMAIN_t)pMsg->domain_index;
+
+    if (memcmp(pMsg->countryCode, pMac->scan.countryCode11d,
+               VOS_COUNTRY_CODE_LEN) == 0)
+    {
+        is11dCountry = VOS_TRUE;
+    }
+
+    /* if Supplicant country code has priority, disable 11d */
+    if (!is11dCountry && pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
+    {
+        pMac->roam.configParam.Is11dSupportEnabled = eANI_BOOLEAN_FALSE;
+    }
+
+    palCopyMemory(pMac->hHdd, pMac->scan.countryCodeCurrent, pMsg->countryCode,
+                  WNI_CFG_COUNTRY_CODE_LEN);
+
+    status = WDA_SetRegDomain(pMac, reg_domain_id);
+
+    if (VOS_FALSE == is11dCountry )
+    {
+        /* overwrite the defualt country code */
+        palCopyMemory(pMac->hHdd, pMac->scan.countryCodeDefault,
+                      pMac->scan.countryCodeCurrent, WNI_CFG_COUNTRY_CODE_LEN);
+        /* set to default domain ID */
+        pMac->scan.domainIdDefault = pMac->scan.domainIdCurrent;
+    }
+
+    if ( status != eHAL_STATUS_SUCCESS )
+    {
+        smsLog( pMac, LOGE, FL("  fail to set regId %d"), reg_domain_id );
+        return status;
+    }
+    else
+    {
+        //if 11d has priority, clear currentCountryBssid & countryCode11d to get
+        //set again if we find AP with 11d info during scan
+        if((!pMac->roam.configParam.fSupplicantCountryCodeHasPriority) &&
+           (VOS_FALSE == is11dCountry ))
+        {
+            smsLog( pMac, LOGW, FL("Clearing currentCountryBssid, countryCode11d"));
+            vos_mem_zero(&pMac->scan.currentCountryBssid, sizeof(tCsrBssid));
+            vos_mem_zero( pMac->scan.countryCode11d, sizeof( pMac->scan.countryCode11d ) );
+        }
+    }
+
+
+    /* get the channels based on new cc */
+    status = csrInitGetChannels(pMac);
+
+    if ( status != eHAL_STATUS_SUCCESS )
+    {
+        smsLog( pMac, LOGE, FL("  fail to get Channels "));
+        return status;
+    }
+
+    /* reset info based on new cc, and we are done */
+    csrResetCountryInformation(pMac, eANI_BOOLEAN_TRUE, eANI_BOOLEAN_TRUE);
+    if (VOS_TRUE == is11dCountry)
+    {
+        pMac->scan.f11dInfoApplied = eANI_BOOLEAN_TRUE;
+        pMac->scan.f11dInfoReset = eANI_BOOLEAN_FALSE;
+    }
+
+    // Do active scans after the country is set by User hints or Country IE
+    pMac->scan.curScanType = eSIR_ACTIVE_SCAN;
+
+    smsLog(pMac, LOG1, FL(" returned"));
+    return eHAL_STATUS_SUCCESS;
+}
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_HandleChangeCountryCodeByCore
+
+    \brief Update Country code in the driver if set by kernel as world
+
+    If 11D is enabled, we update the country code after every scan & notify kernel.
+    This is to make sure kernel & driver are in sync in case of CC found in
+    driver but not in kernel database
+
+    \param pMac - The handle returned by macOpen.
+    \param pMsg - Carrying new CC set in kernel
+
+    \return eHalStatus
+
+  -------------------------------------------------------------------------------*/
+eHalStatus sme_HandleChangeCountryCodeByCore(tpAniSirGlobal pMac, tAniGenericChangeCountryCodeReq *pMsg)
+{
+    eHalStatus  status;
+
+    smsLog(pMac, LOG1, FL(" called"));
+
+    //this is to make sure kernel & driver are in sync in case of CC found in
+    //driver but not in kernel database
+    if (('0' == pMsg->countryCode[0]) && ('0' == pMsg->countryCode[1]))
+    {
+        smsLog( pMac, LOGW, FL("Setting countryCode11d & countryCodeCurrent to world CC"));
+        palCopyMemory(pMac->hHdd, pMac->scan.countryCode11d, pMsg->countryCode,
+                      WNI_CFG_COUNTRY_CODE_LEN);
+        palCopyMemory(pMac->hHdd, pMac->scan.countryCodeCurrent, pMsg->countryCode,
+                      WNI_CFG_COUNTRY_CODE_LEN);
+    }
+
+    status = WDA_SetRegDomain(pMac, REGDOMAIN_WORLD);
+
+    if ( status != eHAL_STATUS_SUCCESS )
+    {
+        smsLog( pMac, LOGE, FL("  fail to set regId") );
+        return status;
+    }
+    else
+    {
+        status = csrInitGetChannels(pMac);
+        if ( status != eHAL_STATUS_SUCCESS )
+        {
+            smsLog( pMac, LOGE, FL("  fail to get Channels "));
+        }
+        else
+        {
+            csrInitChannelList(pMac);
+        }
+    }
+    smsLog(pMac, LOG1, FL(" returned"));
+    return eHAL_STATUS_SUCCESS;
+}
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_HandleGenericChangeCountryCode
+
+    \brief Change Country code, Reg Domain and channel list
+
+    If Supplicant country code is priority than 11d is disabled.
+    If 11D is enabled, we update the country code after every scan.
+    Hence when Supplicant country code is priority, we don't need 11D info.
+    Country code from kernel is set as current country code.
+
+    \param pMac - The handle returned by macOpen.
+    \param pMsgBuf - message buffer
+
+    \return eHalStatus
+
+  -------------------------------------------------------------------------------*/
+eHalStatus sme_HandleGenericChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
+{
+    tAniGenericChangeCountryCodeReq *pMsg;
+    v_REGDOMAIN_t reg_domain_id;
+
+    smsLog(pMac, LOG1, FL(" called"));
+    pMsg = (tAniGenericChangeCountryCodeReq *)pMsgBuf;
+    reg_domain_id =  (v_REGDOMAIN_t)pMsg->domain_index;
+
+    if (REGDOMAIN_COUNT == reg_domain_id)
+    {
+        sme_HandleChangeCountryCodeByCore(pMac, pMsg);
+    }
+    else
+    {
+        sme_HandleChangeCountryCodeByUser(pMac, pMsg);
+    }
+    smsLog(pMac, LOG1, FL(" returned"));
+    return eHAL_STATUS_SUCCESS;
 }
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
@@ -9322,7 +9638,8 @@ void smeGetCommandQStatus( tHalHandle hHal )
 
     if (NULL == pMac)
     {
-        smsLog( pMac, LOGE, "smeGetCommandQStatus: pMac is NULL" );
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
+            "%s: pMac is null", __func__);
         return;
     }
 
@@ -9351,3 +9668,93 @@ void smeGetCommandQStatus( tHalHandle hHal )
     return;
 }
 
+#ifdef FEATURE_WLAN_BATCH_SCAN
+/* ---------------------------------------------------------------------------
+    \fn sme_SetBatchScanReq
+    \brief  API to set batch scan request in FW
+    \param  hHal - The handle returned by macOpen.
+    \param  pRequest -  Pointer to the batch request.
+    \param  sessionId - session ID
+    \param  callbackRoutine - HDD callback which needs to be invoked after
+            getting set batch scan response from FW
+    \param  callbackContext - pAdapter context
+    \return eHalStatus
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_SetBatchScanReq
+(
+    tHalHandle hHal, tSirSetBatchScanReq *pRequest, tANI_U8 sessionId,
+    void (*callbackRoutine) (void *callbackCtx, tSirSetBatchScanRsp *pRsp),
+    void *callbackContext
+)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+    eHalStatus status;
+
+    if ( eHAL_STATUS_SUCCESS == ( status = sme_AcquireGlobalLock( &pMac->sme )))
+    {
+       status = pmcSetBatchScanReq(hHal, pRequest, sessionId, callbackRoutine,
+                  callbackContext);
+       sme_ReleaseGlobalLock( &pMac->sme );
+    }
+
+    return status;
+}
+
+/* ---------------------------------------------------------------------------
+    \fn sme_TriggerBatchScanResultInd
+    \brief  API to trigger batch scan result indications from FW
+    \param  hHal - The handle returned by macOpen.
+    \param  pRequest -  Pointer to get batch request.
+    \param  sessionId - session ID
+    \param  callbackRoutine - HDD callback which needs to be invoked after
+            getting batch scan result indication from FW
+    \param  callbackContext - pAdapter context
+    \return eHalStatus
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_TriggerBatchScanResultInd
+(
+    tHalHandle hHal, tSirTriggerBatchScanResultInd *pRequest, tANI_U8 sessionId,
+    void (*callbackRoutine) (void *callbackCtx, void *pRsp),
+    void *callbackContext
+)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+    eHalStatus status;
+
+    if ( eHAL_STATUS_SUCCESS == ( status = sme_AcquireGlobalLock( &pMac->sme )))
+    {
+       status = pmcTriggerBatchScanResultInd(hHal, pRequest, sessionId,
+                   callbackRoutine, callbackContext);
+       sme_ReleaseGlobalLock( &pMac->sme );
+    }
+
+    return status;
+}
+
+
+/* ---------------------------------------------------------------------------
+    \fn sme_StopBatchScanInd
+    \brief  API to stop batch scan request in FW
+    \param  hHal - The handle returned by macOpen.
+    \param  pRequest -  Pointer to the batch request.
+    \param  sessionId - session ID
+    \return eHalStatus
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_StopBatchScanInd
+(
+    tHalHandle hHal, tSirStopBatchScanInd *pRequest, tANI_U8 sessionId
+)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+    eHalStatus status;
+
+    if ( eHAL_STATUS_SUCCESS == ( status = sme_AcquireGlobalLock( &pMac->sme )))
+    {
+       status = pmcStopBatchScanInd(hHal, pRequest, sessionId);
+       sme_ReleaseGlobalLock( &pMac->sme );
+    }
+
+    return status;
+}
+
+#endif
