@@ -577,10 +577,6 @@ static void cpr_scale(struct cpr_regulator *cpr_vreg,
 			(cpr_vreg->cpr_fuse_ro_sel[fuse_corner]));
 	quot = gcnt & ((1 << RBCPR_GCNT_TARGET_GCNT_SHIFT) - 1);
 
-	gcnt = cpr_read(cpr_vreg, REG_RBCPR_GCNT_TARGET
-			(cpr_vreg->cpr_fuse_ro_sel[corner]));
-	quot = gcnt & ((1 << RBCPR_GCNT_TARGET_GCNT_SHIFT) - 1);
-
 	if (dir == UP) {
 		cpr_debug_irq("Up: cpr status = 0x%08x (error_steps=%d)\n",
 			      reg_val, error_steps);
