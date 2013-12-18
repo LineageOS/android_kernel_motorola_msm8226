@@ -2445,6 +2445,11 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
 #endif
                         status = csrScanRequest( hHal, sessionId, pscanReq,
                                                  pScanRequestID, callback, pContext );
+                        if ( !HAL_STATUS_SUCCESS( status ) )
+                        {
+                            smsLog(pMac, LOGE, FL("csrScanRequest failed"
+                                    " SId=%d"), sessionId);
+                        }
 #ifdef FEATURE_WLAN_LFR
                     } 
                     else 
