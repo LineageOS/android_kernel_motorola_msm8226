@@ -458,7 +458,7 @@ typedef enum
 #define CFG_AP_OBSS_PROTECTION_MODE_NAME       "gEnableApOBSSProt" 
 #define CFG_AP_OBSS_PROTECTION_MODE_MIN        ( 0 )
 #define CFG_AP_OBSS_PROTECTION_MODE_MAX        ( 1 ) 
-#define CFG_AP_OBSS_PROTECTION_MODE_DEFAULT    ( 0 )   
+#define CFG_AP_OBSS_PROTECTION_MODE_DEFAULT    ( 1 )
 
 #define CFG_AP_STA_SECURITY_SEPERATION_NAME    "gDisableIntraBssFwd"
 #define CFG_AP_STA_SECURITY_SEPERATION_MIN     ( 0 )
