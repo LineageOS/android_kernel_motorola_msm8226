@@ -1937,7 +1937,6 @@ int diagfwd_disconnect(void)
 	printk(KERN_DEBUG "diag: USB disconnected\n");
 	driver->usb_connected = 0;
 	driver->debug_flag = 1;
-	usb_diag_free_req(driver->legacy_ch);
 	if (driver->usb_req_allocated) {
 		for (i = 0; i < NUM_SMD_DATA_CHANNELS; i++) {
 			driver->smd_data[i].in_busy_1 = 1;
@@ -2724,7 +2723,6 @@ void diagfwd_exit(void)
 #ifdef CONFIG_DIAG_OVER_USB
 	if (driver->usb_connected && driver->usb_req_allocated) {
 		driver->usb_req_allocated = 0;
-		usb_diag_free_req(driver->legacy_ch);
 	}
 	channel_diag_close(driver->legacy_ch);
 #endif
