@@ -173,6 +173,8 @@ static int wlan_hdd_inited;
 #define TID_MAX_VALUE 15
 static VOS_STATUS  hdd_get_tsm_stats(hdd_adapter_t *pAdapter, const tANI_U8 tid,
                                          tAniTrafStrmMetrics* pTsmMetrics);
+static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
+                                     tCsrCcxBeaconReq *pCcxBcnReq);
 #endif /* FEATURE_WLAN_CCX && FEATURE_WLAN_CCX_UPLOAD */
 
 /*
@@ -1115,7 +1117,7 @@ static void hdd_batch_scan_result_ind_callback
 
     pAdapter = (hdd_adapter_t *)callbackContext;
     /*sanity check*/
-    if ((NULL != pAdapter) && (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic))
+    if ((NULL == pAdapter) || (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic))
     {
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                   "%s: Invalid pAdapter magic", __func__);
@@ -3408,6 +3410,29 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
                vos_mem_free(cckmIe);
            }
        }
+       else if (strncmp(command, "CCXBEACONREQ", 12) == 0)
+       {
+           tANI_U8 *value = command;
+           tCsrCcxBeaconReq ccxBcnReq;
+           eHalStatus status = eHAL_STATUS_SUCCESS;
+           status = hdd_parse_ccx_beacon_req(value, &ccxBcnReq);
+           if (eHAL_STATUS_SUCCESS != status)
+           {
+               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  "%s: Failed to parse ccx beacon req", __func__);
+               ret = -EINVAL;
+               goto exit;
+           }
+
+           status = sme_SetCcxBeaconRequest((tHalHandle)(pHddCtx->hHal), pAdapter->sessionId, &ccxBcnReq);
+           if (eHAL_STATUS_SUCCESS != status)
+           {
+               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  "%s: sme_SetCcxBeaconRequest failed (%d)", __func__, status);
+               ret = -EINVAL;
+               goto exit;
+           }
+       }
 #endif /* FEATURE_WLAN_CCX && FEATURE_WLAN_CCX_UPLOAD */
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
@@ -3467,7 +3492,8 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
 
           if ((WLAN_HDD_INFRA_STATION != pAdapter->device_mode) &&
-              (WLAN_HDD_P2P_CLIENT != pAdapter->device_mode))
+              (WLAN_HDD_P2P_CLIENT != pAdapter->device_mode) &&
+              (WLAN_HDD_P2P_DEVICE != pAdapter->device_mode))
           {
              VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                 "Received WLS_BATCHING SET command in invalid mode %d "
@@ -3641,6 +3667,145 @@ exit:
 
 
 #if defined(FEATURE_WLAN_CCX) && defined(FEATURE_WLAN_CCX_UPLOAD)
+/**---------------------------------------------------------------------------
+
+  \brief hdd_parse_ccx_beacon_req() - Parse ccx beacon request
+
+  This function parses the ccx beacon request passed in the format
+  CCXBEACONREQ<space><Number of fields><space><Measurement token>
+  <space>Channel 1<space>Scan Mode <space>Meas Duration<space>Channel N
+  <space>Scan Mode N<space>Meas Duration N
+  if the Number of bcn req fields (N) does not match with the actual number of fields passed
+  then take N.
+  <Meas Token><Channel><Scan Mode> and <Meas Duration> are treated as one pair
+  For example, CCXBEACONREQ 2 1 1 1 30 2 44 0 40.
+  This function does not take care of removing duplicate channels from the list
+
+  \param  - pValue Pointer to data
+  \param  - pCcxBcnReq output pointer to store parsed ie information
+
+  \return - 0 for success non-zero for failure
+
+  --------------------------------------------------------------------------*/
+static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
+                                     tCsrCcxBeaconReq *pCcxBcnReq)
+{
+    tANI_U8 *inPtr = pValue;
+    int tempInt = 0;
+    int j = 0, i = 0, v = 0;
+    char buf[32];
+
+    inPtr = strnchr(pValue, strlen(pValue), SPACE_ASCII_VALUE);
+    /*no argument after the command*/
+    if (NULL == inPtr)
+    {
+        return -EINVAL;
+    }
+    /*no space after the command*/
+    else if (SPACE_ASCII_VALUE != *inPtr)
+    {
+        return -EINVAL;
+    }
+
+    /*removing empty spaces*/
+    while ((SPACE_ASCII_VALUE  == *inPtr) && ('\0' !=  *inPtr)) inPtr++;
+
+    /*no argument followed by spaces*/
+    if ('\0' == *inPtr) return -EINVAL;
+
+    /*getting the first argument ie number of fields*/
+    v = sscanf(inPtr, "%32s ", buf);
+    if (1 != v) return -EINVAL;
+
+    v = kstrtos32(buf, 10, &tempInt);
+    if ( v < 0) return -EINVAL;
+
+    pCcxBcnReq->numBcnReqIe = tempInt;
+
+    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO_HIGH,
+               "Number of Bcn Req Ie fields(%d)", pCcxBcnReq->numBcnReqIe);
+
+    for (j = 0; j < (pCcxBcnReq->numBcnReqIe); j++)
+    {
+        for (i = 0; i < 4; i++)
+        {
+            /*inPtr pointing to the beginning of first space after number of ie fields*/
+            inPtr = strpbrk( inPtr, " " );
+            /*no ie data after the number of ie fields argument*/
+            if (NULL == inPtr) return -EINVAL;
+
+            /*removing empty space*/
+            while ((SPACE_ASCII_VALUE == *inPtr) && ('\0' != *inPtr)) inPtr++;
+
+            /*no ie data after the number of ie fields argument and spaces*/
+            if ( '\0' == *inPtr ) return -EINVAL;
+
+            v = sscanf(inPtr, "%32s ", buf);
+            if (1 != v) return -EINVAL;
+
+            v = kstrtos32(buf, 10, &tempInt);
+            if (v < 0) return -EINVAL;
+
+            switch (i)
+            {
+                case 0:  /* Measurement token */
+                if (tempInt <= 0)
+                {
+                   VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                             "Invalid Measurement Token(%d)", tempInt);
+                   return -EINVAL;
+                }
+                pCcxBcnReq->bcnReq[j].measurementToken = tempInt;
+                break;
+
+                case 1:  /* Channel number */
+                if ((tempInt <= 0) ||
+                    (tempInt > WNI_CFG_CURRENT_CHANNEL_STAMAX))
+                {
+                   VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                             "Invalid Channel Number(%d)", tempInt);
+                   return -EINVAL;
+                }
+                pCcxBcnReq->bcnReq[j].channel = tempInt;
+                break;
+
+                case 2:  /* Scan mode */
+                if ((tempInt < 0) || (tempInt > 2))
+                {
+                   VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                             "Invalid Scan Mode(%d) Expected{0|1|2}", tempInt);
+                   return -EINVAL;
+                }
+                pCcxBcnReq->bcnReq[j].scanMode= tempInt;
+                break;
+
+                case 3:  /* Measurement duration */
+                if (tempInt <= 0)
+                {
+                   VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                             "Invalid Measurement Duration(%d)", tempInt);
+                   return -EINVAL;
+                }
+                pCcxBcnReq->bcnReq[j].measurementDuration = tempInt;
+                break;
+            }
+        }
+    }
+
+    for (j = 0; j < pCcxBcnReq->numBcnReqIe; j++)
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                   "Index(%d) Measurement Token(%lu)Channel(%lu) Scan Mode(%lu) Measurement Duration(%lu)\n",
+                   j,
+                   pCcxBcnReq->bcnReq[j].measurementToken,
+                   pCcxBcnReq->bcnReq[j].channel,
+                   pCcxBcnReq->bcnReq[j].scanMode,
+                   pCcxBcnReq->bcnReq[j].measurementDuration);
+    }
+
+    return VOS_STATUS_SUCCESS;
+}
+
 static void hdd_GetTsmStatsCB( tAniTrafStrmMetrics tsmMetrics, const tANI_U32 staId, void *pContext )
 {
    struct statsContext *pStatsContext = NULL;
