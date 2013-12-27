@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -384,7 +384,9 @@ static void diag_send_ctrl_msg(struct diag_smd_info *smd_info,
 
 	if (smd_info->ch) {
 		while (retry_count < 3) {
+			mutex_lock(&smd_info->smd_ch_mutex);
 			wr_size = smd_write(smd_info->ch, msg, len);
+			mutex_unlock(&smd_info->smd_ch_mutex);
 			if (wr_size == -ENOMEM) {
 				retry_count++;
 				for (timer = 0; timer < 5; timer++)
@@ -422,7 +424,9 @@ int diag_send_stm_state(struct diag_smd_info *smd_info,
 		stm_msg.version = 1;
 		stm_msg.control_data = stm_control_data;
 		while (retry_count < 3) {
+			mutex_lock(&smd_info->smd_ch_mutex);
 			wr_size = smd_write(smd_info->ch, &stm_msg, msg_size);
+			mutex_unlock(&smd_info->smd_ch_mutex);
 			if (wr_size == -ENOMEM) {
 				/*
 				 * The smd channel is full. Delay while
