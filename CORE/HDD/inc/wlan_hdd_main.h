@@ -968,7 +968,10 @@ struct hdd_adapter_s
    /*Batch scan state*/
    eHDD_BATCH_SCAN_STATE batchScanState;
 #endif
-
+   /* Flag to ensure PSB is configured through framework */
+   v_U8_t psbChanged;
+   /* UAPSD psb value configured through framework */
+   v_U8_t configuredPsb;
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) (&(pAdapter)->sessionCtx.station)
@@ -1296,4 +1299,5 @@ void hdd_ipv6_notifier_work_queue(struct work_struct *work);
 #ifdef CONFIG_ENABLE_LINUX_REG
 void hdd_checkandupdate_phymode( hdd_context_t *pHddCtx);
 #endif
+int hdd_wmmps_helper(hdd_adapter_t *pAdapter, tANI_U8 *ptr);
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )
