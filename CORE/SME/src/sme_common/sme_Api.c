@@ -2221,6 +2221,7 @@ v_VOID_t sme_FreeMsg( tHalHandle hHal, vos_msg_t* pMsg )
 
   This is a synchronous call
   \param hHal - The handle returned by macOpen
+  \param tHalStopType - reason for stopping
 
   \return eHAL_STATUS_SUCCESS - SME is stopped.
 
@@ -2229,7 +2230,7 @@ v_VOID_t sme_FreeMsg( tHalHandle hHal, vos_msg_t* pMsg )
   \sa
 
   --------------------------------------------------------------------------*/
-eHalStatus sme_Stop(tHalHandle hHal, tANI_BOOLEAN pmcFlag)
+eHalStatus sme_Stop(tHalHandle hHal, tHalStopType stopType)
 {
    eHalStatus status = eHAL_STATUS_FAILURE;
    eHalStatus fail_status = eHAL_STATUS_SUCCESS;
@@ -2244,17 +2245,14 @@ eHalStatus sme_Stop(tHalHandle hHal, tANI_BOOLEAN pmcFlag)
 
    p2pStop(hHal);
 
-   if(pmcFlag)
-   {
-      status = pmcStop(hHal);
-      if ( ! HAL_STATUS_SUCCESS( status ) ) {
-         smsLog( pMac, LOGE, "pmcStop failed during smeStop with status=%d",
-                 status );
-         fail_status = status;
-      }
+   status = pmcStop(hHal);
+   if ( ! HAL_STATUS_SUCCESS( status ) ) {
+      smsLog( pMac, LOGE, "pmcStop failed during smeStop with status=%d",
+              status );
+      fail_status = status;
    }
 
-   status = csrStop(pMac);
+   status = csrStop(pMac, stopType);
    if ( ! HAL_STATUS_SUCCESS( status ) ) {
       smsLog( pMac, LOGE, "csrStop failed during smeStop with status=%d",
               status );
@@ -3285,8 +3283,14 @@ eHalStatus sme_RoamDelPMKIDfromCache( tHalHandle hHal, tANI_U8 sessionId, tANI_U
       }
       sme_ReleaseGlobalLock( &pMac->sme );
    }
+   if ( status >0 )
+   {
+      status = -1;
+   }
+
    return (status);
 }
+
 /* ---------------------------------------------------------------------------
     \fn sme_RoamGetSecurityReqIE
     \brief a wrapper function to request CSR to return the WPA or RSN or WAPI IE CSR
@@ -4830,9 +4834,21 @@ eHalStatus sme_ChangeCountryCode( tHalHandle hHal,
    status = sme_AcquireGlobalLock( &pMac->sme );
    if ( HAL_STATUS_SUCCESS( status ) )
    {
-      smsLog(pMac, LOG1, FL(" called"));
+       smsLog(pMac, LOG1, FL(" called"));
+
+       if ((csrGetInfraSessionId(pMac) != -1) &&
+           (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority))
+       {
+
+           smsLog(pMac, LOGW, "Set Country Code Fail since the STA is associated and userspace does not have priority ");
+
+           sme_ReleaseGlobalLock( &pMac->sme );
+           status = eHAL_STATUS_FAILURE;
+           return status;
+       }
+
       status = palAllocateMemory(pMac->hHdd, (void **)&pMsg, sizeof(tAniChangeCountryCodeReq));
-      if ( !HAL_STATUS_SUCCESS(status) ) 
+      if (!HAL_STATUS_SUCCESS(status))
       {
          smsLog(pMac, LOGE, " csrChangeCountryCode: failed to allocate mem for req");
          sme_ReleaseGlobalLock( &pMac->sme );
@@ -6901,6 +6917,11 @@ eHalStatus sme_PreferredNetworkFoundInd (tHalHandle hHal, void* pMsg)
          smsLog(pMac, LOG2, "%s:SSID=%s frame length %d",
              __func__, dumpSsId, pPrefNetworkFoundInd->frameLength);
 
+         /* Flush scan results, So as to avoid indication/updation of
+          * stale entries, which may not have aged out during APPS collapse
+          */
+         sme_ScanFlushResult(hHal,0);
+
          //Save the frame to scan result
          if (pPrefNetworkFoundInd->mesgLen > sizeof(tSirPrefNetworkFoundInd))
          {
@@ -7193,6 +7214,22 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
                VOS_COUNTRY_CODE_LEN) == 0)
     {
         is11dCountry = VOS_TRUE;
+    }
+
+    if ((!is11dCountry) && (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority) &&
+        (csrGetInfraSessionId(pMac) != -1 ))
+    {
+
+        smsLog( pMac, LOGW, FL(" incorrect country being set, nullify this request"));
+
+        /* we have got a request for a country that should not have been added since the
+           STA is associated; nullify this request */
+        status = csrGetRegulatoryDomainForCountry(pMac,
+                                                  pMac->scan.countryCode11d,
+                                                  (v_REGDOMAIN_t *) &reg_domain_id,
+                                                  COUNTRY_IE);
+
+        return eHAL_STATUS_FAILURE;
     }
 
     /* if Supplicant country code has priority, disable 11d */
@@ -7981,8 +8018,6 @@ void sme_disableFeatureCapablity(tANI_U8 feature_index)
 {
     WDA_disableCapablityFeature(feature_index);
 }
-
-
 
 /* ---------------------------------------------------------------------------
 
@@ -9000,26 +9035,21 @@ eHalStatus sme_ChangeRoamScanChannelList(tHalHandle hHal, tANI_U8 *pChannelList,
         }
         csrFlushCfgBgScanRoamChannelList(pMac);
         csrCreateBgScanRoamChannelList(pMac, pChannelList, numChannels);
-        status = csrUpdateBgScanConfigIniChannelList(pMac, csrGetCurrentBand(hHal));
-
-        if ( HAL_STATUS_SUCCESS( status ))
+        sme_SetRoamScanControl(hHal, 1);
+        if (NULL != pNeighborRoamInfo->cfgParams.channelInfo.ChannelList)
         {
-            sme_SetRoamScanControl(hHal, 1);
-            if (NULL != pNeighborRoamInfo->cfgParams.channelInfo.ChannelList)
+            j = 0;
+            for (i = 0; i < pNeighborRoamInfo->cfgParams.channelInfo.numOfChannels; i++)
             {
-                j = 0;
-                for (i = 0; i < pNeighborRoamInfo->cfgParams.channelInfo.numOfChannels; i++)
-                {
-                    j += snprintf(newChannelList + j, sizeof(newChannelList) - j," %d",
-                    pNeighborRoamInfo->cfgParams.channelInfo.ChannelList[i]);
-                }
+                j += snprintf(newChannelList + j, sizeof(newChannelList) - j," %d",
+                pNeighborRoamInfo->cfgParams.channelInfo.ChannelList[i]);
             }
-
-            VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                        "LFR runtime successfully set roam scan channels to %s - old value is %s - roam state is %d",
-                        newChannelList, oldChannelList,
-                        pMac->roam.neighborRoamInfo.neighborRoamState);
         }
+
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
+                  "LFR runtime successfully set roam scan channels to %s - old value is %s - roam state is %d",
+                   newChannelList, oldChannelList,
+                   pMac->roam.neighborRoamInfo.neighborRoamState);
         sme_ReleaseGlobalLock( &pMac->sme );
     }
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
@@ -9096,21 +9126,6 @@ eHalStatus sme_SetCcxRoamScanChannelList(tHalHandle hHal,
     return status ;
 }
 #endif
-
-/*--------------------------------------------------------------------------
-  \brief csrUpdateBgScanConfigIniChannelList() - Update bgscan roam cache
-  This is a synchronous call
-  \param hHal - The handle returned by macOpen.
-  \return eHAL_STATUS_SUCCESS - SME update config successful.
-          Other status means SME is failed to update
-  \sa
-  --------------------------------------------------------------------------*/
-eHalStatus sme_UpdateBgScanConfigIniChannelList(tHalHandle hHal,
-                                               eCsrBand eBand)
-{
-    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
-    return csrUpdateBgScanConfigIniChannelList(pMac, eBand);
-}
 
 /*--------------------------------------------------------------------------
   \brief sme_getRoamScanChannelList() - get roam scan channel list
@@ -9233,18 +9248,31 @@ tANI_BOOLEAN sme_getIsFtFeatureEnabled(tHalHandle hHal)
 #endif
 }
 
-
 /* ---------------------------------------------------------------------------
     \fn sme_IsFeatureSupportedByFW
-    \brief  Check if an feature is enabled by FW
-            
-    \param  feattEnumValue - Enumeration value from placeHolderInCapBitmap
-    \- return 1/0 (TRUE/FALSE) 
+    \brief  Check if a feature is enabled by FW
+
+    \param  featEnumValue - Enumeration value from placeHolderInCapBitmap
+    \- return 1/0 (TRUE/FALSE)
     -------------------------------------------------------------------------*/
 tANI_U8 sme_IsFeatureSupportedByFW(tANI_U8 featEnumValue)
 {
    return IS_FEATURE_SUPPORTED_BY_FW(featEnumValue);
 }
+
+/* ---------------------------------------------------------------------------
+    \fn sme_IsFeatureSupportedByDriver
+    \brief  Check if a feature is enabled by Driver
+
+    \param  featEnumValue - Enumeration value from placeHolderInCapBitmap
+    \- return 1/0 (TRUE/FALSE)
+    -------------------------------------------------------------------------*/
+
+tANI_U8 sme_IsFeatureSupportedByDriver(tANI_U8 featEnumValue)
+{
+   return IS_FEATURE_SUPPORTED_BY_DRIVER(featEnumValue);
+}
+
 #ifdef FEATURE_WLAN_TDLS
 
 /* ---------------------------------------------------------------------------

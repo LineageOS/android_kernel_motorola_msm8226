@@ -677,10 +677,13 @@ int wlan_hdd_cfg80211_init(struct device *dev,
                  |  WIPHY_FLAG_TDLS_EXTERNAL_SETUP;
 #endif
 #ifdef FEATURE_WLAN_SCAN_PNO
-    wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
-    wiphy->max_sched_scan_ssids = SIR_PNO_MAX_SUPP_NETWORKS;
-    wiphy->max_match_sets       = SIR_PNO_MAX_SUPP_NETWORKS;
-    wiphy->max_sched_scan_ie_len = SIR_MAC_MAX_IE_LENGTH;
+    if (pCfg->configPNOScanSupport)
+    {
+        wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+        wiphy->max_sched_scan_ssids = SIR_PNO_MAX_SUPP_NETWORKS;
+        wiphy->max_match_sets       = SIR_PNO_MAX_SUPP_NETWORKS;
+        wiphy->max_sched_scan_ie_len = SIR_MAC_MAX_IE_LENGTH;
+    }
 #endif/*FEATURE_WLAN_SCAN_PNO*/
 
 #ifdef CONFIG_ENABLE_LINUX_REG
@@ -1016,9 +1019,6 @@ int wlan_hdd_cfg80211_alloc_new_beacon(hdd_adapter_t *pAdapter,
     old = pAdapter->sessionCtx.ap.beacon;
 
     if (!params->head && !old)
-        return -EINVAL;
-
-    if (params->tail && !params->tail_len)
         return -EINVAL;
 
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,38))
@@ -1795,7 +1795,15 @@ static int wlan_hdd_cfg80211_start_bss(hdd_adapter_t *pHostapdAdapter,
     {
         pIe = wlan_hdd_cfg80211_get_ie_ptr(pBeacon->tail, pBeacon->tail_len,
                                        WLAN_EID_COUNTRY);
-        if(pIe)
+        if(memcmp(pHddCtx->cfg_ini->apCntryCode, CFG_AP_COUNTRY_CODE_DEFAULT, 3) != 0)
+        {
+           tANI_BOOLEAN restartNeeded;
+           pConfig->ieee80211d = 1;
+           vos_mem_copy(pConfig->countryCode, pHddCtx->cfg_ini->apCntryCode, 3);
+           sme_setRegInfo(hHal, pConfig->countryCode);
+           sme_ResetCountryCodeInformation(hHal, &restartNeeded);
+        }
+        else if(pIe)
         {
             tANI_BOOLEAN restartNeeded;
             pConfig->ieee80211d = 1;
@@ -2041,13 +2049,16 @@ static int wlan_hdd_cfg80211_start_bss(hdd_adapter_t *pHostapdAdapter,
 
 #ifdef WLAN_FEATURE_11AC
     /* Overwrite the hostapd setting for HW mode only for 11ac.
-     * This is valid only if mode is set to 11n in hostapd and either AUTO or 11ac in .ini .
-     * Otherwise, leave whatever is set in hostapd (a OR b OR g OR n mode) */
+     * This is valid only if mode is set to 11n in hostapd, either AUTO or
+     * 11ac in .ini and 11ac is supported by both host and firmware.
+     * Otherwise, leave whatever is set in hostapd (a OR b OR g OR n mode)
+     */
     if( ((pConfig->SapHw_mode == eSAP_DOT11_MODE_11n) ||
          (pConfig->SapHw_mode == eSAP_DOT11_MODE_11n_ONLY)) &&
         (((WLAN_HDD_GET_CTX(pHostapdAdapter))->cfg_ini->dot11Mode == eHDD_DOT11_MODE_AUTO) ||
          ((WLAN_HDD_GET_CTX(pHostapdAdapter))->cfg_ini->dot11Mode == eHDD_DOT11_MODE_11ac) ||
-         ((WLAN_HDD_GET_CTX(pHostapdAdapter))->cfg_ini->dot11Mode == eHDD_DOT11_MODE_11ac_ONLY)) )
+         ((WLAN_HDD_GET_CTX(pHostapdAdapter))->cfg_ini->dot11Mode == eHDD_DOT11_MODE_11ac_ONLY)) &&
+         (sme_IsFeatureSupportedByDriver(DOT11AC)) && (sme_IsFeatureSupportedByFW(DOT11AC)) )
     {
         pConfig->SapHw_mode = eSAP_DOT11_MODE_11ac;
 
@@ -2566,6 +2577,16 @@ static int wlan_hdd_cfg80211_change_bss (struct wiphy *wiphy,
     return 0;
 }
 
+/* FUNCTION: wlan_hdd_change_country_code_cd
+*  to wait for contry code completion
+*/
+void* wlan_hdd_change_country_code_cb(void *pAdapter)
+{
+    hdd_adapter_t *call_back_pAdapter = pAdapter;
+    complete(&call_back_pAdapter->change_country_code);
+    return NULL;
+}
+
 /*
  * FUNCTION: wlan_hdd_cfg80211_change_iface
  * This function is used to set the interface type (INFRASTRUCTURE/ADHOC)
@@ -2764,6 +2785,43 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
 
                 hdd_set_ap_ops( pAdapter->dev );
 
+                /* This is for only SAP mode where users can
+                 * control country through ini.
+                 * P2P GO follows station country code
+                 * acquired during the STA scanning. */
+                if((NL80211_IFTYPE_AP == type) &&
+                   (memcmp(pConfig->apCntryCode, CFG_AP_COUNTRY_CODE_DEFAULT, 3) != 0))
+                {
+                    int status = 0;
+                    VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_INFO,
+                         "%s: setting country code from INI ", __func__);
+                    init_completion(&pAdapter->change_country_code);
+                    status = (int)sme_ChangeCountryCode(pHddCtx->hHal,
+                                     (void *)(tSmeChangeCountryCallback)
+                                      wlan_hdd_change_country_code_cb,
+                                      pConfig->apCntryCode, pAdapter,
+                                      pHddCtx->pvosContext,
+                                      VOS_FALSE);
+                    if (eHAL_STATUS_SUCCESS == status)
+                    {
+                        /* Wait for completion */
+                        status = wait_for_completion_interruptible_timeout(
+                                       &pAdapter->change_country_code,
+                                       msecs_to_jiffies(WLAN_WAIT_TIME_COUNTRY));
+                        if (status <= 0)
+                        {
+                            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                                   "%s: SME Timed out while setting country code ",
+                                                 __func__);
+                        }
+                    }
+                    else
+                    {
+                         VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                          "%s: SME Change Country code failed \n",__func__);
+                         return -EINVAL;
+                    }
+                }
                 status = hdd_init_ap_mode(pAdapter);
                 if(status != VOS_STATUS_SUCCESS)
                 {
@@ -3823,9 +3881,9 @@ static int wlan_hdd_cfg80211_set_default_key( struct wiphy *wiphy,
        )
     {
         if ( (eCSR_ENCRYPT_TYPE_TKIP !=
-                pWextState->roamProfile.EncryptionType.encryptionType[0]) &&
+                pHddStaCtx->conn_info.ucEncryptionType) &&
              (eCSR_ENCRYPT_TYPE_AES !=
-                pWextState->roamProfile.EncryptionType.encryptionType[0])
+                pHddStaCtx->conn_info.ucEncryptionType)
            )
         {
             /* if default key index is not same as previous one,
@@ -5934,7 +5992,8 @@ static int wlan_hdd_cfg80211_disconnect( struct wiphy *wiphy,
     if (NULL != pRoamProfile)
     {
         /*issue disconnect request to SME, if station is in connected state*/
-        if (pHddStaCtx->conn_info.connState == eConnectionState_Associated)
+        if ((pHddStaCtx->conn_info.connState == eConnectionState_Associated) ||
+            (pHddStaCtx->conn_info.connState == eConnectionState_Connecting))
         {
             eCsrRoamDisconnectReason reasonCode =
                                        eCSR_DISCONNECT_REASON_UNSPECIFIED;
@@ -5997,6 +6056,12 @@ static int wlan_hdd_cfg80211_disconnect( struct wiphy *wiphy,
                         __func__, (int)status );
                 return -EINVAL;
             }
+        }
+        else
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR, "%s: unexpected cfg disconnect API"
+                   "called while in %d state", __func__,
+                    pHddStaCtx->conn_info.connState);
         }
     }
     else
@@ -6671,10 +6736,12 @@ static int wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_device 
             /* Update MAX rate */
             maxRate = (currentRate > maxRate)?currentRate:maxRate;
         }
-        /* Get MCS Rate Set -- but only if we are connected at MCS
-           rates or if we are always reporting max speed or if we have
-           good rssi */
-        if ((0 == rssidx) && !(rate_flags & eHAL_TX_RATE_LEGACY))
+        /* Get MCS Rate Set --
+           only if we are connected at MCS rates (or)
+           if we are always reporting max speed  (or)
+           if we have good rssi */
+         if (((0 == rssidx) && !(rate_flags & eHAL_TX_RATE_LEGACY)) ||
+              (eHDD_LINK_SPEED_REPORT_MAX == pCfg->reportMaxLinkSpeed))
         {
             if (0 != ccmCfgGetStr(WLAN_HDD_GET_HAL_CTX(pAdapter), WNI_CFG_CURRENT_MCS_SET,
                                  MCSRates, &MCSLeng))
@@ -7237,6 +7304,7 @@ static int wlan_hdd_cfg80211_del_pmksa(struct wiphy *wiphy, struct net_device *d
     tHalHandle halHandle;
     int status;
     tANI_U8  BSSIDMatched = 0;
+    tANI_U8 *pBSSId;
     hdd_context_t *pHddCtx;
     int result = 0;
 
@@ -7295,6 +7363,7 @@ static int wlan_hdd_cfg80211_del_pmksa(struct wiphy *wiphy, struct net_device *d
               }
 
              /*clear the last entry in HDD cache ---[index-1]*/
+             pBSSId =(tANI_U8 *)(PMKIDCache[PMKIDCacheIndex-1].BSSID);
              vos_mem_zero(PMKIDCache[PMKIDCacheIndex-1].BSSID, WNI_CFG_BSSID_LEN);
              vos_mem_zero(PMKIDCache[PMKIDCacheIndex-1].PMKID, CSR_RSN_PMKID_SIZE);
 
@@ -7302,7 +7371,7 @@ static int wlan_hdd_cfg80211_del_pmksa(struct wiphy *wiphy, struct net_device *d
              PMKIDCacheIndex--;
 
              /*delete the last PMKID cache in CSR*/
-             result = sme_RoamDelPMKIDfromCache(halHandle, pAdapter->sessionId, pmksa->bssid);
+             result = sme_RoamDelPMKIDfromCache(halHandle, pAdapter->sessionId, pBSSId);
              if (0 != result)
              {
                 hddLog(VOS_TRACE_LEVEL_ERROR,"%s: cannot delete PMKSA %d CONTENT.",
@@ -7374,7 +7443,10 @@ static int wlan_hdd_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device 
     /*delete all the PMKSA one by one */
     for (j = 0; j<PMKIDCacheIndex; j++)
     {
+          /*clear the entry in HDD cache 0--index-1 */
           pBSSId =(tANI_U8 *)(PMKIDCache[j].BSSID);
+          vos_mem_zero(PMKIDCache[j].BSSID, WNI_CFG_BSSID_LEN);
+          vos_mem_zero(PMKIDCache[j].PMKID, CSR_RSN_PMKID_SIZE);
 
           /*delete the PMKID in CSR*/
           result = sme_RoamDelPMKIDfromCache(halHandle, pAdapter->sessionId, pBSSId);
@@ -7384,9 +7456,6 @@ static int wlan_hdd_cfg80211_flush_pmksa(struct wiphy *wiphy, struct net_device 
              hddLog(VOS_TRACE_LEVEL_ERROR ,"%s cannot flush PMKIDCache %d.",
                     __func__,j);
           }
-          /*clear the entry in HDD cache 0--index-1 */
-          vos_mem_zero(PMKIDCache[j].BSSID, WNI_CFG_BSSID_LEN);
-          vos_mem_zero(PMKIDCache[j].PMKID, CSR_RSN_PMKID_SIZE);
       }
 
     PMKIDCacheIndex = 0;
@@ -7476,6 +7545,40 @@ void hdd_cfg80211_sched_scan_done_callback(void *callbackContext,
 }
 
 /*
+ * FUNCTION: wlan_hdd_is_pno_allowed
+ * To check is there any P2P GO/SAP or P2P Client/STA
+ * session is active
+ */
+static eHalStatus wlan_hdd_is_pno_allowed(hdd_adapter_t *pAdapter)
+{
+   hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
+   hdd_adapter_t *pTempAdapter = NULL;
+   hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+   int status = 0;
+   status = hdd_get_front_adapter(pHddCtx, &pAdapterNode);
+
+   while ((NULL != pAdapterNode) && (VOS_STATUS_SUCCESS == status))
+   {
+        pTempAdapter = pAdapterNode->pAdapter;
+
+        if (pTempAdapter != pAdapter)
+        {
+            if (((WLAN_HDD_INFRA_STATION == pTempAdapter->device_mode) &&
+                 (eConnectionState_NotConnected != (WLAN_HDD_GET_STATION_CTX_PTR(pTempAdapter))->conn_info.connState)) ||
+                 (WLAN_HDD_P2P_CLIENT == pTempAdapter->device_mode) ||
+                 (WLAN_HDD_P2P_GO == pTempAdapter->device_mode) ||
+                 (WLAN_HDD_SOFTAP == pTempAdapter->device_mode))
+            {
+                return eHAL_STATUS_SUCCESS;
+            }
+        }
+        status = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
+        pAdapterNode = pNext;
+   }
+   return eHAL_STATUS_FAILURE;
+}
+
+/*
  * FUNCTION: wlan_hdd_cfg80211_sched_scan_start
  * NL interface to enable PNO
  */
@@ -7516,6 +7619,17 @@ static int wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                   "%s: HAL context  is Null!!!", __func__);
         return -EINVAL;
+    }
+    /* The current firmware design for PNO does not consider concurrent
+     * active sessions.Hence , determine the concurrent active sessions
+     * and return a failure to the framework on a request for schedule
+     * scan.
+     */
+    if (eHAL_STATUS_SUCCESS == wlan_hdd_is_pno_allowed(pAdapter))
+    {
+        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  "%s: Cannot handle sched_scan as p2p session is active", __func__);
+        return -EBUSY;
     }
 
     pPnoRequest = (tpSirPNOScanReq) vos_mem_malloc(sizeof (tSirPNOScanReq));

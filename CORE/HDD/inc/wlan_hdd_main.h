@@ -116,6 +116,7 @@
 #define WLAN_WAIT_TIME_STATS       800
 #define WLAN_WAIT_TIME_POWER       800
 #define WLAN_WAIT_TIME_COUNTRY     1000
+#define WLAN_WAIT_TIME_CHANNEL_UPDATE   600
 /* Amount of time to wait for sme close session callback.
    This value should be larger than the timeout used by WDI to wait for
    a response from WCNSS */
@@ -209,7 +210,6 @@
 #endif
 
 #define HDD_MAC_ADDR_LEN    6
-#define HDD_ROAM_SCAN_CHANNEL_SWITCH_TIME 3
 typedef v_U8_t tWlanHddMacAddr[HDD_MAC_ADDR_LEN];
 
 struct statsContext
@@ -796,6 +796,12 @@ struct hdd_adapter_s
 
    /** Handle to the network device */
    struct net_device *dev;
+
+#ifdef WLAN_NS_OFFLOAD
+   /** IPv6 notifier callback for handling NS offload on change in IP */
+   struct notifier_block ipv6_notifier;
+   struct work_struct  ipv6NotifierWorkQueue;
+#endif
     
    //TODO Move this to sta Ctx
    struct wireless_dev wdev ;
@@ -962,7 +968,10 @@ struct hdd_adapter_s
    /*Batch scan state*/
    eHDD_BATCH_SCAN_STATE batchScanState;
 #endif
-
+   /* Flag to ensure PSB is configured through framework */
+   v_U8_t psbChanged;
+   /* UAPSD psb value configured through framework */
+   v_U8_t configuredPsb;
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) (&(pAdapter)->sessionCtx.station)
@@ -1070,6 +1079,11 @@ struct hdd_context_s
 #else
    struct completion driver_crda_req;
 #endif
+
+   /* Completion variable to indicate updation of channel */
+   struct completion wiphy_channel_update_event;
+
+   v_BOOL_t nEnableStrictRegulatoryForFCC;
 
    v_BOOL_t isWlanSuspended;
 
@@ -1282,7 +1296,13 @@ VOS_STATUS hdd_issta_p2p_clientconnected(hdd_context_t *pHddCtx);
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType, tANI_U8 sessionId);
 #endif
+
+#ifdef WLAN_NS_OFFLOAD
+void hdd_ipv6_notifier_work_queue(struct work_struct *work);
+#endif
+
 #ifdef CONFIG_ENABLE_LINUX_REG
 void hdd_checkandupdate_phymode( hdd_context_t *pHddCtx);
 #endif
+int hdd_wmmps_helper(hdd_adapter_t *pAdapter, tANI_U8 *ptr);
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )
