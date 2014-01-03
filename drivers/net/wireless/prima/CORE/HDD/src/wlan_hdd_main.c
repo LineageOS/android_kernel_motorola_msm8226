@@ -4657,6 +4657,16 @@ VOS_STATUS hdd_release_firmware(char *pFileName,v_VOID_t *pCtx)
           status = VOS_STATUS_E_FAILURE;
 
    }
+#ifdef WLAN_NV_OTA_UPGRADE
+   else if (!strcmp(WLAN_FACTORY_NV_FILE,pFileName)) {
+       if(pHddCtx->nv_factory) {
+          release_firmware(pHddCtx->nv_factory);
+          pHddCtx->nv_factory = NULL;
+       }
+       else
+          status = VOS_STATUS_E_FAILURE;
+   }
+#endif
 
    EXIT();
    return status;
@@ -4720,6 +4730,22 @@ VOS_STATUS hdd_request_firmware(char *pfileName,v_VOID_t *pCtx,v_VOID_t **ppfw_d
                  __func__, *pSize);
        }
    }
+#ifdef WLAN_NV_OTA_UPGRADE /* Motorola OTA changes */
+   else if(!strcmp(WLAN_FACTORY_NV_FILE, pfileName)) {
+       status = request_firmware(&pHddCtx->nv_factory, pfileName, pHddCtx->parent_dev);
+       if(status || !pHddCtx->nv_factory || !pHddCtx->nv_factory->data) {
+           hddLog(VOS_TRACE_LEVEL_FATAL, "%s: nv %s download failed",
+                  __func__, pfileName);
+           retval = VOS_STATUS_E_FAILURE;
+       }
+       else {
+         *ppfw_data = (v_VOID_t *)pHddCtx->nv_factory->data;
+         *pSize = pHddCtx->nv_factory->size;
+          hddLog(VOS_TRACE_LEVEL_INFO, "%s: %s nv file size = %d",
+                 __func__, pfileName, *pSize);
+       }
+   }
+#endif
 
    EXIT();
    return retval;
