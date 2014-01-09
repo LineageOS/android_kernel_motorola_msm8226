@@ -3676,7 +3676,12 @@ static void limProcessSwitchChannelJoinReq(tpAniSirGlobal pMac, tpPESession pses
     {
         if (limSetLinkState(pMac, eSIR_LINK_BTAMP_PREASSOC_STATE, psessionEntry->bssId,
              psessionEntry->selfMacAddr, NULL, NULL) != eSIR_SUCCESS )
+        {
+            PELOGE(limLog(pMac, LOGE, FL("Sessionid: %d Set link state "
+            "failed!! BSSID:"MAC_ADDRESS_STR),psessionEntry->peSessionId,
+            MAC_ADDR_ARRAY(psessionEntry->bssId));)
             goto error;
+        }
     }
 
     /* Update the lim global gLimTriggerBackgroundScanDuringQuietBss */
@@ -3695,6 +3700,10 @@ static void limProcessSwitchChannelJoinReq(tpAniSirGlobal pMac, tpPESession pses
 
     //assign appropriate sessionId to the timer object
     pMac->lim.limTimers.gLimPeriodicJoinProbeReqTimer.sessionId = psessionEntry->peSessionId;
+    limLog(pMac, LOG1, FL("Sessionid: %d Send Probe req on channel %d ssid: %s "
+        "BSSID: "MAC_ADDRESS_STR), psessionEntry->peSessionId,
+         psessionEntry->currentOperChannel, ssId.ssId,
+         MAC_ADDR_ARRAY(psessionEntry->pLimMlmJoinReq->bssDescription.bssId));
     // include additional IE if there is
     limSendProbeReqMgmtFrame( pMac, &ssId,
            psessionEntry->pLimMlmJoinReq->bssDescription.bssId, psessionEntry->currentOperChannel/*chanNum*/,
@@ -3788,6 +3797,7 @@ void limProcessSwitchChannelRsp(tpAniSirGlobal pMac,  void *body)
     channelChangeReasonCode = psessionEntry->channelChangeReasonCode;
     // initialize it back to invalid id
     psessionEntry->channelChangeReasonCode = 0xBAD;
+    limLog(pMac, LOG1, FL("channelChangeReasonCode %d"),channelChangeReasonCode);
     switch(channelChangeReasonCode)
     {
         case LIM_SWITCH_CHANNEL_REASSOC:
