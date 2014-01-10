@@ -438,7 +438,7 @@
 		compatible = "qcom,msm-watchdog";
 		reg = <0xf9017000 0x1000>;
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
+		qcom,bark-time = <22000>;
 		qcom,pet-time = <10000>;
 		qcom,ipi-ping;
 	};
@@ -510,8 +510,8 @@
                 qcom,master-id = <86>;
 	};
 
-	i2c@f9925000 { /* BLSP-1 QUP-3 */
-		cell-index = <0>;
+	i2c_3: i2c@f9925000 { /* BLSP-1 QUP-3 */
+		cell-index = <3>;
 		compatible = "qcom,i2c-qup";
 		#address-cells = <1>;
 		#size-cells = <0>;

@@ -37,6 +37,8 @@ struct evdev {
 	struct mutex mutex;
 	struct device dev;
 	bool exist;
+	int hw_ts_sec;
+	int hw_ts_nsec;
 };
 
 struct evdev_client {
@@ -52,7 +54,7 @@ struct evdev_client {
 	struct list_head node;
 	int clkid;
 	unsigned int bufsize;
-	struct input_event buffer[];
+	struct input_event *buffer;
 };
 
 static struct evdev *evdev_table[EVDEV_MINORS];
@@ -109,7 +111,20 @@ static void evdev_event(struct input_handle *handle,
 	struct input_event event;
 	ktime_t time_mono, time_real;
 
-	time_mono = ktime_get();
+	if (type == EV_SYN && code == SYN_TIME_SEC) {
+		evdev->hw_ts_sec = value;
+		return;
+	}
+	if (type == EV_SYN && code == SYN_TIME_NSEC) {
+		evdev->hw_ts_nsec = value;
+		return;
+	}
+
+	if (evdev->hw_ts_sec != -1 && evdev->hw_ts_nsec != -1)
+		time_mono = ktime_set(evdev->hw_ts_sec, evdev->hw_ts_nsec);
+	else
+		time_mono = ktime_get();
+
 	time_real = ktime_sub(time_mono, ktime_get_monotonic_offset());
 
 	event.type = type;
@@ -128,8 +143,11 @@ static void evdev_event(struct input_handle *handle,
 
 	rcu_read_unlock();
 
-	if (type == EV_SYN && code == SYN_REPORT)
+	if (type == EV_SYN && code == SYN_REPORT) {
+		evdev->hw_ts_sec = -1;
+		evdev->hw_ts_nsec = -1;
 		wake_up_interruptible(&evdev->wait);
+	}
 }
 
 static int evdev_fasync(int fd, struct file *file, int on)
@@ -274,6 +292,7 @@ static int evdev_release(struct inode *inode, struct file *file)
 	evdev_detach_client(evdev, client);
 	if (client->use_wake_lock)
 		wake_lock_destroy(&client->wake_lock);
+	kfree(client->buffer);
 	kfree(client);
 
 	evdev_close_device(evdev);
@@ -315,12 +334,18 @@ static int evdev_open(struct inode *inode, struct file *file)
 
 	bufsize = evdev_compute_buffer_size(evdev->handle.dev);
 
-	client = kzalloc(sizeof(struct evdev_client) +
-				bufsize * sizeof(struct input_event),
-			 GFP_KERNEL);
+	client = kzalloc(sizeof(struct evdev_client), GFP_KERNEL);
 	if (!client) {
 		error = -ENOMEM;
 		goto err_put_evdev;
+	} else {
+		client->buffer = kzalloc(bufsize * sizeof(struct input_event),
+					GFP_KERNEL);
+		if (!client->buffer) {
+			kfree(client);
+			error = -ENOMEM;
+			goto err_put_evdev;
+		}
 	}
 
 	client->clkid = CLOCK_MONOTONIC;
@@ -342,6 +367,7 @@ static int evdev_open(struct inode *inode, struct file *file)
 
  err_free_client:
 	evdev_detach_client(evdev, client);
+	kfree(client->buffer);
 	kfree(client);
  err_put_evdev:
 	put_device(&evdev->dev);
@@ -1031,6 +1057,8 @@ static int evdev_connect(struct input_handler *handler, struct input_dev *dev,
 	dev_set_name(&evdev->dev, "event%d", minor);
 	evdev->exist = true;
 	evdev->minor = minor;
+	evdev->hw_ts_sec = -1;
+	evdev->hw_ts_nsec = -1;
 
 	evdev->handle.dev = input_get_device(dev);
 	evdev->handle.name = dev_name(&evdev->dev);

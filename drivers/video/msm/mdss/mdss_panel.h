@@ -119,6 +119,16 @@ struct mdss_panel_recovery {
  *				The event handler will enable the panel and
  *				vote for the display clocks.
  * @MDSS_EVENT_PANEL_UPDATE_FPS: Event to update the frame rate of the panel.
+ * @MDSS_EVENT_LOCK_PANEL_MUTEX: This is a special panel mutex, which only be
+ *				used in the special ESD recovery event.
+ * @MDSS_EVENT_UNLOCK_PANEL_MUTEX: This is a special panel mutex, which only be
+ *				used in the special ESD recovery event.
+ *				The same as for MDSS_EVENT_LOCK_PANEL_MUTEX,
+ *				during the ESD recovery kicks in, it will
+ *				turn off and on the display. While it is doing
+ *				so, it will acquire this mutex to prevent
+ *				any blank or unblank calls that might
+ *				interfere with its ESD recovery
  * @MDSS_EVENT_FB_REGISTERED:	Called after fb dev driver has been registered,
  *				panel driver gets ptr to struct fb_info which
  *				holds fb dev information.
@@ -141,6 +151,8 @@ enum mdss_intf_events {
 	MDSS_EVENT_CONT_SPLASH_BEGIN,
 	MDSS_EVENT_CONT_SPLASH_FINISH,
 	MDSS_EVENT_PANEL_UPDATE_FPS,
+	MDSS_EVENT_LOCK_PANEL_MUTEX,
+	MDSS_EVENT_UNLOCK_PANEL_MUTEX,
 	MDSS_EVENT_FB_REGISTERED,
 	MDSS_EVENT_PANEL_CLK_CTRL,
 	MDSS_EVENT_DSI_CMDLIST_KOFF,
@@ -300,6 +312,7 @@ struct mdss_panel_info {
 	u32 panel_power_on;
 
 	struct lcd_panel_info lcdc;
+	struct lcd_panel_info lcdc_tune;
 	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
 	struct lvds_panel_info lvds;
@@ -366,6 +379,23 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
 }
 
 /*
+ * mdss_panel_get_vtotal_lcd() - return panel vertical height
+ * @pinfo:	Pointer to panel info containing all panel information
+ * @lcd:	Pointer to lcdc panel info with timings
+ *
+ * Returns the total height of the panel including any blanking regions
+ * which are not visible to user but used to calculate panel pixel clock.
+ * The caller may specify an alternate set of lcd timings.
+ */
+static inline int mdss_panel_get_vtotal_lcd(struct mdss_panel_info *pinfo,
+	struct lcd_panel_info *lcd)
+{
+	return pinfo->yres + lcd->v_back_porch +
+			lcd->v_front_porch +
+			lcd->v_pulse_width;
+}
+
+/*
  * mdss_panel_get_vtotal() - return panel vertical height
  * @pinfo:	Pointer to panel info containing all panel information
  *
@@ -374,9 +404,7 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
  */
 static inline int mdss_panel_get_vtotal(struct mdss_panel_info *pinfo)
 {
-	return pinfo->yres + pinfo->lcdc.v_back_porch +
-			pinfo->lcdc.v_front_porch +
-			pinfo->lcdc.v_pulse_width;
+	return mdss_panel_get_vtotal_lcd(pinfo, &pinfo->lcdc);
 }
 
 /*
@@ -395,6 +423,9 @@ static inline int mdss_panel_get_htotal(struct mdss_panel_info *pinfo)
 
 int mdss_register_panel(struct platform_device *pdev,
 	struct mdss_panel_data *pdata);
+void mdss_dsi_lock_panel_mutex(void);
+void mdss_dsi_unlock_panel_mutex(void);
+
 
 /**
  * mdss_panel_intf_type: - checks if a given intf type is primary

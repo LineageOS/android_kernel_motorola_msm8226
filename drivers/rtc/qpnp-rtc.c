@@ -152,6 +152,15 @@ qpnp_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	 * write operation
 	 */
 
+	/* Disable RTC while writing */
+	reg = 0x0;
+	rc = qpnp_write_wrapper(rtc_dd, &reg,
+				rtc_dd->rtc_base + REG_OFFSET_RTC_CTRL, 1);
+	if (rc) {
+		dev_err(dev, "Disable RTC failed\n");
+		goto rtc_rw_fail;
+	}
+
 	/* Clear WDATA[0] */
 	reg = 0x0;
 	rc = qpnp_write_wrapper(rtc_dd, &reg,
@@ -177,6 +186,15 @@ qpnp_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		goto rtc_rw_fail;
 	}
 
+	/* Re-enable RTC for write to take effect */
+	reg = BIT_RTC_ENABLE;
+	rc = qpnp_write_wrapper(rtc_dd, &reg,
+				rtc_dd->rtc_base + REG_OFFSET_RTC_CTRL, 1);
+	if (rc) {
+		dev_err(dev, "Enable RTC failed\n");
+		goto rtc_rw_fail;
+	}
+
 	if (alarm_enabled) {
 		ctrl_reg |= BIT_RTC_ALARM_ENABLE;
 		rc = qpnp_write_wrapper(rtc_dd, &ctrl_reg,
@@ -194,6 +212,13 @@ rtc_rw_fail:
 		spin_unlock_irqrestore(&rtc_dd->alarm_ctrl_lock, irq_flags);
 
 	return rc;
+}
+
+static int
+qpnp_rtc_set_time_mmi_cfc_fixup(struct device *dev, struct rtc_time *tm)
+{
+	dev_dbg(dev, "Pretend RTC write succeeded.\n");
+	return 0;
 }
 
 static int
@@ -421,6 +446,22 @@ rtc_alarm_handled:
 	return IRQ_HANDLED;
 }
 
+static void __devinit qpnp_rtc_mmi_fixup(struct qpnp_rtc *rtc)
+{
+	struct device_node *np = of_find_node_by_path("/chosen");
+	bool factory;
+
+	factory = of_property_read_bool(np, "mmi,factory-cable");
+
+	/* If in factory mode, enable RTC writes always */
+	if (np && factory) {
+		rtc->rtc_write_enable = true;
+		qpnp_rtc_ops.set_time = qpnp_rtc_set_time_mmi_cfc_fixup;
+	}
+
+	of_node_put(np);
+}
+
 static int __devinit qpnp_rtc_probe(struct spmi_device *spmi)
 {
 	int rc;
@@ -533,6 +574,9 @@ static int __devinit qpnp_rtc_probe(struct spmi_device *spmi)
 
 	if (rtc_dd->rtc_write_enable == true)
 		qpnp_rtc_ops.set_time = qpnp_rtc_set_time;
+
+	/* Special handling for factory mode */
+	qpnp_rtc_mmi_fixup(rtc_dd);
 
 	dev_set_drvdata(&spmi->dev, rtc_dd);
 

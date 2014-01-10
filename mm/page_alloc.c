@@ -199,6 +199,10 @@ static char * const zone_names[MAX_NR_ZONES] = {
 };
 
 int min_free_kbytes = 1024;
+int min_free_normal_offset[2] = {
+	 0,
+	 0,
+};
 int min_free_order_shift = 1;
 
 static unsigned long __meminitdata nr_kernel_pages;
@@ -1692,10 +1696,20 @@ static bool __zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 		/* At the next order, this order's pages become unavailable */
 		free_pages -= z->free_area[o].nr_free << o;
 
+		/*
+		 * z->free_area[o].nr_free is changing. It may increase if
+		 * there are newly freed pages. So free_pages may become
+		 * negative (then always < min). But it should not block
+		 * memory allocation due to new free pages added in lower
+		 * order. Just amend some to save some margin case...
+		 */
+		if (free_pages < 0)
+			free_pages = 0;
+
 		/* Require fewer higher order pages to be free */
 		min >>= min_free_order_shift;
 
-		if (free_pages <= min)
+		if (free_pages < min)
 			return false;
 	}
 	return true;
@@ -2140,6 +2154,7 @@ out:
 }
 
 #ifdef CONFIG_COMPACTION
+#define COMPACTION_RETRY_TIMES 2
 /* Try memory compaction for high-order allocations before reclaim */
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
@@ -2149,6 +2164,8 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	bool *contended_compaction, bool *deferred_compaction,
 	unsigned long *did_some_progress)
 {
+	int retry_times = 0, order_adj = order;
+
 	if (!order)
 		return NULL;
 
@@ -2157,8 +2174,9 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		return NULL;
 	}
 
+retry_compact:
 	current->flags |= PF_MEMALLOC;
-	*did_some_progress = try_to_compact_pages(zonelist, order, gfp_mask,
+	*did_some_progress = try_to_compact_pages(zonelist, order_adj, gfp_mask,
 						nodemask, sync_migration,
 						contended_compaction);
 	current->flags &= ~PF_MEMALLOC;
@@ -2181,7 +2199,20 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 			if (order >= preferred_zone->compact_order_failed)
 				preferred_zone->compact_order_failed = order + 1;
 			count_vm_event(COMPACTSUCCESS);
+
+			if (retry_times)
+				count_vm_event(COMPACTSUCCESS_RETRY);
+
 			return page;
+		}
+
+		if (retry_times++ < COMPACTION_RETRY_TIMES) {
+
+			order_adj++;
+			if (order_adj >= MAX_ORDER)
+				order_adj = -1;
+
+			goto retry_compact;
 		}
 
 		/*
@@ -5220,8 +5251,22 @@ static void __setup_per_zone_wmarks(void)
 			zone->watermark[WMARK_MIN] = tmp;
 		}
 
-		zone->watermark[WMARK_LOW]  = min_wmark_pages(zone) + (tmp >> 2);
-		zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) + (tmp >> 1);
+		if (is_normal(zone) &&
+			min_free_normal_offset[0] != 0 &&
+			min_free_normal_offset[1] != 0 &&
+			min_free_normal_offset[0] < min_free_normal_offset[1]) {
+
+			zone->watermark[WMARK_LOW]  = min_wmark_pages(zone) +
+				(min_free_normal_offset[0] >> (PAGE_SHIFT - 10));
+			zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) +
+				(min_free_normal_offset[1] >> (PAGE_SHIFT - 10));
+
+		} else {
+			zone->watermark[WMARK_LOW]  = min_wmark_pages(zone) +
+				(tmp >> 2);
+			zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) +
+				(tmp >> 1);
+		}
 
 		setup_zone_migrate_reserve(zone);
 		spin_unlock_irqrestore(&zone->lock, flags);
@@ -5344,6 +5389,21 @@ int min_free_kbytes_sysctl_handler(ctl_table *table, int write,
 		setup_per_zone_wmarks();
 	return 0;
 }
+
+/*
+ * min_free_normal_offset_sysctl_handler - just a wrapper around proc_dointvec()
+ *	so that we can call setup_per_zone_wmarks() whenever
+ *	min_free_normal_offset changes.
+ */
+int min_free_normal_offset_sysctl_handler(ctl_table *table, int write,
+	void __user *buffer, size_t *length, loff_t *ppos)
+{
+	proc_dointvec_minmax(table, write, buffer, length, ppos);
+	if (write)
+		setup_per_zone_wmarks();
+	return 0;
+}
+
 
 #ifdef CONFIG_NUMA
 int sysctl_min_unmapped_ratio_sysctl_handler(ctl_table *table, int write,

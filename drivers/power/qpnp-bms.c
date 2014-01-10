@@ -79,7 +79,7 @@
 #define IADC1_BMS_FAST_AVG_EN		0x5B
 
 /* Configuration for saving of shutdown soc/iavg */
-#define IGNORE_SOC_TEMP_DECIDEG		50
+#define IGNORE_SOC_TEMP_DECIDEG		0
 #define IAVG_STEP_SIZE_MA		10
 #define IAVG_INVALID			0xFF
 #define SOC_INVALID			0x7E
@@ -312,6 +312,7 @@ static int discard_backup_fcc_data(struct qpnp_bms_chip *chip);
 static void backup_charge_cycle(struct qpnp_bms_chip *chip);
 
 static bool bms_reset;
+static int last_ocv_uv = -EINVAL;
 
 static int qpnp_read_wrapper(struct qpnp_bms_chip *chip, u8 *val,
 			u16 base, int count)
@@ -1663,6 +1664,35 @@ static struct kernel_param_ops bms_reset_ops = {
 module_param_cb(bms_reset, &bms_reset_ops, &bms_reset, 0644);
 
 #define SOC_STORAGE_MASK	0xFE
+
+static int ocv_ops_get(char *buffer, const struct kernel_param *kp)
+{
+	if (*(int *)kp->arg) {
+		struct power_supply *bms_psy = power_supply_get_by_name("bms");
+		struct qpnp_bms_chip *chip;
+
+		if (!bms_psy)
+			return param_get_int(buffer, kp);
+
+		chip = container_of(bms_psy, struct qpnp_bms_chip, bms_psy);
+
+		if (chip) {
+			last_ocv_uv = chip->last_ocv_uv;
+			return param_get_int(buffer, kp);
+		} else {
+			return 0;
+		}
+	}
+	return 0;
+}
+
+static struct kernel_param_ops ocv_param_ops = {
+	.set = NULL,
+	.get = ocv_ops_get,
+};
+
+module_param_cb(last_ocv_uv, &ocv_param_ops, &last_ocv_uv, 0644);
+
 static void backup_soc_and_iavg(struct qpnp_bms_chip *chip, int batt_temp,
 				int soc)
 {
@@ -1677,10 +1707,13 @@ static void backup_soc_and_iavg(struct qpnp_bms_chip *chip, int batt_temp,
 
 	rc = qpnp_write_wrapper(chip, &temp, chip->base + IAVG_STORAGE_REG, 1);
 
-	/* don't store soc if temperature is below 5degC */
+	/* Invalidate the SOC if the temperature is below 0 degC */
 	if (batt_temp > IGNORE_SOC_TEMP_DECIDEG)
 		qpnp_masked_write_base(chip, chip->soc_storage_addr,
 				SOC_STORAGE_MASK, (soc + 1) << 1);
+	else
+		qpnp_masked_write_base(chip, chip->soc_storage_addr,
+				SOC_STORAGE_MASK, 0);
 }
 
 static int scale_soc_while_chg(struct qpnp_bms_chip *chip, int chg_time_sec,
@@ -1709,6 +1742,35 @@ static int scale_soc_while_chg(struct qpnp_bms_chip *chip, int chg_time_sec,
 			chg_time_sec, new_soc, prev_soc, scaled_soc);
 
 	return scaled_soc;
+}
+
+static void soc_sanity_check(struct qpnp_bms_chip *chip,
+			    int batt_temp, int soc)
+{
+	int pc;
+	int ibat_ua, vbat_uv, ocv_uv;
+	int rc;
+	int rbatt_mohm = get_rbatt(chip, soc, batt_temp);
+
+	if (wake_lock_active(&chip->low_voltage_wake_lock)) {
+		chip->last_soc = 0;
+		return;
+	}
+
+	rc = get_simultaneous_batt_v_and_i(chip, &ibat_ua, &vbat_uv);
+	if (rc) {
+		pr_err("simultaneous failed rc = %d\n", rc);
+		return;
+	}
+
+	ocv_uv = vbat_uv + (ibat_ua * rbatt_mohm) / 1000;
+	pc = calculate_pc(chip, ocv_uv, batt_temp);
+	pr_debug("voltage_soc = %d\n", pc);
+
+	/* for this first Interation just calculate */
+	/* voltage_soc but don't manipulate last_soc */
+	/* Calculation is done so that debug print will be generated */
+	return;
 }
 
 /*
@@ -1753,6 +1815,11 @@ static int report_cc_based_soc(struct qpnp_bms_chip *chip)
 		pr_err("Wait for SoC interrupted.\n");
 		return rc;
 	}
+
+	/* Prevent Running if called too Early */
+	/* Report 100% to be safe */
+	if (chip->calculated_soc == -EINVAL)
+		return 100;
 
 	rc = qpnp_vadc_read(chip->vadc_dev, LR_MUX1_BATT_THERM, &result);
 
@@ -1842,6 +1909,7 @@ static int report_cc_based_soc(struct qpnp_bms_chip *chip)
 			chip->last_soc, chip->calculated_soc,
 			soc, time_since_last_change_sec);
 	chip->last_soc = bound_soc(soc);
+	soc_sanity_check(chip, batt_temp, chip->last_soc);
 	backup_soc_and_iavg(chip, batt_temp, chip->last_soc);
 	pr_debug("Reported SOC = %d\n", chip->last_soc);
 	chip->t_soc_queried = now;
@@ -4242,11 +4310,11 @@ static int __devinit qpnp_bms_probe(struct spmi_device *spmi)
 		goto error_setup;
 	}
 
+	calculate_soc_work(&(chip->calculate_soc_delayed_work.work));
+
 	battery_insertion_check(chip);
 	batfet_status_check(chip);
 	battery_status_check(chip);
-
-	calculate_soc_work(&(chip->calculate_soc_delayed_work.work));
 
 	/* setup & register the battery power supply */
 	chip->bms_psy.name = "bms";

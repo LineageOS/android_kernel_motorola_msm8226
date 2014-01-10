@@ -179,6 +179,7 @@ config ARCH_MSM8960
 	select MSM_USE_USER_ACCESSIBLE_TIMERS
 	select MSM_CPU_PWRCTL
 	select MSM_LPM_TEST
+	select HAS_MACH_MEMUTILS
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -515,6 +516,7 @@ config ARCH_MSM8226
 	select MSM_RPM_LOG
 	select MSM_RPM_STATS_LOG
 	select ARCH_WANT_KMAP_ATOMIC_FLUSH
+	select HAS_MACH_MEMUTILS
 
 config ARCH_MSMSAMARIUM
 	bool "MSMSAMARIUM"
@@ -2472,6 +2474,16 @@ config MSM_WATCHDOG_V2
 		deadlocks. It does not run during the bootup process, so it will
 		not catch any early lockups.
 
+config MSM_WATCHDOG_CTX_PRINT
+	bool "Print context dump saved by secure mode watchdog handler"
+	default n
+	depends on MSM_WATCHDOG_V2
+	help
+		After enabling this option, kernel will reserve bigger buffer
+		for secure mode watchdog handler to save info. And kernel will
+		try to print the info if it looks valid.
+		If unsure, say N
+
 config MSM_MEMORY_DUMP
 	bool "MSM Memory Dump Support"
 	help
@@ -3080,4 +3092,48 @@ config KRAIT_REGULATOR
 	 line from the PMIC. This supply line is powered by multiple
 	 regulators running in ganged mode inside the PMIC. Enable
 	 this option to support such configurations.
+
+config HAS_MACH_MEMUTILS
+	default n
+	bool "Motorola MSM memcpy enhancements"
+	help
+	Faster memcpy performance for Krait
+
+config MMI_RAM_INFO
+	depends on ARCH_MSM
+	default n
+	bool "Motorola Mobility RAM Info"
+	help
+	Provide mechanism to access RAM size and MR registers values via sysfs.
+
+config MMI_UNIT_INFO
+	depends on ARCH_MSM
+	default n
+	bool "Motorola Mobility Unit Info"
+	help
+	Provide mechanism to expose unit information to other cpu via smem.
+
+config MMI_SOC_INFO
+	depends on ARCH_MSM
+	default n
+	bool "Motorola Mobility SOC Info"
+	help
+	Provide mechanism to annotate SOC info to panic data.
+
+config MMI_DEVICE_DTBS
+	depends on ARCH_MSM
+	default n
+	bool "Motorola Mobility Device DTBs"
+	help
+	  Only include Motorola device specific DTBs to limit the number that
+	  get built during kernel compilation.
+
+config MMI_MSM_PINMUX
+	depends on ARCH_MSM
+	default n
+	bool "Motorola Mobility MSM OF DTS Pinmux Driver"
+	help
+	  Provides capability for reading an OF DT node to provide initial
+	  configuration of GPIO MUX settings on MSM chip families.
+
 endif

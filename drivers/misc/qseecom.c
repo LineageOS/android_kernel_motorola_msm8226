@@ -34,6 +34,7 @@
 #include <linux/firmware.h>
 #include <linux/freezer.h>
 #include <linux/scatterlist.h>
+#include <linux/sec_export.h>
 #include <mach/board.h>
 #include <mach/msm_bus.h>
 #include <mach/msm_bus_board.h>
@@ -702,6 +703,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		}
 
 		if (resp.result != QSEOS_RESULT_SUCCESS) {
+			print_hab_fail_codes();
 			pr_err("scm_call failed resp.result unknown, %d\n",
 				resp.result);
 			if (!IS_ERR_OR_NULL(ihandle))

@@ -88,6 +88,7 @@ config UNUSED_SYMBOLS
 
 config DEBUG_FS
 	bool "Debug Filesystem"
+	select DEBUG_FS_CORE
 	help
 	  debugfs is a virtual file system that kernel developers use to put
 	  debugging files into.  Enable this option to be able to read and
@@ -182,9 +183,48 @@ config LOCKUP_DETECTOR
 	  The frequency of hrtimer and NMI events and the soft and hard lockup
 	  thresholds can be controlled through the sysctl watchdog_thresh.
 
+config SOFTLOCKUP_WATCHDOG_TEST
+	bool "To test softlockup watchdog"
+	depends on LOCKUP_DETECTOR && DEBUG_FS
+	default n
+	help
+	  This option provides a kernel debugfs item that can be used
+	  to test softlockup watchdog reset. This option is not useful
+	  for distributions or general kernels, but only for kernel
+	  developers working on architecture code for test purpose.
+
+	  Say N if you are unsure.
+
 config HARDLOCKUP_DETECTOR
 	def_bool LOCKUP_DETECTOR && PERF_EVENTS && HAVE_PERF_EVENTS_NMI && \
 		 !HAVE_NMI_WATCHDOG
+
+config LOCKUP_IPI_CALL_WDT
+	bool "Trigger Watchdog Reset when Softlockup on IPI Call"
+	depends on LOCKUP_DETECTOR && USE_GENERIC_SMP_HELPERS
+	help
+	  Say Y here to enable the kernel to trigger watchdog reset when it
+	  detects softlockup happens during current cpu is waiting for ipi replying
+	  from other CPUs.
+
+	  Original softlockup logs for ipi call hang issue can't provide
+	  the backtrace on other CPUs. Since some machine may provide
+	  ramdump when watchdog happens, we can leverage it to find out the
+	  the other cpus' backtrace by initiating a watchdog reset
+	  when this kind of softlockup occurs.
+
+	  Say N if unsure.
+
+config WORKQUEUE_LEAK_PANIC
+        bool "Kernel panic when bug on workqueue leaked lock or atomic"
+        help
+          Say Y here to enable kernel panic when process one work in atomic
+          environment.
+
+          Original warning logs would not help us resolve the issue at the
+          first time. So, we prefer to stop and fix the issue before moving on.
+
+          Say N if unsure.
 
 config BOOTPARAM_HARDLOCKUP_PANIC
 	bool "Panic (Reboot) On Hard Lockups"
@@ -1296,6 +1336,24 @@ config PANIC_ON_DATA_CORRUPTION
 	 Select this option to upgrade warnings for potentially
 	 recoverable data corruption scenarios to system-halting panics,
 	 for easier detection and debug.
+
+config DO_EXIT_WDOG
+	bool "Task exit watchdog"
+	help
+	 This feature runs a watchdog timer while do_exit() cleans up a task.
+	 If it doesn't complete in the specified time, then it will force a
+	 crash.  When this happens, we assume that one of the task cleanup
+	 routines is hopelessly stuck and the best course of action is to
+	 crash to recover functionality.  The original catalyst for this was
+	 exit_files() never returning due to a deadlock in the close path of a
+	 driver.  It might help (or hurt) in other cases as well.
+
+config DO_EXIT_WDOG_TIMEOUT
+	int "Timeout value for task exit watchdog"
+	default 900
+	depends on DO_EXIT_WDOG
+	help
+	  This is the value for the do_exit() watchdog timer in seconds.
 
 source "samples/Kconfig"
 

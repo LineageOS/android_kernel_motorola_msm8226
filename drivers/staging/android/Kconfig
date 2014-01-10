@@ -46,6 +46,16 @@ config ANDROID_RAM_CONSOLE
 	select ANDROID_PERSISTENT_RAM
 	default n
 
+config ANDROID_PERSISTENT_RAM_EXT_BUF
+	bool "Allow printing to old persistent ram"
+	default n
+	depends on ANDROID_RAM_CONSOLE && ANDROID_PERSISTENT_RAM
+	help
+	  Adding function which can print to old persistent ram. It accepts
+	  similar parameters as printk.
+	  Content printed will be visible in last_kmsg.
+	  If unsure, say N.
+
 config PERSISTENT_TRACER
 	bool "Persistent function tracer"
 	depends on HAVE_FUNCTION_TRACER
@@ -94,6 +104,50 @@ config ANDROID_INTF_ALARM_DEV
 	  Provides non-wakeup and rtc backed wakeup alarms based on rtc or
 	  elapsed realtime, and a non-wakeup alarm on the monotonic clock.
 	  Also exports the alarm interface to user-space.
+
+config ANDROID_DEBUG_FD_LEAK
+	bool "Android file descriptor leak debugger"
+	default n
+	---help---
+	  This Motorola Android extension helps debugging file descriptor
+	  leak bugs by dumping the backtrace of the culprit thread which
+	  is either creating a big file descriptor or injecting
+	  a big file descriptor into another process. A file descriptor
+	  is big when it is no less than CONFIG_ANDROID_BIG_FD.
+
+	  In Motorola Android platform, this feature is enabled in eng
+	  and userdebug build, and disabled in user build, same as the
+	  helsmond feature which is controlled by the HELSMON_INCL build
+	  variable.
+
+config ANDROID_BIG_FD
+	int "Minimum value of a big file descriptor"
+	depends on ANDROID_DEBUG_FD_LEAK
+	default 512
+	---help---
+	  Set this value to one that is unlikely reached by well-behaved
+	  processes which have no file descriptor leak bugs, but likely
+	  reached by the processes which do leak file descriptors.
+
+	  If this value is undefined but CONFIG_ANDROID_DEBUG_FD_LEAK is
+	  enabled, the value (__FD_SETSIZE / 2) will be assumed.
+
+config ANDROID_LMK_ADJ_RBTREE
+	bool "Use RBTREE for Android Low Memory Killer"
+	depends on ANDROID_LOW_MEMORY_KILLER
+	default N
+	---help---
+	  Use oom_score_adj rbtree to select the best proecss to kill
+	  when system in low memory status.
+
+config ANDROID_BG_SCAN_MEM
+	bool "SCAN free memory more frequently"
+	depends on ANDROID_LOW_MEMORY_KILLER && ANDROID_LMK_ADJ_RBTREE && CGROUP_SCHED
+	default N
+	---help---
+	  Add more free-memory check point. Such as, when a task is moved to
+	  background task groups, we can trigger low memory killer to scan
+	  memory and decide whether it needs to reclaim memory by killing tasks.
 
 endif # if ANDROID
 

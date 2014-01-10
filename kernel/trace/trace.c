@@ -11,6 +11,7 @@
  *  Copyright (C) 2004-2006 Ingo Molnar
  *  Copyright (C) 2004 William Lee Irwin III
  */
+#define REALLY_WANT_DEBUGFS
 #include <linux/ring_buffer.h>
 #include <generated/utsrelease.h>
 #include <linux/stacktrace.h>
@@ -237,7 +238,7 @@ int tracing_is_enabled(void)
  * to not have to wait for all that output. Anyway this can be
  * boot time and run time configurable.
  */
-#define TRACE_BUF_SIZE_DEFAULT	1441792UL /* 16384 * 88 (sizeof(entry)) */
+#define TRACE_BUF_SIZE_DEFAULT	262144UL /* 1024 * 256 */
 
 static unsigned long		trace_buf_size = TRACE_BUF_SIZE_DEFAULT;
 
@@ -384,7 +385,7 @@ EXPORT_SYMBOL_GPL(tracing_on);
 void tracing_off(void)
 {
 	if (global_trace.buffer)
-		ring_buffer_record_on(global_trace.buffer);
+		ring_buffer_record_off(global_trace.buffer);
 	/*
 	 * This flag is only looked at when buffers haven't been
 	 * allocated yet. We don't really care about the race
@@ -3024,8 +3025,14 @@ static int __tracing_resize_ring_buffer(unsigned long size)
 	max_tr.entries = size;
  out:
 	global_trace.entries = size;
+	trace_buf_size = size;
 
 	return ret;
+}
+
+unsigned long tracing_get_trace_buf_size(void)
+{
+	return trace_buf_size;
 }
 
 static ssize_t tracing_resize_ring_buffer(unsigned long size)

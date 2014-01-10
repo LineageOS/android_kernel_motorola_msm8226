@@ -10,6 +10,13 @@ config SENSORS_LIS3LV02D
 	select INPUT_POLLDEV
 	default n
 
+config SENSORS_L3G4200D
+        tristate "L3G4200D Gyroscope"
+        default n
+        depends on I2C
+        help
+          Support for the L3G4200D driver
+
 config AD525X_DPOT
 	tristate "Analog Devices Digital Potentiometers"
 	depends on (I2C || SPI) && SYSFS
@@ -334,6 +341,22 @@ config ISL29020
 	  This driver can also be built as a module.  If so, the module
 	  will be called isl29020.
 
+config VIB_TIMED
+	bool "Timed Output based Vibrator"
+	depends on ANDROID_TIMED_OUTPUT
+	default n
+
+config MOT_UTAG
+	tristate  "Motorola Configuration read/write support "
+	default n
+	help
+	  With this option you get read/write access to utag partition via procfs.
+	  Content of the entire partition can be checked, separate utags accessed
+	  and modified.
+
+	  This driver should be built as a module. The module will be called
+	  utags.ko.
+
 config SENSORS_TSL2550
 	tristate "Taos TSL2550 ambient light sensor"
 	depends on I2C && SYSFS
@@ -389,6 +412,22 @@ config SENSORS_AK8975
 	help
 	  If you say yes here you get support for Asahi Kasei's
 	  orientation sensor AK8975.
+
+config SENSORS_MSP430
+	tristate "MSP430 Sensor Processor"
+	default n
+	depends on I2C
+	help
+	  Say yes here if you wish to include the TI
+	  MSP430 Sensor processor driver.
+
+config SENSORS_AK8963
+       tristate "AK8963 compass support"
+       default n
+       depends on I2C
+       help
+         If you say yes here you get support for Asahi Kasei's
+         orientation sensor AK8963.
 
 config EP93XX_PWM
 	tristate "EP93xx PWM support"
@@ -517,6 +556,29 @@ config WL127X_RFKILL
 	---help---
 	 Creates an rfkill entry in sysfs for power control of Bluetooth
 	 TI wl127x chips.
+
+config APANIC_MMC
+	bool "Android kernel panic diagnostics driver on mmc"
+	default n
+	---help---
+	 Driver which handles kernel panics and attempts to write
+	 critical debugging data through mmc.
+
+config APANIC_MMC_MEMDUMP
+	bool "Android memory dump driver on mmc"
+	depends on APANIC_MMC
+	default n
+	---help---
+	 Driver which handles kernel panics and attempts to write
+	 full memory dump through mmc.
+
+config APANIC_PLABEL
+	string "Android panic dump flash partition label"
+	depends on APANIC_MMC
+	default "kpanic"
+	---help---
+	 If your platform uses a different flash partition label for storing
+ 	 crashdumps, enter it here.
 
 config TSIF
 	depends on ARCH_MSM8X60 || ARCH_MSM8960 || ARCH_APQ8064
@@ -665,6 +727,74 @@ config TI_DRV2667
 	  To compile this driver as a module, choose M here: the
 	  module will be called ti_drv2667.
 
+config HAPTIC_DRV2605
+	tristate "TI DRV2605 haptic driver"
+	depends on I2C && SYSFS
+	help
+	  If you say yes here you get support for the TI DRV2605
+	  haptic driver.
+
+
+config MMI_FACTORY
+	tristate "Motorola Mobility Factory driver"
+	depends on OF
+	help
+	  This option enables a device driver that is collects many
+	  of the extensions needed by the Motorola factory.  If you
+	  aren't literally building a Motorola Device you can safely
+	  say no here.
+	default n
+
+config C55_CTRL
+	tristate "TI C55 Control driver"
+	help
+	  This option enables device driver to control the TI C55 IC. This
+	  is intended to be a simple driver which only exports the GPIOs
+	  for user space use.
+
+config ALSA_TO_H2W
+	tristate "ALSA to H2W wired headset detection converter"
+	help
+	  This option enables a device driver that attach to the input queue and
+	  and exposes EV_SW events SW_HEADPHONE_INSERT & SW_MICROPHONE_INSERT in
+	  /sys/class/switch/h2w/state used by Android headset observer.
+	default n
+
+config HOB_SHARED_RAM
+	tristate "HOB RAM MMAP Client"
+	depends on OF
+	help
+	  Provide mechanism to access hob storage shared memory on apps
+	  processor. HOB - or the Hand Over Block - is the staging area for
+	  phasing data.
+	default n
+
+config DROPBOX
+	tristate "Dropbox sysfs support"
+	default y
+	help
+	  This option enables a sysfs interface for drivers to send text or
+	  binary events to the Android dropbox. A lightweight userspace daemon
+	  polls the sysfs files and copies the data into dropbox using the built
+	  in dropbox manager service.  This enables fast and simple logging of
+	  various critical events from kernel drivers.
+
+config USR_RESET_WARNING
+	tristate "User reset warning driver"
+	help
+	  This option enables a device driver that monitors user reset warning
+	  GPIO.If the driver receives the warning it calls kernel_halt to notify
+	  drivers registered for the reboot notification about incoming HW reset.
+	default n
+
+config SENSORS_LIS3DH_MOT
+	tristate "LIS3DH_MOT Accelerometer"
+	default n
+	depends on I2C
+	help
+	 Say yes here if you wish to include the ST Micro
+	 LIS3DH Mot accelerometer driver.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -673,4 +803,9 @@ source "drivers/misc/ti-st/Kconfig"
 source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/altera-stapl/Kconfig"
+source "drivers/misc/sec/Kconfig"
+source "drivers/misc/capsense_prog/Kconfig"
+source "drivers/misc/stm401/Kconfig"
+
 endmenu
+

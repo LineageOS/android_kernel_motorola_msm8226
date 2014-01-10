@@ -1,0 +1,72 @@
+/* Copyright (c) 2013 Motorola Mobility LLC
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/include/ "msm8974-moto-reserve.dtsi"
+/include/ "msm8974pro-ab-abbagoochie-common.dtsi"
+
+
+/ {
+	qcom,msm-id = <218 0x41 0x8200>;
+};
+
+&soc {
+	i2c_0: i2c@f9967000 {   /* "I2C5" on BLSP11 (BLSP2 QUP4) */
+		status = "ok";
+	};
+
+	i2c_2: i2c@f9924000 {	/* Unused QUP on BLSP2 (BLSP1 QUP1) */
+		status = "disabled";
+	};
+
+	ti,c55-ctrl {
+		compatible = "ti,c55-ctrl";
+		gpios = <&msmgpio 6 0>,         /* gpio_reset */
+			<&msmgpio 61 2>;        /* gpio_c55_int */
+	};
+};
+
+&i2c_0 {
+	tpa6165xx@40 {
+		compatible = "ti,tpa6165";
+		reg = <0x40>;
+		interrupts = <&pm8941_gpios 22 0x1>;
+		gpios = <&pm8941_gpios 22 0x1>;
+		hs_det_vdd-supply = <&pm8941_lvs2>;
+		hs_det_micvdd-supply = <&pm8941_l17>;
+		ti,tpa6165-always-on-micbias = <1>;
+		};
+};
+
+&i2c_1 {
+	stm401@39 {
+		compatible = "stm,stm401";
+		gpios = <&msmgpio 95 0>,        /* IRQ */
+			<&msmgpio 145 0>,       /* RESET */
+			<&msmgpio 33 0>,        /* BSLEN */
+			<&msmgpio 20 0>;        /* WakeIRQ */
+	};
+};
+
+&i2c_3 {
+	synaptics_dsx_i2c@20 {
+		compatible = "synaptics,synaptics_dsx_i2c";
+		interrupts = <81 0>;
+		gpios = <&msmgpio 81 0>,        /* IRQ */
+			<&msmgpio 60 0>;        /* RESET */
+	};
+};
+
+&pm8941_l18 {
+	regulator-always-on;
+};
+

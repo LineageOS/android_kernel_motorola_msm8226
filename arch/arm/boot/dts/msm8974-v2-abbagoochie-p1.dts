@@ -1,0 +1,156 @@
+/* Copyright (c) 2013 Motorola Mobility LLC
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/include/ "msm8974-moto-reserve.dtsi"
+/include/ "msm8974-v2-moto-common.dtsi"
+/include/ "dsi-panel-mot-smd-720p-video.dtsi"
+
+/ {
+	model = "Motorola QC-MSM8974 Abbagoochie";
+	compatible = "qcom,msm8974-abbagoochie",
+		     "qcom,msm8974-moto",
+		     "qcom,msm8974";
+
+	qcom,msm-id = <126 0x41 0x8100>;
+};
+
+&mot_smd_720p_vid {
+	vbat_disp-supply = <&vbat_disp_vreg>;
+	vdd_disp-supply = <&vdd_disp_vreg>;
+	vci_disp-supply = <&vci_disp_vreg>;
+};
+
+&soc {
+	i2c_1: i2c@f9923000 {   /* Unused QUP on BLSP1 (BLSP1 UART0) */
+		status = "disabled";
+	};
+
+	i2c_6: i2c@f9966000 {   /* "I2C4" on BLSP10 (BLSP2 QUP3) */
+		cell-index = <6>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9966000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 104 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <50000000>;
+		qcom,master-id = <84>;
+	};
+
+	ti,c55-ctrl {
+		compatible = "ti,c55-ctrl";
+		gpios = <&pm8941_gpios 14 2>,   /* gpio_core */
+			<&pm8941_gpios 16 0>,   /* gpio_reset */
+			<&msmgpio 102 1>,       /* gpio_ap_int */
+			<&msmgpio 61 2>;        /* gpio_c55_int */
+	};
+
+	vbat_disp_vreg: vbat_disp_vreg {
+		compatible = "regulator-fixed";
+		gpio = <&msmgpio 7 0x0>;
+	};
+
+	vdd_disp_vreg: vdd_disp_vreg {
+		compatible = "regulator-fixed";
+		gpio = <&msmgpio 6 0x0>;
+	};
+
+	vci_disp_vreg: vci_disp_vreg {
+		compatible = "regulator-fixed";
+		gpio = <&msmgpio 23 0x0>;
+	};
+
+	spi_7: spi_epm: spi@f9966000 {
+		status = "disabled";
+	};
+};
+
+&pm8941_gpios {
+	gpio@cb00 { /* GPIO 12 */
+		qcom,mode = <1>;          /* QPNP_PIN_MODE_DIG_OUT */
+		qcom,out-strength = <1>;  /* QPNP_PIN_OUT_STRENGTH_LOW */
+		qcom,src-sel = <2>;       /* QPNP_PIN_SEL_FUNC_1 */
+		qcom,master-en = <1>;
+	};
+
+	gpio@d200 { /* GPIO 19 */
+		qcom,out-strength = <3>;  /* QPNP_PIN_OUT_STRENGTH_HIGH */
+	};
+
+	gpio@d600 { /* GPIO 23 */
+		qcom,mode = <1>;          /* QPNP_PIN_MODE_DIG_OUT */
+		qcom,out-strength = <1>;  /* QPNP_PIN_OUT_STRENGTH_LOW */
+		qcom,src-sel = <2>;       /* QPNP_PIN_SEL_FUNC_1 */
+		qcom,master-en = <1>;
+	};
+};
+
+&slim_msm {
+	taiko_codec {
+		qcom,cdc-reset-gpio = <&pm8941_gpios 36 0>;
+	};
+};
+
+&i2c_0 {
+	/* TI drv2605 */
+	drv2605@5a {
+		compatible = "ti,drv2605";
+		reg = <0x5A>;
+		gpios = <&msmgpio 54 0>,    /* EN_GPIO */
+			<&pm8941_gpios 2 0>; /* Trigger */
+		external_trigger = <1>;
+		default_effect = <17>;      /* Strong Click 100% */
+		rated_voltage = <0x70>;     /* 2.4v */
+		overdrive_voltage = <0x89>; /* 3.0v */
+		vibrator_vdd-supply = <&pm8941_boost>;
+	};
+};
+
+&i2c_3 {
+	drv2605@5a {
+		status = "disabled";
+	};
+
+	synaptics_dsx_i2c@20 {
+		compatible = "synaptics,synaptics_dsx_i2c";
+		gpios = <&msmgpio 81 0>, /* IRQ */
+			<&msmgpio 80 0>; /* RESET */
+	};
+};
+
+&cci {
+
+	qcom,camera@6e {
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
+		qcom,cam-vreg-type = <0 1 0>;
+		qcom,cam-vreg-min-voltage = <1225000 1800000 2850000>;
+		qcom,cam-vreg-max-voltage = <1225000 1800000 2850000>;
+		qcom,cam-vreg-op-mode = <105000 0 80000>;
+		gpios = <&msmgpio 17 0>,
+			<&msmgpio 103 0>,
+			<&msmgpio 96 0>,
+			<&msmgpio 129 0>;
+		qcom,gpio-reset = <1>;
+		qcom,gpio-standby = <2>;
+		qcom,gpio-pwren = <3>;
+		qcom,gpio-req-tbl-num = <0 1 2 3>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK",
+					  "CAM_RESET1",
+					  "CAM_STANDBY",
+					  "CAM_PWREN";
+	};
+
+};

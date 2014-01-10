@@ -60,6 +60,8 @@
 #define use_restart_v2()	0
 #endif
 
+#define RESET_EXTRA_PANIC_REASON	BIT(0)
+
 static int restart_mode;
 void *restart_reason;
 
@@ -74,7 +76,7 @@ static void *emergency_dload_mode_addr;
 
 /* Download mode master kill-switch */
 static int dload_set(const char *val, struct kernel_param *kp);
-static int download_mode = 1;
+static int download_mode = 0;
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 static int panic_prep_restart(struct notifier_block *this,
@@ -285,6 +287,11 @@ static void msm_restart_prepare(const char *cmd)
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
+	} else if (in_panic == 1) {
+		__raw_writel(0x77665505, restart_reason);
+		qpnp_pon_store_extra_reset_info(RESET_EXTRA_PANIC_REASON, 1);
+	} else {
+		__raw_writel(0x77665501, restart_reason);
 	}
 
 	flush_cache_all();

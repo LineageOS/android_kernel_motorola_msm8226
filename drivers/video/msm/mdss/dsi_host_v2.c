@@ -339,6 +339,16 @@ void dsi_set_tx_power_mode(int mode)
 	MIPI_OUTP(ctrl_base + DSI_COMMAND_MODE_DMA_CTRL, data);
 }
 
+int dsi_get_tx_power_mode(void)
+{
+	u32 data;
+	unsigned char *ctrl_base = dsi_host_private->dsi_base;
+
+	data = MIPI_INP(ctrl_base + DSI_COMMAND_MODE_DMA_CTRL);
+
+	return !!(data & BIT(26));
+}
+
 void msm_dsi_sw_reset(void)
 {
 	u32 dsi_ctrl;
@@ -1062,8 +1072,8 @@ static struct device_node *dsi_find_panel_of_node(
 		dsi_pan_node = of_find_node_by_name(mdss_node,
 						    panel_name);
 		if (!dsi_pan_node) {
-			pr_err("%s: invalid pan node\n",
-			       __func__);
+			pr_err("%s: invalid pan node. panel_name=%s\n",
+							__func__, panel_name);
 			return NULL;
 		}
 	}
@@ -1152,6 +1162,14 @@ static int __devinit msm_dsi_probe(struct platform_device *pdev)
 		pr_warn("%s:%d:dsi specific cfg not present\n",
 							 __func__, __LINE__);
 
+	/* Parse panel config */
+	rc = mdss_panel_parse_panel_config_dt(ctrl_pdata);
+	if (rc) {
+		pr_err("%s: failed to parse panel config dt, rc = %d\n",
+								__func__, rc);
+		goto error_pan_node;
+	}
+
 	/* find panel device node */
 	dsi_pan_node = dsi_find_panel_of_node(pdev, panel_cfg);
 	if (!dsi_pan_node) {
@@ -1160,8 +1178,13 @@ static int __devinit msm_dsi_probe(struct platform_device *pdev)
 		goto error_pan_node;
 	}
 
+	mdss_panel_set_reg_boot_on(dsi_pan_node, ctrl_pdata);
+
 	cmd_cfg_cont_splash = mdp3_panel_get_boot_cfg() ? true : false;
 
+	ctrl_pdata->pdev = pdev;
+	ctrl_pdata->get_dt_vreg_data = dsi_parse_vreg;
+	ctrl_pdata->dsi_cmdlist_put = dsi_cmdlist_put_v2;
 	rc = mdss_dsi_panel_init(dsi_pan_node, ctrl_pdata, cmd_cfg_cont_splash);
 	if (rc) {
 		pr_err("%s: dsi panel init failed\n", __func__);

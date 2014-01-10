@@ -819,6 +819,9 @@ static int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				allow = false;
 			break;
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
+			if (num_online_cpus() > 1)
+				allow = false;
+			break;
 		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
 			break;
 		default:
@@ -1474,7 +1477,7 @@ static struct notifier_block setup_broadcast_notifier = {
 	.notifier_call = setup_broadcast_cpuhp_notify,
 };
 
-static int __init msm_pm_init(void)
+static int __devinit msm_pm_init(void)
 {
 	enum msm_pm_time_stats_id enable_stats[] = {
 		MSM_PM_STAT_IDLE_WFI,

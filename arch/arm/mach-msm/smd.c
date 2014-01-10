@@ -48,6 +48,7 @@
 #include <mach/ramdump.h>
 #include <mach/board.h>
 #include <mach/msm_smem.h>
+#include <mach/subsystem_restart.h>
 
 #include <asm/cacheflush.h>
 
@@ -2446,7 +2447,7 @@ static int smsm_init(void)
 	j_start = jiffies;
 	while (!remote_spin_trylock_irqsave(remote_spinlock, flags)) {
 		if (jiffies_to_msecs(jiffies - j_start) > RSPIN_INIT_WAIT_MS) {
-			panic("%s: Remote processor %d will not release spinlock\n",
+			PR_BUG("%s: Remote processor %d will not release spinlock\n",
 				__func__, remote_spin_owner(remote_spinlock));
 		}
 	}
@@ -3179,6 +3180,10 @@ void smd_post_init(bool is_legacy, unsigned remote_pid)
 		smd_alloc_loopback_channel();
 		for (i = 1; i < NUM_SMD_SUBSYSTEMS; ++i)
 			schedule_work(&remote_info[i].probe_work);
+		local_bh_disable();
+		smd_fake_irq_handler(0);
+		local_bh_enable();
+
 	} else {
 		schedule_work(&remote_info[remote_pid].probe_work);
 	}

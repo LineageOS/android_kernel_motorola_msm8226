@@ -70,6 +70,7 @@ static void __unhash_process(struct task_struct *p, bool group_dead)
 		detach_pid(p, PIDTYPE_SID);
 
 		list_del_rcu(&p->tasks);
+		delete_from_adj_tree(p);
 		list_del_init(&p->sibling);
 		__this_cpu_dec(process_counts);
 	}
@@ -899,10 +900,69 @@ static void check_stack_usage(void)
 static inline void check_stack_usage(void) {}
 #endif
 
+struct exit_timer_data {
+	struct task_struct *tsk;
+	struct hrtimer timer;
+};
+
+#ifdef CONFIG_DO_EXIT_WDOG
+static enum hrtimer_restart exit_timeout(struct hrtimer *timer)
+{
+	struct exit_timer_data *tdata = container_of(timer,
+			struct exit_timer_data, timer);
+
+	pr_emerg("**** do_exit() timeout for task %s (%d)\n",
+			tdata->tsk->comm, task_pid_nr(tdata->tsk));
+	sched_show_task(tdata->tsk);
+	BUG();
+	return HRTIMER_NORESTART;
+}
+
+static inline void start_exit_timer(struct exit_timer_data *tdata)
+{
+	struct timespec expiry_ts;
+
+	tdata->tsk = current;
+	hrtimer_init(&tdata->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	tdata->timer.function = exit_timeout;
+	expiry_ts.tv_sec = CONFIG_DO_EXIT_WDOG_TIMEOUT;
+	expiry_ts.tv_nsec = 0;
+	hrtimer_start(&tdata->timer, timespec_to_ktime(expiry_ts),
+			HRTIMER_MODE_REL);
+}
+
+static inline void stop_exit_timer(struct exit_timer_data *tdata)
+{
+	hrtimer_cancel(&tdata->timer);
+}
+#else
+static inline void start_exit_timer(struct exit_timer_data *tdata) {}
+
+static inline void stop_exit_timer(struct exit_timer_data *tdata) {}
+#endif
+
 void do_exit(long code)
 {
 	struct task_struct *tsk = current;
+	struct exit_timer_data tdata;
 	int group_dead;
+
+	/*
+	 * If we cannot finish exiting before the timeout, then we assume that
+	 * one or more threads in our group is hopelessly stuck and we should
+	 * crash to recover.  The timeout should be set high enough such that
+	 * the likelihood of a scheduling problem causing the timeout to occur
+	 * is extremely small.
+	 *
+	 * Wrapping exit_mm() creates a dependency on userspace since it won't
+	 * return as long as one of the threads in our group is dumping core.
+	 * This is a calculated risk.  The coredump program is controlled by
+	 * root, so it's as tamper-proof as root is.
+	 *
+	 * exit_files() may call into device drivers that are unproven, so this
+	 * helps flush out deadlocks in those drivers.
+	 */
+	start_exit_timer(&tdata);
 
 	profile_task_exit(tsk);
 
@@ -1069,6 +1129,7 @@ void do_exit(long code)
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
 	tsk->flags |= PF_NOFREEZE;	/* tell freezer to ignore us */
+	stop_exit_timer(&tdata);
 	schedule();
 	BUG();
 	/* Avoid "noreturn function does return".  */

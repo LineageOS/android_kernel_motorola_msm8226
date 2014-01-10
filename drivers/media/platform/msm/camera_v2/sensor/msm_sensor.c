@@ -527,6 +527,7 @@ int32_t msm_sensor_init_gpio_pin_tbl(struct device_node *of_node,
 {
 	int32_t rc = 0;
 	int32_t val = 0;
+	int i;
 
 	gconf->gpio_num_info = kzalloc(sizeof(struct msm_camera_gpio_num_info),
 		GFP_KERNEL);
@@ -535,6 +536,12 @@ int32_t msm_sensor_init_gpio_pin_tbl(struct device_node *of_node,
 		rc = -ENOMEM;
 		return rc;
 	}
+
+	/* Not all GPIOs may be needed on every platform by the driver, force
+	 * them to invalid values so we don't start setting GPIO0.
+	 */
+	for (i = 0; i < SENSOR_GPIO_MAX; i++)
+		gconf->gpio_num_info->gpio_num[i] = -EINVAL;
 
 	if (of_property_read_bool(of_node, "qcom,gpio-reset") == true) {
 		rc = of_property_read_u32(of_node, "qcom,gpio-reset", &val);
@@ -654,6 +661,41 @@ int32_t msm_sensor_init_gpio_pin_tbl(struct device_node *of_node,
 			__func__, __LINE__, rc);
 		goto ERROR;
 	}
+
+	if (of_property_read_bool(of_node, "qcom,gpio-pwren") == true) {
+		rc = of_property_read_u32(of_node, "qcom,gpio-pwren", &val);
+		if (rc < 0) {
+			pr_err("%s:%d read qcom,gpio-pwren failed rc %d\n",
+				__func__, __LINE__, rc);
+			goto ERROR;
+		} else if (val >= gpio_array_size) {
+			pr_err("%s:%d qcom,gpio-pwren invalid %d\n",
+				__func__, __LINE__, val);
+			goto ERROR;
+		}
+		gconf->gpio_num_info->gpio_num[SENSOR_GPIO_PWREN] =
+			gpio_array[val];
+		CDBG("%s qcom,gpio-pwren %d\n", __func__,
+			gconf->gpio_num_info->gpio_num[SENSOR_GPIO_PWREN]);
+	}
+
+	if (of_property_read_bool(of_node, "qcom,gpio-pwren2") == true) {
+		rc = of_property_read_u32(of_node, "qcom,gpio-pwren2", &val);
+		if (rc < 0) {
+			pr_err("%s:%d read qcom,gpio-pwren2 failed rc %d\n",
+				__func__, __LINE__, rc);
+			goto ERROR;
+		} else if (val >= gpio_array_size) {
+			pr_err("%s:%d qcom,gpio-pwren2 invalid %d\n",
+				__func__, __LINE__, val);
+			goto ERROR;
+		}
+		gconf->gpio_num_info->gpio_num[SENSOR_GPIO_PWREN2] =
+			gpio_array[val];
+		CDBG("%s qcom,gpio-pwren2 %d\n", __func__,
+			gconf->gpio_num_info->gpio_num[SENSOR_GPIO_PWREN2]);
+	}
+
 	return 0;
 
 ERROR:
@@ -967,7 +1009,6 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_sensor_power_setting_array *power_setting_array = NULL;
 	struct msm_sensor_power_setting *power_setting = NULL;
 	struct msm_camera_sensor_board_info *data = s_ctrl->sensordata;
-	s_ctrl->stop_setting_valid = 0;
 
 	CDBG("%s:%d\n", __func__, __LINE__);
 	power_setting_array = &s_ctrl->power_setting_array;
@@ -991,6 +1032,7 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		CDBG("%s index %d\n", __func__, index);
 		power_setting = &power_setting_array->power_setting[index];
 		CDBG("%s type %d\n", __func__, power_setting->seq_type);
+               CDBG("%s val %d\n", __func__, power_setting->seq_val);
 		switch (power_setting->seq_type) {
 		case SENSOR_CLK:
 			if (power_setting->seq_val >= s_ctrl->clk_info_size) {
@@ -1022,6 +1064,12 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 					SENSOR_GPIO_MAX);
 				goto power_up_failed;
 			}
+
+			if (!gpio_is_valid(
+				    data->gpio_conf->gpio_num_info->gpio_num
+				    [power_setting->seq_val]))
+				break;
+
 			pr_debug("%s:%d gpio set val %d\n", __func__, __LINE__,
 				data->gpio_conf->gpio_num_info->gpio_num
 				[power_setting->seq_val]);
@@ -1077,6 +1125,20 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		goto power_up_failed;
 	}
 
+	if (s_ctrl->func_tbl->sensor_read_otp_info)
+		rc = s_ctrl->func_tbl->sensor_read_otp_info(s_ctrl);
+	if (rc < 0) {
+		pr_warn("%s:%d read OTP info failed rc %d\n",
+				__func__, __LINE__, rc);
+	}
+
+	if (s_ctrl->func_tbl->sensor_set_lsc)
+		rc = s_ctrl->func_tbl->sensor_set_lsc(s_ctrl);
+	if (rc < 0) {
+		pr_warn("%s:%d set LSC failed rc %d\n",
+				__func__, __LINE__, rc);
+	}
+
 	CDBG("%s exit\n", __func__);
 	return 0;
 power_up_failed:
@@ -1099,6 +1161,10 @@ power_up_failed:
 				0);
 			break;
 		case SENSOR_GPIO:
+			if (!gpio_is_valid(
+				    data->gpio_conf->gpio_num_info->gpio_num
+				    [power_setting->seq_val]))
+				break;
 			gpio_set_value_cansleep(
 				data->gpio_conf->gpio_num_info->gpio_num
 				[power_setting->seq_val], GPIOF_OUT_INIT_LOW);
@@ -1167,6 +1233,12 @@ int32_t msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 					SENSOR_GPIO_MAX);
 				continue;
 			}
+
+			if (!gpio_is_valid(
+				    data->gpio_conf->gpio_num_info->gpio_num
+				    [power_setting->seq_val]))
+				break;
+
 			gpio_set_value_cansleep(
 				data->gpio_conf->gpio_num_info->gpio_num
 				[power_setting->seq_val], GPIOF_OUT_INIT_LOW);
@@ -1443,6 +1515,14 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		struct msm_camera_i2c_read_config read_config;
 		uint16_t local_data = 0;
 		uint16_t orig_slave_addr = 0, read_slave_addr = 0;
+
+		if (s_ctrl->sensor_state != MSM_SENSOR_POWER_UP) {
+			pr_err("%s:%d failed: invalid state %d\n", __func__,
+				__LINE__, s_ctrl->sensor_state);
+			rc = -EFAULT;
+			break;
+		}
+
 		if (copy_from_user(&read_config,
 			(void *)cdata->cfg.setting,
 			sizeof(struct msm_camera_i2c_read_config))) {
@@ -1707,6 +1787,54 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
+
+	case CFG_GET_MODULE_INFO: {
+		if (s_ctrl->func_tbl->sensor_get_module_info == NULL) {
+			pr_err("%s: sensor_get_module_info is null!\n",
+					__func__);
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = s_ctrl->func_tbl->sensor_get_module_info(s_ctrl);
+		if (rc < 0) {
+			pr_err("%s: Unable to get module info!\n",
+					__func__);
+			break;
+		}
+
+		if (copy_to_user((void *)cdata->cfg.sensor_otp.otp_info,
+					s_ctrl->sensor_otp.otp_info,
+					s_ctrl->sensor_otp.size)) {
+			pr_err("%s: error copying otp buffer to user\n",
+					__func__);
+			rc = -EFAULT;
+			break;
+		}
+
+		cdata->cfg.sensor_otp.size = s_ctrl->sensor_otp.size;
+		cdata->cfg.sensor_otp.hw_rev = s_ctrl->sensor_otp.hw_rev;
+		cdata->cfg.sensor_otp.asic_rev = s_ctrl->sensor_otp.asic_rev;
+		cdata->cfg.sensor_otp.cal_ver = s_ctrl->sensor_otp.cal_ver;
+		for (i = 0; i < 4; i++)
+			cdata->cfg.sensor_otp.sn[i] = s_ctrl->sensor_otp.sn[i];
+
+		break;
+	}
+	case CFG_GET_LENS_SHADING: {
+		if (s_ctrl->func_tbl->sensor_get_lsc == NULL) {
+			pr_err("%s: sensor_get_lsc_info is null!\n",
+					__func__);
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = s_ctrl->func_tbl->sensor_get_lsc(s_ctrl);
+		if (rc < 0)
+			pr_err("%s: Unable to get lsc info!\n", __func__);
+
+		break;
+	}
 	default:
 		rc = -EFAULT;
 		break;
@@ -1772,6 +1900,7 @@ static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl = {
 	.i2c_read_seq = msm_camera_cci_i2c_read_seq,
 	.i2c_write = msm_camera_cci_i2c_write,
 	.i2c_write_table = msm_camera_cci_i2c_write_table,
+	.i2c_write_seq = msm_camera_cci_i2c_write_seq,
 	.i2c_write_seq_table = msm_camera_cci_i2c_write_seq_table,
 	.i2c_write_table_w_microdelay =
 		msm_camera_cci_i2c_write_table_w_microdelay,
@@ -1784,6 +1913,7 @@ static struct msm_camera_i2c_fn_t msm_sensor_qup_func_tbl = {
 	.i2c_read_seq = msm_camera_qup_i2c_read_seq,
 	.i2c_write = msm_camera_qup_i2c_write,
 	.i2c_write_table = msm_camera_qup_i2c_write_table,
+	.i2c_write_seq = msm_camera_qup_i2c_write_seq,
 	.i2c_write_seq_table = msm_camera_qup_i2c_write_seq_table,
 	.i2c_write_table_w_microdelay =
 		msm_camera_qup_i2c_write_table_w_microdelay,

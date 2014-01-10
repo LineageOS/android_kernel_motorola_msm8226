@@ -40,6 +40,13 @@ config LEDS_ATMEL_PWM
 	  This option enables support for LEDs driven using outputs
 	  of the dedicated PWM controller found on newer Atmel SOCs.
 
+config LEDS_LM2755
+	tristate "LM2755 LED driver support"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for LM2755 RGB LED driver.
+
 config LEDS_LM3530
 	tristate "LCD Backlight driver for LM3530"
 	depends on LEDS_CLASS
@@ -145,6 +152,16 @@ config LEDS_PCA9532_GPIO
 
 	  To use a pin as gpio pca9532_type in pca9532_platform data needs to
 	  set to PCA9532_TYPE_GPIO.
+
+config LEDS_LM3556
+	  tristate "LM3556 driver"
+	  depends on LEDS_CLASS && I2C
+	help
+	 This option enables support for the LM3556 LED controller. LM3556 is
+	 a fixed frequency synchronous Boost flash driver, can be used as Camera
+	 Flash, Torch, Message Indicator.
+	 This Driver provides direct control via LED class and interface for
+	 programming the controller.
 
 config LEDS_GPIO
 	tristate "LED Support for GPIO connected LEDs"
@@ -310,6 +327,16 @@ config LEDS_MSM_GPIO_FLASH
 	  To compile this driver as a module, choose M here: the module will
 	  be called leds-gpio-flash.
 
+config LEDS_QPNP_RGB
+	tristate "Support for QPNP LEDs"
+	depends on SPMI && OF_SPMI
+	help
+	  This driver supports the leds functionality of Qualcomm PNP PMIC.
+	  It supports Motorola breathing feature.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called leds-qpn-rgb.
+
 config LEDS_WM831X_STATUS
 	tristate "LED support for status LEDs on WM831x PMICs"
 	depends on LEDS_CLASS
@@ -348,6 +375,12 @@ config LEDS_PWM
 	depends on HAVE_PWM
 	help
 	  This option enables support for pwm driven LEDs
+
+config LEDS_PM8XXX_RGB
+	tristate "Support for PMIC breathing RGB LED"
+	depends on LEDS_CLASS
+	help
+	 This option enables support for PMIC breathing RGB LED
 
 config LEDS_REGULATOR
 	tristate "REGULATOR driven LED support"
@@ -501,6 +534,15 @@ config LEDS_OT200
 	help
 	  This option enables support for the LEDs on the Bachmann OT200.
 	  Say Y to enable LEDs on the Bachmann OT200.
+
+config LEDS_FAN5646
+	tristate "Fairchild FAN5646 LED Driver"
+	depends on LEDS_CLASS
+	help
+	  Fairchild Semiconductor International FAN5646 LED Driver.
+	  Driver uses gpio line for bit bang control protocol.
+	  Blink and brightness interfaces are supported.
+	  Fixed power supply is supported.
 
 config LEDS_TRIGGERS
 	bool "LED Trigger support"

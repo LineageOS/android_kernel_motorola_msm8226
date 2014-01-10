@@ -103,6 +103,9 @@ enum msm_usb_phy_type {
 };
 
 #define IDEV_CHG_MAX	1500
+#define IDEV_CHG_DCP    1300
+#define IDEV_CHG_PROP   1200
+#define IDEV_CHG_TA	1100
 #define IDEV_CHG_MIN	500
 #define IUNIT		100
 
@@ -230,6 +233,10 @@ enum usb_vdd_value {
  * @l1_supported: enable link power management support.
  * @dpdm_pulldown_added: Indicates whether pull down resistors are
 		connected on data lines or not.
+ * @id_flt_gpio: GPIO from external detection IC for ID Float
+ * @id_gnd_gpio: GPIO from external detection IC for ID Gnd
+ * @id_flt_active_high: Active logic for id_flt_gpio
+ * @id_gnd_active_high: Active logic for id_gnd_gpio
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
@@ -258,6 +265,10 @@ struct msm_otg_platform_data {
 	int log2_itc;
 	bool l1_supported;
 	bool dpdm_pulldown_added;
+	int id_flt_gpio;
+	int id_gnd_gpio;
+	bool id_flt_active_high;
+	bool id_gnd_active_high;
 };
 
 /* phy related flags */

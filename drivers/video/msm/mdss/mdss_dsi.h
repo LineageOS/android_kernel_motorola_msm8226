@@ -219,7 +219,9 @@ struct dsi_buf {
 #define DTYPE_GEN_READ1		0x14	/* long read, 1 parameter */
 #define DTYPE_GEN_READ2		0x24	/* long read, 2 parameter */
 
-#define DTYPE_TEAR_ON		0x35	/* set tear on */
+#define DCS_CMD_GET_POWER_MODE	0x0A	/* get power_mode */
+
+#define DTYPE_TEAR_ON           0x35    /* set tear on */
 #define DTYPE_MAX_PKTSIZE	0x37	/* set max packet size */
 #define DTYPE_NULL_PKT		0x09	/* null packet, no data */
 #define DTYPE_BLANK_PKT		0x19	/* blankiing packet, no data */
@@ -240,6 +242,9 @@ struct dsi_buf {
 #define DTYPE_DCS_LREAD_RESP    0x1c
 #define DTYPE_DCS_READ1_RESP    0x21    /* 1 parameter, short */
 #define DTYPE_DCS_READ2_RESP    0x22    /* 2 parameter, short */
+
+#define DSI_MODE_BIT_HS 0
+#define DSI_MODE_BIT_LP 1
 
 
 struct dsi_ctrl_hdr {
@@ -293,6 +298,33 @@ struct dsi_kickoff_action {
 	void *data;
 };
 
+enum {
+	ESD_TE_DET = 1,
+};
+
+struct mdss_panel_esd_pdata {
+
+	struct workqueue_struct *esd_wq;
+	bool esd_detection_run;
+	bool esd_recovery_run;
+	int esd_pwr_mode_chk;
+
+	int esd_detect_mode;
+	int te_irq;
+	struct completion te_detected;
+};
+
+struct mdss_panel_config {
+	bool esd_enable;
+	struct mutex panel_mutex;
+	bool esd_disable_bl;
+
+	bool bare_board;
+	char panel_name[32];
+	u64 panel_ver;
+	bool disallow_panel_pwr_off;
+};
+
 struct dsi_drv_cm_data {
 	struct regulator *vdd_vreg;
 	struct regulator *vdd_io_vreg;
@@ -315,7 +347,22 @@ struct mdss_dsi_ctrl_pdata {
 	int (*on) (struct mdss_panel_data *pdata);
 	int (*off) (struct mdss_panel_data *pdata);
 	int (*partial_update_fnc) (struct mdss_panel_data *pdata);
+	int (*cont_splash_on) (struct mdss_panel_data *pdata);
+	int (*reg_read) (struct mdss_panel_data *pdata, u8 reg,
+			int mode, size_t size, u8 *buffer);
+	int (*reg_write) (struct mdss_panel_data *pdata,
+			int mode, size_t size, u8 *buffer);
+	int (*get_dt_vreg_data) (struct device *dev,
+			struct dss_module_power *mp, struct device_node *node);
+	int (*dsi_cmdlist_put) (struct mdss_dsi_ctrl_pdata *ctrl,
+					 struct dcs_cmd_req *cmdreq);
 	struct mdss_panel_data panel_data;
+	struct mdss_panel_config panel_config;
+	struct mdss_panel_esd_pdata panel_esd_data;
+	struct dss_module_power panel_vregs;
+	void(*lock_mutex) (struct mdss_panel_data *pdata);
+	void(*unlock_mutex) (struct mdss_panel_data *pdata);
+	struct delayed_work esd_work;
 	unsigned char *ctrl_base;
 	int reg_size;
 	u32 clk_cnt;
@@ -349,6 +396,10 @@ struct mdss_dsi_ctrl_pdata {
 	u32 pclk_rate;
 	u32 byte_clk_rate;
 	struct dss_module_power power_data;
+	int rst_seq[MDSS_DSI_RST_SEQ_LEN];
+	int rst_seq_len;
+	int dis_rst_seq[MDSS_DSI_RST_SEQ_LEN];
+	int dis_rst_seq_len;
 	u32 dsi_irq_mask;
 	struct mdss_hw *dsi_hw;
 	struct mdss_panel_recovery *recovery;
@@ -368,11 +419,11 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
+	struct platform_device *pdev;
 };
 
 int dsi_panel_device_register(struct device_node *pan_node,
 				struct mdss_dsi_ctrl_pdata *ctrl_pdata);
-
 char *mdss_dsi_buf_reserve_hdr(struct dsi_buf *dp, int hlen);
 char *mdss_dsi_buf_init(struct dsi_buf *dp);
 void mdss_dsi_init(void);
@@ -405,7 +456,8 @@ void mdss_dsi_sw_reset(struct mdss_panel_data *pdata);
 irqreturn_t mdss_dsi_isr(int irq, void *ptr);
 void mdss_dsi_irq_handler_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
-void mipi_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
+void mdss_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
+int mdss_get_tx_power_mode(struct mdss_panel_data *pdata);
 int mdss_dsi_clk_div_config(struct mdss_panel_info *panel_info,
 			    int frame_rate);
 int mdss_dsi_clk_init(struct platform_device *pdev,
@@ -432,4 +484,9 @@ void mdss_dsi_cmdlist_kickoff(int intf);
 int mdss_dsi_panel_init(struct device_node *node,
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 		bool cmd_cfg_cont_splash);
+void mdss_panel_set_reg_boot_on(struct device_node *node,
+					struct mdss_dsi_ctrl_pdata *ctrl_pdata);
+int mdss_panel_parse_panel_config_dt(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
+bool mdss_dsi_match_chosen_panel(struct device_node *np,
+				struct mdss_panel_config *pconfig);
 #endif /* MDSS_DSI_H */

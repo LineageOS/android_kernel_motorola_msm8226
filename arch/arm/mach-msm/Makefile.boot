@@ -47,6 +47,8 @@ endif
 
 # MSM8974
    zreladdr-$(CONFIG_ARCH_MSM8974)	:= 0x00008000
+# Do not include QC default DTBs if not needed
+ifneq ($(CONFIG_MMI_DEVICE_DTBS),y)
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974-v1-cdp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974-v1-fluid.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974-v1-liquid.dtb
@@ -75,6 +77,12 @@ endif
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ac-pm8941-liquid.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ac-pm8941-mtp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ac-pma8084-pm8941-mtp.dtb
+endif
+
+# MSM8974 Motorola Devices
+dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974-v2-abbagoochie-p1.dtb
+dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-abbagoochie-p2.dtb
+dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-abbagoochie-p3.dtb
 
 # APQ8084
    zreladdr-$(CONFIG_ARCH_APQ8084)	:= 0x00008000
@@ -99,6 +107,9 @@ endif
 
 # MSM8226
    zreladdr-$(CONFIG_ARCH_MSM8226)	:= 0x00008000
+
+# Do not include QC default DTBs if not needed
+ifneq ($(CONFIG_MMI_DEVICE_DTBS),y)
         dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-sim.dtb
         dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-fluid.dtb
         dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-cdp.dtb
@@ -121,6 +132,28 @@ endif
         dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-xpm.dtb
         dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-cdp.dtb
         dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-mtp.dtb
+endif
+
+# MSM8226 Motorola Devices
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-bigfoot-p1.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p1.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p2.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p2-v2.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p2b.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p2b1.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-falcon-p3c.dtb
+
+# MSM8926 Motorola Devices
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-peregrine-p1.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-peregrine-p1c.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-peregrine-p2.dtb
+dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-peregrine-p2a1.dtb
+
+ifeq ($(CONFIG_MMI_DEVICE_DTBS),y)
+# Add 1k of padding to the DTBs to allow for environment variables
+# to be runtime added by the bootloader (i.e. /chosen properties)
+DTC_FLAGS := -p 1024
+endif
 
 # FSM9XXX
    zreladdr-$(CONFIG_ARCH_FSM9XXX)	:= 0x10008000
@@ -137,6 +170,9 @@ initrd_phys-$(CONFIG_ARCH_FSM9XXX)	:= 0x12000000
 
 # MSM8610
    zreladdr-$(CONFIG_ARCH_MSM8610)	:= 0x00008000
+
+# Do not include QC default DTBs if not needed
+ifneq ($(CONFIG_MMI_DEVICE_DTBS),y)
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v1-cdp.dtb
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v2-cdp.dtb
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v1-mtp.dtb
@@ -147,8 +183,23 @@ initrd_phys-$(CONFIG_ARCH_FSM9XXX)	:= 0x12000000
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v1-qrd-skuab.dtb
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v2-qrd-skuaa.dtb
         dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-v2-qrd-skuab.dtb
+endif
+
+# MSM8610 Motorola Devices
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p0.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p0c.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p0c-v2.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1b.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1b-v2.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1c.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1c-v2.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1d.dtb
+dtb-$(CONFIG_ARCH_MSM8610)	+= msm8610-condor-p1d-v2.dtb
 
 # MSMSAMARIUM
    zreladdr-$(CONFIG_ARCH_MSMSAMARIUM)	:= 0x00008000
+# Do not include QC default DTBs if not needed
+ifneq ($(CONFIG_MMI_DEVICE_DTBS),y)
 	dtb-$(CONFIG_ARCH_MSMSAMARIUM)	+= msmsamarium-sim.dtb
 	dtb-$(CONFIG_ARCH_MSMSAMARIUM)	+= msmsamarium-rumi.dtb
+endif

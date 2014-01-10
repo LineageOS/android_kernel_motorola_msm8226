@@ -62,6 +62,16 @@ config INPUT_AD714X_SPI
 	  To compile this driver as a module, choose M here: the
 	  module will be called ad714x-spi.
 
+config INPUT_ARIZONA_HAPTICS
+	tristate "Arizona haptics support"
+	depends on MFD_ARIZONA && SND_SOC
+	select INPUT_FF_MEMLESS
+	help
+	  Say Y to enable support for the haptics module in Arizona CODECs.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arizona-haptics.
+
 config INPUT_BMA150
 	tristate "BMA150/SMB380 acceleration sensor support"
 	depends on I2C
@@ -714,4 +724,22 @@ config SENSORS_CAPELLA_CM36283
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called CM36283.
+config INPUT_CT406
+        tristate "CT406 ALS & IR Sensor"
+        default n
+        help
+          Say Y here if you wish to include support for the CT406 ALS
+          and IR sensor.
+
+          If unsure, say N.
+
+config INPUT_VALIDITY_METALLICA
+        tristate "Validity Metallica finger print sensor"
+        default n
+        help
+          Say Y here if you wish to include support for the Validity
+          Metallica finger print sensor.
+
+          If unsure, say N.
+
 endif

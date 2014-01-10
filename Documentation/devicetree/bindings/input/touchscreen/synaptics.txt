@@ -1,0 +1,90 @@
+Synaptics Touch Controllers
+
+Required properties:
+
+ - compatible:
+        should be "synaptics,sy3200", or "synaptics,sy3400",
+        or "synaptics,synaptics_dsx_i2c"
+ - reg:
+        i2c slave address of the device
+ - interrupt-parent:
+        parent controller of interrupt
+ - interrupts:
+        touch sample interrupt to indicate presense or release of fingers on the
+        panel.
+ - gpios:
+        <0> interrupt - the interrupt gpio, should match the interrupts param
+        <1> reset     - the reset line
+        <2> enable    - optional, enable gpio
+
+        The interrupt and reset lines are required, the enable GPIO is optional
+        if its not connected.
+ - synaptics,sy3200-tdat-filename:
+        firmware filename to flash to the 3200 controller
+ - synaptics,sy3400-tdat-filename:
+        firmware filename to flash to the 3400 controller
+ - synaptics,panel-sync-enabled:
+        flag to enable state changes notifications from panel driver
+
+        Those notifications include power on/off and display on and can be used
+        to control suspend/resume for in-cell touch solutions and/or to purge
+        touch events received before display is on.
+ - synaptics,key-buttons:
+        key codes for the supported buttons
+ - synaptics,reset-on-resume:
+        flag to enable ic reset when driver resumes
+ - synaptics,display-synced-suspend:
+        flag to use display notifications to control entering into suspend
+ - synaptics,one-touch-enabled:
+        flag to enable configuring one touch on entering to suspend
+ - synaptics,normal-mode:
+	<0>         - enforce no sleep mode
+	<1>         - use normal mode and clear no sleep bit if it's set
+	not defined - use mode settings programmed in firmware
+ - synaptics,hw-reset:
+        flag to perform hard reset in oppose to soft reset
+ - synaptics,gpio-config:
+        flag to explicitly configure touch irq and reset gpios
+
+Example:
+	i2c@16200000 {
+		status = "okay";
+
+		qcom,i2c-bus-freq = <400000>;
+		qcom,i2c-src-freq = <24000000>;
+
+		sy3200@20 {
+			compatible = "synaptics,sy3200";
+			reg = <0x20>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <46 0>;
+			gpios = <&msmgpio 46 0>, /* IRQ */
+				<&msmgpio 63 0>; /* RESET */
+
+			synaptics,sy3200-tdat-filename = "sy3200-r0.tdat";
+		};
+	};
+
+	or
+
+	&i2c@3 {
+		synaptics_dsx_i2c@20 {
+			compatible = "synaptics,synaptics_dsx_i2c";
+			reg = <0x20>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <46 0>;
+			gpios = <&msmgpio 46 0>, /* IRQ */
+				<&msmgpio 63 0>; /* RESET */
+
+			synaptics,panel-sync-enabled = <1>;
+			synaptics,normal-mode = <1>;
+			synaptics,purge-enabled;
+			synaptics,reset-on-resume;
+			synaptics,hw-reset;
+			synaptics,gpio-config;
+			synaptics,one-touch-enabled;
+			synaptics,display-synced-suspend;
+			synaptics,key-buttons = <139 102 158 0>; /* KEY_MENU, KEY_HOME, KEY_BACK */
+		};
+	};
+

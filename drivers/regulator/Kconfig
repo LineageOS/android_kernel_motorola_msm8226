@@ -141,6 +141,13 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_ARIZONA
+	tristate "Wolfson Arizona class devices"
+	depends on MFD_ARIZONA
+	help
+	  Support for the regulators found on Wolfson Arizona class
+	  devices.
+
 config REGULATOR_MAX1586
 	tristate "Maxim 1586/1587 voltage regulator"
 	depends on I2C
@@ -302,6 +309,14 @@ config REGULATOR_TPS6507X
 	  This driver supports TPS6507X voltage regulator chips. TPS6507X provides
 	  three step-down converters and two general-purpose LDO voltage regulators.
 	  It supports TI's software based Class-2 SmartReflex implementation.
+
+config REGULATOR_TPS65132
+	tristate "TI TPS65135 Power regulator"
+	depends on I2C && OF
+	help
+	  This driver supports TPS65135 voltage regulator chip. This
+	  regulator provides dual +/- 4-6V voltage primarily used for
+	  LCD biasing.
 
 config REGULATOR_TPS65217
 	tristate "TI TPS65217 Power regulators"

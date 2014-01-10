@@ -19,11 +19,14 @@
 
 #define SUBSYS_NAME_MAX_LENGTH 40
 
+#define PR_BUG(m...) do { pr_crit(m); BUG(); } while (0)
+
 struct subsys_device;
 
 enum {
 	RESET_SOC = 0,
 	RESET_SUBSYS_COUPLED,
+	RESET_IGNORE,
 	RESET_LEVEL_MAX
 };
 

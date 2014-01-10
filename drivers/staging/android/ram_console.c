@@ -16,17 +16,24 @@
 #include <linux/console.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/persistent_ram.h>
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
+#include <asm/bootinfo.h>
 #include "ram_console.h"
 
 static struct persistent_ram_zone *ram_console_zone;
 static const char *bootinfo;
 static size_t bootinfo_size;
+static const char *bootinfo_label =
+	"\n\n#############\nCurrent Boot info:\nPOWERUPREASON: 0x%08x\n";
+static size_t bootinfo_label_size;
+static const char *bootreason_label =
+	"\n\nBoot info:\nLast boot reason: %s\n";
 
 static void
 ram_console_write(struct console *console, const char *s, unsigned int count)
@@ -50,20 +57,67 @@ void ram_console_enable_console(int enabled)
 		ram_console.flags &= ~CON_ENABLED;
 }
 
+#ifdef CONFIG_OF
+static struct ram_console_platform_data *__devinit
+ram_console_of_init(struct platform_device *pdev)
+{
+	struct ram_console_platform_data *pdata = NULL;
+	struct device_node *np = pdev->dev.of_node;
+	struct persistent_ram *ram;
+	struct persistent_ram_descriptor *desc;
+
+	ram = devm_kzalloc(&pdev->dev, sizeof(*ram), GFP_KERNEL);
+	if (!ram) {
+		dev_err(&pdev->dev, "%s: couldn't allocate ram\n", __func__);
+		return NULL;
+	}
+
+	desc = devm_kzalloc(&pdev->dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc) {
+		dev_err(&pdev->dev, "%s: couldn't allocate desc\n", __func__);
+		return NULL;
+	}
+
+	of_property_read_u32(np, "android,ram-buffer-start", &ram->start);
+	of_property_read_u32(np, "android,ram-buffer-size", &ram->size);
+
+	desc->name = dev_name(&pdev->dev);
+	desc->size = ram->size;
+	ram->descs = desc;
+	ram->num_descs = 1;
+
+	persistent_ram_add(ram);
+
+	return pdata;
+}
+#else
+static inline struct ram_console_platform_data *__devinit
+ram_console_of_init(struct platform_device *pdev)
+{
+	return NULL;
+}
+#endif
+
 static int __devinit ram_console_probe(struct platform_device *pdev)
 {
 	struct ram_console_platform_data *pdata = pdev->dev.platform_data;
 	struct persistent_ram_zone *prz;
 
+	if (pdev->dev.of_node)
+		pdata = ram_console_of_init(pdev);
+
 	prz = persistent_ram_init_ringbuffer(&pdev->dev, true);
 	if (IS_ERR(prz))
 		return PTR_ERR(prz);
 
-
 	if (pdata) {
 		bootinfo = kstrdup(pdata->bootinfo, GFP_KERNEL);
-		if (bootinfo)
-			bootinfo_size = strlen(bootinfo);
+		if (bootinfo) {
+			bootinfo_label_size = snprintf(NULL, 0,
+				bootinfo_label, bi_powerup_reason());
+			bootinfo_size = strlen(bootinfo)
+					 + bootinfo_label_size;
+		}
 	}
 
 	ram_console_zone = prz;
@@ -74,9 +128,19 @@ static int __devinit ram_console_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static struct of_device_id ram_console_of_match[] = {
+	{ .compatible = "android,ram-console", },
+	{ },
+};
+
+MODULE_DEVICE_TABLE(of, ram_console_of_match);
+#endif
+
 static struct platform_driver ram_console_driver = {
 	.driver		= {
 		.name	= "ram_console",
+		.of_match_table = of_match_ptr(ram_console_of_match),
 	},
 	.probe = ram_console_probe,
 };
@@ -123,6 +187,7 @@ static ssize_t ram_console_read_old(struct file *file, char __user *buf,
 		count = min(len, (size_t)(count - pos));
 		ret = copy_to_user(buf, str + pos, count);
 		kfree(str);
+		str = NULL;
 		if (ret)
 			return -EFAULT;
 		goto out;
@@ -130,9 +195,40 @@ static ssize_t ram_console_read_old(struct file *file, char __user *buf,
 
 	/* Boot info passed through pdata */
 	pos -= count;
-	if (pos < bootinfo_size) {
-		count = min(len, (size_t)(bootinfo_size - pos));
+	count = snprintf(NULL, 0, bootinfo_label, bi_powerup_reason());
+	if (pos < bootinfo_label_size) {
+		str = kmalloc(count, GFP_KERNEL);
+		if (!str)
+			return -ENOMEM;
+		snprintf(str, count + 1, bootinfo_label, bi_powerup_reason());
+		count = min(len, (size_t)(bootinfo_label_size - pos));
+		ret = copy_to_user(buf, str + pos, count);
+		kfree(str);
+		str = NULL;
+		if (ret)
+			return -EFAULT;
+		goto out;
+
+	}
+	pos -= count;
+	if (pos < (bootinfo_size - bootinfo_label_size)) {
+		count = min(len, (size_t)(bootinfo_size -
+					bootinfo_label_size - pos));
 		if (copy_to_user(buf, bootinfo + pos, count))
+			return -EFAULT;
+		goto out;
+	}
+	pos -= bootinfo_size - bootinfo_label_size;
+	count = 1 + snprintf(NULL, 0, bootreason_label, bi_bootreason());
+	if (pos < count) {
+		str = kmalloc(count, GFP_KERNEL);
+		if (!str)
+			return -ENOMEM;
+		snprintf(str, count, bootreason_label, bi_bootreason());
+		count = min(len, (size_t)(count - pos));
+		ret = copy_to_user(buf, str + pos, count);
+		kfree(str);
+		if (ret)
 			return -EFAULT;
 		goto out;
 	}
@@ -155,11 +251,24 @@ static int __init ram_console_late_init(void)
 	struct proc_dir_entry *entry;
 	struct persistent_ram_zone *prz = ram_console_zone;
 
+	persistent_ram_ext_oldbuf_merge(prz);
+
 	if (!prz)
 		return 0;
 
 	if (persistent_ram_old_size(prz) == 0)
 		return 0;
+
+	if (!bootinfo) {
+		bootinfo = kstrdup(boot_command_line, GFP_KERNEL);
+		if (bootinfo) {
+			bootinfo_label_size =
+				snprintf(NULL, 0, bootinfo_label,
+						bi_powerup_reason());
+			bootinfo_size = strlen(bootinfo)
+					 + bootinfo_label_size;
+		}
+	}
 
 	entry = create_proc_entry("last_kmsg", S_IFREG | S_IRUGO, NULL);
 	if (!entry) {

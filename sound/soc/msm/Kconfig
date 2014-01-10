@@ -183,6 +183,9 @@ config SND_SOC_MSM8974
 	select SND_DYNAMIC_MINORS
 	select AUDIO_OCMEM
 	select DOLBY_DAP
+	select SND_SOC_TPA6165A2
+	select SND_SOC_TFA9890
+	select SND_SOC_WM5110
 	help
 	 To add support for SoC audio on MSM8974.
 	 This will enable sound soc drivers which
@@ -215,7 +218,8 @@ config SND_SOC_MSM8226
 	select SND_SOC_MSM_HOSTLESS_PCM
 	select SND_SOC_WCD9306
 	select SND_DYNAMIC_MINORS
-	select DOLBY_DAP
+	select SND_SOC_TPA6165A2
+	select SND_SOC_TFA9890
 	help
 	 To add support for SoC audio on MSM8226.
 	 This will enable sound soc drivers which
@@ -243,6 +247,7 @@ config SND_SOC_MSM8X10
 	select SND_SOC_MSM_HOSTLESS_PCM
 	select SND_SOC_MSM8X10_WCD
 	select SND_DYNAMIC_MINORS
+	select SND_SOC_TPA6165A2
 	help
 	 To add support for SoC audio on MSM8X10.
 	 This will enable sound soc drivers which
