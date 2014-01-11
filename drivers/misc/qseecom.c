@@ -252,6 +252,12 @@ static struct qseecom_registered_listener_list *__qseecom_find_svc(
 			break;
 	}
 	spin_unlock_irqrestore(&qseecom.registered_listener_list_lock, flags);
+
+	if ((entry != NULL) && (entry->svc.listener_id != listener_id)) {
+		pr_err("Service id: %u is not found\n", listener_id);
+		return NULL;
+	}
+
 	return entry;
 }
 
@@ -495,6 +501,11 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 		}
 		spin_unlock_irqrestore(&qseecom.registered_listener_list_lock,
 				flags);
+
+		if (ptr_svc == NULL) {
+			pr_err("Listener Svc %d does not exist\n", lstnr);
+			return -EINVAL;
+		}
 		if (ptr_svc->svc.listener_id != lstnr) {
 			pr_warning("Service requested for does on exist\n");
 			return -ERESTARTSYS;
@@ -857,14 +868,37 @@ int __qseecom_process_rpmb_svc_cmd(struct qseecom_dev_handle *data_ptr,
 		struct qseecom_client_send_service_ireq *send_svc_ireq_ptr)
 {
 	int ret = 0;
+	void *req_buf = NULL;
+
 	if ((req_ptr == NULL) || (send_svc_ireq_ptr == NULL)) {
 		pr_err("Error with pointer: req_ptr = %p, send_svc_ptr = %p\n",
 			req_ptr, send_svc_ireq_ptr);
 		return -EINVAL;
 	}
+
+	if (((uint32_t)req_ptr->cmd_req_buf <
+			data_ptr->client.user_virt_sb_base)
+			|| ((uint32_t)req_ptr->cmd_req_buf >=
+			(data_ptr->client.user_virt_sb_base +
+			data_ptr->client.sb_length))) {
+		pr_err("cmd buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+
+	if (((uint32_t)req_ptr->resp_buf < data_ptr->client.user_virt_sb_base)
+			|| ((uint32_t)req_ptr->resp_buf >=
+			(data_ptr->client.user_virt_sb_base +
+			data_ptr->client.sb_length))){
+		pr_err("response buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+	req_buf = data_ptr->client.sb_virt;
+
 	send_svc_ireq_ptr->qsee_cmd_id = req_ptr->cmd_id;
 	send_svc_ireq_ptr->key_type =
-	((struct qseecom_rpmb_provision_key *)req_ptr->cmd_req_buf)->key_type;
+		((struct qseecom_rpmb_provision_key *)req_buf)->key_type;
 	send_svc_ireq_ptr->req_len = req_ptr->cmd_req_len;
 	send_svc_ireq_ptr->rsp_ptr = (void *)(__qseecom_uvirt_to_kphys(data_ptr,
 					(uint32_t)req_ptr->resp_buf));
@@ -1065,8 +1099,6 @@ static int qseecom_send_cmd(struct qseecom_dev_handle *data, void __user *argp)
 	if (ret)
 		return ret;
 
-	pr_debug("sending cmd_req->rsp size: %u, ptr: 0x%p\n",
-			req.resp_len, req.resp_buf);
 	return ret;
 }
 
@@ -1256,8 +1288,7 @@ static int qseecom_send_modfd_cmd(struct qseecom_dev_handle *data,
 	ret = __qseecom_update_cmd_buf(&req, true, data, false);
 	if (ret)
 		return ret;
-	pr_debug("sending cmd_req->rsp size: %u, ptr: 0x%p\n",
-			req.resp_len, req.resp_buf);
+
 	return ret;
 }
 
@@ -1275,6 +1306,11 @@ static int qseecom_receive_req(struct qseecom_dev_handle *data)
 	struct qseecom_registered_listener_list *this_lstnr;
 
 	this_lstnr = __qseecom_find_svc(data->listener.id);
+	if (!this_lstnr) {
+		pr_err("Invalid listener ID\n");
+		return -ENODATA;
+	}
+
 	while (1) {
 		if (wait_event_freezable(this_lstnr->rcv_req_wq,
 				__qseecom_listener_has_rcvd_req(data,

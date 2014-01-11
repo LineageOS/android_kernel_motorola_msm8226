@@ -37,6 +37,7 @@
 #include <linux/regulator/consumer.h>
 
 #define MAX_RAILS 5
+#define MAX_THRESHOLD 2
 
 static struct msm_thermal_data msm_thermal_info;
 static uint32_t limited_max_freq = UINT_MAX;
@@ -69,6 +70,7 @@ static bool vdd_rstr_probed;
 static bool psm_enabled;
 static bool psm_nodes_called;
 static bool psm_probed;
+static bool hotplug_enabled;
 static int *tsens_id_map;
 static DEFINE_MUTEX(vdd_rstr_mutex);
 static DEFINE_MUTEX(psm_mutex);
@@ -77,8 +79,10 @@ struct cpu_info {
 	uint32_t cpu;
 	bool offline;
 	bool user_offline;
+	bool thresh_cleared;
 	const char *sensor_type;
-	struct sensor_threshold thresh[2];
+	uint32_t sensor_id;
+	struct sensor_threshold thresh[MAX_THRESHOLD];
 };
 
 struct rail {
@@ -624,6 +628,76 @@ static int update_cpu_max_freq(int cpu, uint32_t max_freq)
 	return ret;
 }
 
+static int set_and_activate_threshold(uint32_t sensor_id,
+	struct sensor_threshold *threshold)
+{
+	int ret = 0;
+
+	ret = sensor_set_trip(sensor_id, threshold);
+	if (ret != 0) {
+		pr_err("%s: Error in setting trip %d\n",
+			KBUILD_MODNAME, threshold->trip);
+		goto set_done;
+	}
+
+	ret = sensor_activate_trip(sensor_id, threshold, true);
+	if (ret != 0) {
+		pr_err("%s: Error in enabling trip %d\n",
+			KBUILD_MODNAME, threshold->trip);
+		goto set_done;
+	}
+
+set_done:
+	return ret;
+}
+
+static int set_threshold(uint32_t sensor_id,
+	struct sensor_threshold *threshold)
+{
+	struct tsens_device tsens_dev;
+	int i = 0, ret = 0;
+	long temp;
+
+	if ((!threshold) || check_sensor_id(sensor_id)) {
+		pr_err("%s: Invalid input\n", KBUILD_MODNAME);
+		ret = -EINVAL;
+		goto set_threshold_exit;
+	}
+
+	tsens_dev.sensor_num = sensor_id;
+	ret = tsens_get_temp(&tsens_dev, &temp);
+	if (ret) {
+		pr_err("%s: Unable to read TSENS sensor %d\n",
+			KBUILD_MODNAME, tsens_dev.sensor_num);
+		goto set_threshold_exit;
+	}
+	while (i < MAX_THRESHOLD) {
+		switch (threshold[i].trip) {
+		case THERMAL_TRIP_CONFIGURABLE_HI:
+			if (threshold[i].temp >= temp) {
+				ret = set_and_activate_threshold(sensor_id,
+					&threshold[i]);
+				if (ret)
+					goto set_threshold_exit;
+			}
+			break;
+		case THERMAL_TRIP_CONFIGURABLE_LOW:
+			if (threshold[i].temp <= temp) {
+				ret = set_and_activate_threshold(sensor_id,
+					&threshold[i]);
+				if (ret)
+					goto set_threshold_exit;
+			}
+			break;
+		default:
+			break;
+		}
+		i++;
+	}
+set_threshold_exit:
+	return ret;
+}
+
 #ifdef CONFIG_SMP
 static void __ref do_core_control(long temp)
 {
@@ -677,7 +751,7 @@ static void __ref do_core_control(long temp)
 /* Call with core_control_mutex locked */
 static int __ref update_offline_cores(int val)
 {
-	int cpu = 0;
+	uint32_t cpu = 0;
 	int ret = 0;
 
 	if (!core_control_enabled)
@@ -701,8 +775,7 @@ static int __ref update_offline_cores(int val)
 static __ref int do_hotplug(void *data)
 {
 	int ret = 0;
-	int cpu = 0;
-	uint32_t mask = 0;
+	uint32_t cpu = 0, mask = 0;
 
 	if (!core_control_enabled)
 		return -EINVAL;
@@ -714,6 +787,12 @@ static __ref int do_hotplug(void *data)
 
 		mutex_lock(&core_control_mutex);
 		for_each_possible_cpu(cpu) {
+			if (hotplug_enabled &&
+				cpus[cpu].thresh_cleared) {
+				set_threshold(cpus[cpu].sensor_id,
+					cpus[cpu].thresh);
+				cpus[cpu].thresh_cleared = false;
+			}
 			if (cpus[cpu].offline || cpus[cpu].user_offline)
 				mask |= BIT(cpu);
 		}
@@ -984,10 +1063,12 @@ static int hotplug_notify(enum thermal_trip_type type, int temp, void *data)
 	default:
 		break;
 	}
-	if (hotplug_task)
+	if (hotplug_task) {
+		cpu_node->thresh_cleared = true;
 		complete(&hotplug_notify_complete);
-	else
+	} else {
 		pr_err("%s: Hotplug task is not initialized\n", KBUILD_MODNAME);
+	}
 	return 0;
 }
 /* Adjust cpus offlined bit based on temperature reading. */
@@ -997,15 +1078,18 @@ static int hotplug_init_cpu_offlined(void)
 	long temp = 0;
 	int cpu = 0;
 
+	if (!hotplug_enabled)
+		return 0;
+
 	mutex_lock(&core_control_mutex);
 	for_each_possible_cpu(cpu) {
 		if (!(msm_thermal_info.core_control_mask & BIT(cpus[cpu].cpu)))
 			continue;
-		tsens_dev.sensor_num = sensor_get_id(\
-				(char *)cpus[cpu].sensor_type);
+		tsens_dev.sensor_num = cpus[cpu].sensor_id;
 		if (tsens_get_temp(&tsens_dev, &temp)) {
 			pr_err("%s: Unable to read TSENS sensor %d\n",
 				KBUILD_MODNAME, tsens_dev.sensor_num);
+			mutex_unlock(&core_control_mutex);
 			return -EINVAL;
 		}
 
@@ -1034,26 +1118,29 @@ static void hotplug_init(void)
 	if (hotplug_task)
 		return;
 
+	if (!hotplug_enabled)
+		goto init_kthread;
+
 	for_each_possible_cpu(cpu) {
+		cpus[cpu].cpu = (uint32_t)cpu;
+		cpus[cpu].thresh_cleared = false;
+		cpus[cpu].sensor_id =
+			sensor_get_id((char *)cpus[cpu].sensor_type);
 		if (!(msm_thermal_info.core_control_mask & BIT(cpus[cpu].cpu)))
 			continue;
-		cpus[cpu].cpu = (uint32_t)cpu;
 		cpus[cpu].thresh[0].temp = msm_thermal_info.hotplug_temp_degC;
 		cpus[cpu].thresh[0].trip = THERMAL_TRIP_CONFIGURABLE_HI;
 		cpus[cpu].thresh[0].notify = hotplug_notify;
 		cpus[cpu].thresh[0].data = (void *)&cpus[cpu];
-		sensor_set_trip(sensor_get_id((char *)cpus[cpu].sensor_type),
-				&cpus[cpu].thresh[0]);
 
 		cpus[cpu].thresh[1].temp = msm_thermal_info.hotplug_temp_degC -
 				msm_thermal_info.hotplug_temp_hysteresis_degC;
 		cpus[cpu].thresh[1].trip = THERMAL_TRIP_CONFIGURABLE_LOW;
 		cpus[cpu].thresh[1].notify = hotplug_notify;
 		cpus[cpu].thresh[1].data = (void *)&cpus[cpu];
-		sensor_set_trip(sensor_get_id((char *)cpus[cpu].sensor_type),
-				&cpus[cpu].thresh[1]);
-
+		set_threshold(cpus[cpu].sensor_id, cpus[cpu].thresh);
 	}
+init_kthread:
 	init_completion(&hotplug_notify_complete);
 	hotplug_task = kthread_run(do_hotplug, NULL, "msm_thermal:hotplug");
 	if (IS_ERR(hotplug_task)) {
@@ -1774,6 +1861,11 @@ static int probe_cc(struct device_node *node, struct msm_thermal_data *data,
 	int ret = 0;
 	int cpu = 0;
 
+	if (num_possible_cpus() > 1) {
+		core_control_enabled = 1;
+		hotplug_enabled = 1;
+	}
+
 	key = "qcom,core-limit-temp";
 	ret = of_property_read_u32(node, key, &data->core_limit_temp_degC);
 	if (ret)
@@ -1792,19 +1884,20 @@ static int probe_cc(struct device_node *node, struct msm_thermal_data *data,
 	key = "qcom,hotplug-temp";
 	ret = of_property_read_u32(node, key, &data->hotplug_temp_degC);
 	if (ret)
-		goto read_node_fail;
+		goto hotplug_node_fail;
 
 	key = "qcom,hotplug-temp-hysteresis";
 	ret = of_property_read_u32(node, key,
 			&data->hotplug_temp_hysteresis_degC);
 	if (ret)
-		goto read_node_fail;
+		goto hotplug_node_fail;
 
 	key = "qcom,cpu-sensors";
 	cpu_cnt = of_property_count_strings(node, key);
 	if (cpu_cnt != num_possible_cpus()) {
 		pr_err("%s: Wrong number of cpu\n", KBUILD_MODNAME);
-		goto read_node_fail;
+		ret = -EINVAL;
+		goto hotplug_node_fail;
 	}
 
 	for_each_possible_cpu(cpu) {
@@ -1814,11 +1907,8 @@ static int probe_cc(struct device_node *node, struct msm_thermal_data *data,
 		ret = of_property_read_string_index(node, key, cpu,
 				&cpus[cpu].sensor_type);
 		if (ret)
-			goto read_node_fail;
+			goto hotplug_node_fail;
 	}
-
-	if (num_possible_cpus() > 1)
-		core_control_enabled = 1;
 
 read_node_fail:
 	if (ret) {
@@ -1826,6 +1916,16 @@ read_node_fail:
 			"%s:Failed reading node=%s, key=%s. KTM continues\n",
 			KBUILD_MODNAME, node->full_name, key);
 		core_control_enabled = 0;
+	}
+
+	return ret;
+
+hotplug_node_fail:
+	if (ret) {
+		dev_info(&pdev->dev,
+			"%s:Failed reading node=%s, key=%s. KTM continues\n",
+			KBUILD_MODNAME, node->full_name, key);
+		hotplug_enabled = 0;
 	}
 
 	return ret;

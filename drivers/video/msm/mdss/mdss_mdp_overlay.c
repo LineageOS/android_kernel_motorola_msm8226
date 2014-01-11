@@ -507,6 +507,7 @@ static int mdss_mdp_overlay_pipe_setup(struct msm_fb_data_type *mfd,
 	} else {
 		pipe->overfetch_disable = 0;
 	}
+	pipe->bg_color = req->bg_color;
 
 	req->id = pipe->ndx;
 	pipe->req_data = *req;
@@ -599,6 +600,7 @@ static int mdss_mdp_overlay_pipe_setup(struct msm_fb_data_type *mfd,
 	}
 
 	pipe->params_changed++;
+	pipe->has_buf = 0;
 
 	req->vert_deci = pipe->vert_deci;
 
@@ -925,8 +927,9 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 		} else if (pipe->front_buf.num_planes) {
 			buf = &pipe->front_buf;
 		} else {
-			pr_warn("pipe queue w/o buffer\n");
-			continue;
+			pr_debug("no buf detected pnum=%d use solid fill\n",
+					pipe->num);
+			buf = NULL;
 		}
 
 		ret = mdss_mdp_pipe_queue_data(pipe, buf);
@@ -1148,6 +1151,7 @@ static int mdss_mdp_overlay_queue(struct msm_fb_data_type *mfd,
 	if (IS_ERR_VALUE(ret)) {
 		pr_err("src_data pmem error\n");
 	}
+	pipe->has_buf = 1;
 	mdss_mdp_pipe_unmap(pipe);
 
 	return ret;
@@ -1390,6 +1394,7 @@ static void mdss_mdp_overlay_pan_display(struct msm_fb_data_type *mfd)
 	buf->p[0].addr += offset;
 	buf->p[0].len = fbi->fix.smem_len - offset;
 	buf->num_planes = 1;
+	pipe->has_buf = 1;
 	mdss_mdp_pipe_unmap(pipe);
 
 	if (fbi->var.xres > MAX_MIXER_WIDTH || mfd->split_display) {
@@ -1404,6 +1409,7 @@ static void mdss_mdp_overlay_pan_display(struct msm_fb_data_type *mfd)
 			goto pan_display_error;
 		}
 		pipe->back_buf = *buf;
+		pipe->has_buf = 1;
 		mdss_mdp_pipe_unmap(pipe);
 	}
 	mutex_unlock(&mdp5_data->ov_lock);
@@ -1989,7 +1995,10 @@ static int mdss_fb_set_metadata(struct msm_fb_data_type *mfd,
 				struct msmfb_metadata *metadata)
 {
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
+	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 	int ret = 0;
+	if (!ctl)
+		return  -EPERM;
 	switch (metadata->op) {
 	case metadata_op_vic:
 		if (mfd->panel_info)
@@ -2001,7 +2010,7 @@ static int mdss_fb_set_metadata(struct msm_fb_data_type *mfd,
 	case metadata_op_crc:
 		if (!mfd->panel_power_on)
 			return -EPERM;
-		ret = mdss_misr_crc_set(mdata, &metadata->data.misr_request);
+		ret = mdss_misr_set(mdata, &metadata->data.misr_request, ctl);
 		break;
 	case metadata_op_wb_format:
 		ret = mdss_mdp_wb_set_format(mfd,
@@ -2037,7 +2046,10 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 				struct msmfb_metadata *metadata)
 {
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
+	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 	int ret = 0;
+	if (!ctl)
+		return -EPERM;
 	switch (metadata->op) {
 	case metadata_op_frame_rate:
 		metadata->data.panel_frame_rate =
@@ -2049,7 +2061,7 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 	case metadata_op_crc:
 		if (!mfd->panel_power_on)
 			return -EPERM;
-		ret = mdss_misr_crc_get(mdata, &metadata->data.misr_request);
+		ret = mdss_misr_get(mdata, &metadata->data.misr_request, ctl);
 		break;
 	case metadata_op_wb_format:
 		ret = mdss_mdp_wb_get_format(mfd, &metadata->data.mixer_cfg);

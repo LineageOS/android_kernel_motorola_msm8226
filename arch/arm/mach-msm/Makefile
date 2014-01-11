@@ -30,6 +30,7 @@ endif
 endif
 
 obj-y += acpuclock.o
+obj-$(CONFIG_MSM_CORTEX_A7) += clock-a7.o
 obj-$(CONFIG_HW_PERF_EVENTS) += perf_trace_counters.o
 obj-$(CONFIG_ARCH_MSM_KRAIT) += acpuclock-krait.o clock-krait.o
 ifdef CONFIG_ARCH_MSM_KRAIT
@@ -213,7 +214,7 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 endif
 obj-$(CONFIG_MSM_SYSMON_COMM) += sysmon.o
 
-obj-$(CONFIG_CPU_IDLE) += cpuidle.o
+#obj-$(CONFIG_CPU_IDLE) += cpuidle.o
 
 ifdef CONFIG_MSM_CAMERA_V4L2
 	obj-$(CONFIG_ARCH_MSM8X60) += board-msm8x60-camera.o
@@ -317,7 +318,7 @@ obj-$(CONFIG_ARCH_MSM8610) += acpuclock-8226.o acpuclock-cortex.o
 obj-$(CONFIG_ARCH_MSM8610) += clock-dsi-8610.o
 obj-$(CONFIG_ARCH_MSMKRYPTON) += clock-local2.o clock-pll.o clock-krypton.o clock-rpm.o clock-voter.o
 
-obj-$(CONFIG_MSM_PM8X60) += pm-8x60.o pm-data.o
+obj-$(CONFIG_MSM_PM) += msm-pm.o pm-data.o
 
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o
