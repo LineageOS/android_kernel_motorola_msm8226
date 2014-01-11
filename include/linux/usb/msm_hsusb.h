@@ -237,6 +237,9 @@ enum usb_vdd_value {
  * @id_gnd_gpio: GPIO from external detection IC for ID Gnd
  * @id_flt_active_high: Active logic for id_flt_gpio
  * @id_gnd_active_high: Active logic for id_gnd_gpio
+ *		connected on data lines or not.
+ * @enable_ahb2ahb_bypass: Indicates whether enable AHB2AHB BYPASS
+ *		mode with controller in device mode.
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
@@ -269,6 +272,7 @@ struct msm_otg_platform_data {
 	int id_gnd_gpio;
 	bool id_flt_active_high;
 	bool id_gnd_active_high;
+	bool enable_ahb2ahb_bypass;
 };
 
 /* phy related flags */
@@ -473,6 +477,7 @@ struct ci13xxx_platform_data {
 	int log2_itc;
 	void *prv_data;
 	bool l1_supported;
+	bool enable_ahb2ahb_bypass;
 };
 
 /**

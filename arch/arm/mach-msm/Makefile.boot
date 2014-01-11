@@ -110,28 +110,34 @@ dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-abbagoochie-p3.dtb
 
 # Do not include QC default DTBs if not needed
 ifneq ($(CONFIG_MMI_DEVICE_DTBS),y)
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-sim.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-fluid.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-cdp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-mtp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-evt.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-dvt.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-cdp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-mtp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-evt.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-dvt.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-cdp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-mtp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd-skug.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-skuf.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-skuf.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-xpm.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-cdp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-mtp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-xpm.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-cdp.dtb
-        dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-sim.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-fluid.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-evt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-dvt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-720p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-1080p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-720p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-1080p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-evt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-dvt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-720p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-1080p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-720p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-1080p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd-skug.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-skuf.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-skuf.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-xpm.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-xpm.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-720p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-1080p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-720p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-1080p-mtp.dtb
 endif
 
 # MSM8226 Motorola Devices

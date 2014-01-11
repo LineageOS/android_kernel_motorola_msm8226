@@ -510,6 +510,9 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 	panel = mdp3_session->panel;
 	mutex_lock(&mdp3_session->lock);
 
+	if (panel && panel->set_backlight)
+		panel->set_backlight(panel, 0);
+
 	if (!mdp3_session->status) {
 		pr_debug("fb%d is off already", mfd->index);
 		goto off_error;
@@ -1356,7 +1359,7 @@ static int mdp3_ctrl_ioctl_handler(struct msm_fb_data_type *mfd,
 	int rc = -EINVAL;
 	struct mdp3_session_data *mdp3_session;
 	struct msmfb_metadata metadata;
-	struct mdp_overlay req;
+	struct mdp_overlay *req = NULL;
 	struct msmfb_overlay_data ov_data;
 	int val;
 	struct mdss_panel_data *pdata;
@@ -1364,6 +1367,8 @@ static int mdp3_ctrl_ioctl_handler(struct msm_fb_data_type *mfd,
 	mdp3_session = (struct mdp3_session_data *)mfd->mdp.private1;
 	if (!mdp3_session)
 		return -ENODEV;
+
+	req = &mdp3_session->req_overlay;
 
 	if (!mdp3_session->status && cmd != MSMFB_METADATA_GET) {
 		pr_err("mdp3_ctrl_ioctl_handler, display off!\n");
@@ -1404,23 +1409,23 @@ static int mdp3_ctrl_ioctl_handler(struct msm_fb_data_type *mfd,
 			rc = copy_to_user(argp, &metadata, sizeof(metadata));
 		break;
 	case MSMFB_OVERLAY_GET:
-		rc = copy_from_user(&req, argp, sizeof(req));
+		rc = copy_from_user(req, argp, sizeof(*req));
 		if (!rc) {
-			rc = mdp3_overlay_get(mfd, &req);
+			rc = mdp3_overlay_get(mfd, req);
 
 		if (!IS_ERR_VALUE(rc))
-			rc = copy_to_user(argp, &req, sizeof(req));
+			rc = copy_to_user(argp, req, sizeof(*req));
 		}
 		if (rc)
 			pr_err("OVERLAY_GET failed (%d)\n", rc);
 		break;
 	case MSMFB_OVERLAY_SET:
-		rc = copy_from_user(&req, argp, sizeof(req));
+		rc = copy_from_user(req, argp, sizeof(*req));
 		if (!rc) {
-			rc = mdp3_overlay_set(mfd, &req);
+			rc = mdp3_overlay_set(mfd, req);
 
 		if (!IS_ERR_VALUE(rc))
-			rc = copy_to_user(argp, &req, sizeof(req));
+			rc = copy_to_user(argp, req, sizeof(*req));
 		}
 		if (rc)
 			pr_err("OVERLAY_SET failed (%d)\n", rc);
@@ -1539,6 +1544,10 @@ int mdp3_ctrl_init(struct msm_fb_data_type *mfd)
 		rc = -ENODEV;
 		goto init_done;
 	}
+
+	rc = mdp3_create_sysfs_link(dev);
+	if (rc)
+		pr_warn("problem creating link to mdp sysfs\n");
 
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
 	pr_debug("vsync kobject_uevent(KOBJ_ADD)\n");
