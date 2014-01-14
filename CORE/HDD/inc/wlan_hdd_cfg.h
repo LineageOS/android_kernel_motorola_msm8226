@@ -2060,6 +2060,9 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ADVERTISE_CONCURRENT_OPERATION_MIN     ( 0 )
 #define CFG_ADVERTISE_CONCURRENT_OPERATION_MAX     ( 1 )
 
+#define CFG_OVERRIDE_COUNTRY_CODE                "gStaCountryCode"
+#define CFG_OVERRIDE_COUNTRY_CODE_DEFAULT        "000"
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -2493,6 +2496,7 @@ typedef struct
 #endif
 
    v_BOOL_t                    advertiseConcurrentOperation;
+   char                        overrideCountryCode[4];
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
