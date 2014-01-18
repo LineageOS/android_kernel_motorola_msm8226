@@ -859,7 +859,7 @@ VOS_STATUS vos_nv_open(void)
            "INFO: NV binary file version=%d Driver default NV version=%d, continue...\n",
            gnvFactoryTable->fields.nvVersion, WLAN_NV_VERSION);
 #else /* WLAN_NV_OTA_UPGRADE */
-     VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
            "INFO: NV binary file version=%d Driver default NV version=%d, continue...\n",
            gnvEFSTable->halnv.fields.nvVersion, WLAN_NV_VERSION);
 #endif /* WLAN_NV_OTA_UPGRADE */
@@ -926,6 +926,7 @@ VOS_STATUS vos_nv_open(void)
             }
             else {
 #endif /* WLAN_NV_OTA_UPGRADE */
+
                 if(vos_nv_read( VNV_FIELD_IMAGE, (v_VOID_t *)&pnvEFSTable->halnv.fields,
                    NULL, sizeof(sNvFields) ) != VOS_STATUS_SUCCESS)
                    goto error;

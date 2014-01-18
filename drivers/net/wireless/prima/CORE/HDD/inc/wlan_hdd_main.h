@@ -1043,12 +1043,12 @@ struct hdd_context_s
    
    /** Pointer for configuration data */
    const struct firmware *cfg;
-   
+
 #ifdef WLAN_NV_OTA_UPGRADE
    /** Pointer for nv data programmed by factory */
    const struct firmware *nv_factory;
 #endif
-   
+
    /** Pointer for nv data */
    const struct firmware *nv;
    
