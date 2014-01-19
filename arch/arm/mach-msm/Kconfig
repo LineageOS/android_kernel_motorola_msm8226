@@ -1966,6 +1966,12 @@ config MSM_DEVFREQ_CPUBW
 	  agnostic interface to so that some of the devfreq governors can be
 	  shared across SoCs.
 
+config CPU_OVERCLOCK
+	bool "enable CPU overclocking of Cortex A7"
+	default n
+	help
+	  Simple CPU Overclocking Option to 1.6 GHz
+
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
 	default n

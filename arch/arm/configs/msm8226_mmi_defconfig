@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm 3.4.76 Kernel Configuration
+# Linux/arm 3.4.77 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
@@ -425,6 +425,7 @@ CONFIG_MSM_QMI_INTERFACE=y
 # CONFIG_MSM_DALRPC is not set
 # CONFIG_MSM_CPU_FREQ_SET_MIN_MAX is not set
 CONFIG_MSM_DEVFREQ_CPUBW=y
+# CONFIG_CPU_OVERCLOCK is not set
 # CONFIG_MSM_AVS_HW is not set
 # CONFIG_MSM_HW3D is not set
 CONFIG_AMSS_7X25_VERSION_2009=y
