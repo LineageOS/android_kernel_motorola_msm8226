@@ -2341,6 +2341,8 @@ static int wlan_hdd_cfg80211_stop_ap (struct wiphy *wiphy,
         }
     }
 
+    hdd_hostapd_stop(dev);
+
     if ((pAdapter->device_mode == WLAN_HDD_SOFTAP)
      || (pAdapter->device_mode == WLAN_HDD_P2P_GO)
        )
@@ -2745,13 +2747,28 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
                         hdd_close_adapter(pHddCtx, pP2pAdapter, VOS_TRUE);
                     }
                 }
+#ifdef FEATURE_WLAN_TDLS
 
+                /* A Mutex Lock is introduced while changing the mode to
+                 * protect the concurrent access for the Adapters by TDLS
+                 * module.
+                 */
+                if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
+                {
+                    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                              "%s: unable to lock list", __func__);
+                    return -EINVAL;
+                }
+#endif
                 //De-init the adapter.
                 hdd_stop_adapter( pHddCtx, pAdapter );
                 hdd_deinit_adapter( pHddCtx, pAdapter );
                 memset(&pAdapter->sessionCtx, 0, sizeof(pAdapter->sessionCtx));
                 pAdapter->device_mode = (type == NL80211_IFTYPE_AP) ?
                                    WLAN_HDD_SOFTAP : WLAN_HDD_P2P_GO;
+#ifdef FEATURE_WLAN_TDLS
+                mutex_unlock(&pHddCtx->tdls_lock);
+#endif
 
                 //Disable BMPS and IMPS if enabled
                 //before starting Go
@@ -2860,6 +2877,19 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
            case NL80211_IFTYPE_STATION:
            case NL80211_IFTYPE_P2P_CLIENT:
            case NL80211_IFTYPE_ADHOC:
+#ifdef FEATURE_WLAN_TDLS
+
+                /* A Mutex Lock is introduced while changing the mode to
+                 * protect the concurrent access for the Adapters by TDLS
+                 * module.
+                 */
+                if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
+                {
+                    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                              "%s: unable to lock list", __func__);
+                    return -EINVAL;
+                }
+#endif
                 hdd_stop_adapter( pHddCtx, pAdapter );
                 hdd_deinit_adapter( pHddCtx, pAdapter );
                 wdev->iftype = type;
@@ -2879,6 +2909,9 @@ int wlan_hdd_cfg80211_change_iface( struct wiphy *wiphy,
                 memset(&pAdapter->sessionCtx, 0, sizeof(pAdapter->sessionCtx));
                 hdd_set_station_ops( pAdapter->dev );
                 status = hdd_init_station_mode( pAdapter );
+#ifdef FEATURE_WLAN_TDLS
+                mutex_unlock(&pHddCtx->tdls_lock);
+#endif
                 if( VOS_STATUS_SUCCESS != status )
                     return -EOPNOTSUPP;
                 /* In case of JB, for P2P-GO, only change interface will be called,
@@ -2998,7 +3031,7 @@ static int wlan_hdd_tdls_add_station(struct wiphy *wiphy,
         return -EBUSY;
     }
 
-    pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, mac);
+    pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, mac, TRUE);
 
     if ( NULL == pTdlsPeer ) {
         VOS_TRACE( VOS_MODULE_ID_HDD, TDLS_LOG_LEVEL,
@@ -3032,7 +3065,7 @@ static int wlan_hdd_tdls_add_station(struct wiphy *wiphy,
     }
 
     /* when others are on-going, we want to change link_status to idle */
-    if (NULL != wlan_hdd_tdls_is_progress(pHddCtx, mac, TRUE, TRUE))
+    if (NULL != wlan_hdd_tdls_is_progress(pHddCtx, mac, TRUE))
     {
         VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                    "%s: " MAC_ADDRESS_STR
@@ -3055,7 +3088,7 @@ static int wlan_hdd_tdls_add_station(struct wiphy *wiphy,
     else
     {
         hddTdlsPeer_t *pTdlsPeer;
-        pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, mac);
+        pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, mac, TRUE);
         if (pTdlsPeer && TDLS_IS_CONNECTED(pTdlsPeer))
         {
             VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
@@ -5019,7 +5052,6 @@ int wlan_hdd_cfg80211_connect_start( hdd_adapter_t  *pAdapter,
     hdd_wext_state_t *pWextState;
     v_U32_t roamId;
     tCsrRoamProfile *pRoamProfile;
-    eMib_dot11DesiredBssType connectedBssType;
     eCsrAuthType RSNAuthType;
 
     ENTER();
@@ -5036,41 +5068,8 @@ int wlan_hdd_cfg80211_connect_start( hdd_adapter_t  *pAdapter,
 
     if (pRoamProfile)
     {
-        int ret = 0;
         hdd_station_ctx_t *pHddStaCtx;
         pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-        hdd_connGetConnectedBssType(pHddStaCtx,&connectedBssType );
-
-        if((eMib_dot11DesiredBssType_independent == connectedBssType) ||
-           (eConnectionState_Associated == pHddStaCtx->conn_info.connState) ||
-           (eConnectionState_IbssConnected == pHddStaCtx->conn_info.connState))
-        {
-            /* Issue disconnect to CSR */
-            INIT_COMPLETION(pAdapter->disconnect_comp_var);
-            if( eHAL_STATUS_SUCCESS ==
-                  sme_RoamDisconnect( WLAN_HDD_GET_HAL_CTX(pAdapter),
-                            pAdapter->sessionId,
-                            eCSR_DISCONNECT_REASON_UNSPECIFIED ) )
-            {
-                ret = wait_for_completion_interruptible_timeout(
-                             &pAdapter->disconnect_comp_var,
-                             msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
-                if (0 == ret)
-                {
-                    VOS_ASSERT(0);
-                }
-            }
-        }
-        else if(eConnectionState_Disconnecting == pHddStaCtx->conn_info.connState)
-        {
-            ret = wait_for_completion_interruptible_timeout(
-                         &pAdapter->disconnect_comp_var,
-                         msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
-            if (0 == ret)
-            {
-                VOS_ASSERT(0);
-            }
-        }
 
         if (HDD_WMM_USER_MODE_NO_QOS ==
                         (WLAN_HDD_GET_CTX(pAdapter))->cfg_ini->WmmMode)
@@ -5813,6 +5812,57 @@ int wlan_hdd_cfg80211_set_privacy( hdd_adapter_t *pAdapter,
 }
 
 /*
+ * FUNCTION: wlan_hdd_try_disconnect
+ * This function is used to disconnect from previous
+ * connection
+ */
+static int wlan_hdd_try_disconnect( hdd_adapter_t *pAdapter )
+{
+    long ret = 0;
+    hdd_station_ctx_t *pHddStaCtx;
+    eMib_dot11DesiredBssType connectedBssType;
+
+    pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
+
+    hdd_connGetConnectedBssType(pHddStaCtx,&connectedBssType );
+
+    if((eMib_dot11DesiredBssType_independent == connectedBssType) ||
+      (eConnectionState_Associated == pHddStaCtx->conn_info.connState) ||
+      (eConnectionState_IbssConnected == pHddStaCtx->conn_info.connState))
+    {
+        /* Issue disconnect to CSR */
+        INIT_COMPLETION(pAdapter->disconnect_comp_var);
+        if( eHAL_STATUS_SUCCESS ==
+              sme_RoamDisconnect( WLAN_HDD_GET_HAL_CTX(pAdapter),
+                        pAdapter->sessionId,
+                        eCSR_DISCONNECT_REASON_UNSPECIFIED ) )
+        {
+            ret = wait_for_completion_interruptible_timeout(
+                         &pAdapter->disconnect_comp_var,
+                         msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
+            if (0 >=  ret)
+            {
+                hddLog(LOGE, FL("Failed to receive disconnect event"));
+                return -EALREADY;
+            }
+        }
+    }
+    else if(eConnectionState_Disconnecting == pHddStaCtx->conn_info.connState)
+    {
+        ret = wait_for_completion_interruptible_timeout(
+                     &pAdapter->disconnect_comp_var,
+                     msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
+        if (0 >= ret)
+        {
+            hddLog(LOGE, FL("Failed to receive disconnect event"));
+            return -EALREADY;
+        }
+    }
+
+    return 0;
+}
+
+/*
  * FUNCTION: wlan_hdd_cfg80211_set_privacy
  * This function is used to initialize the security
  * parameters during connect operation.
@@ -5851,6 +5901,24 @@ static int wlan_hdd_cfg80211_connect( struct wiphy *wiphy,
         return -ECONNREFUSED;
     }
 #endif
+
+    //If Device Mode is Station Concurrent Sessions Exit BMps
+    //P2P Mode will be taken care in Open/close adapter
+    if((WLAN_HDD_INFRA_STATION == pAdapter->device_mode) &&
+        (vos_concurrent_sessions_running()))
+    {
+        exitbmpsStatus = hdd_disable_bmps_imps(pHddCtx, WLAN_HDD_INFRA_STATION);
+    }
+
+    /*Try disconnecting if already in connected state*/
+    status = wlan_hdd_try_disconnect(pAdapter);
+    if ( 0 > status)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR, FL("Failed to disconnect the existing"
+                " connection"));
+        return -EALREADY;
+    }
+
     /*initialise security parameters*/
     status = wlan_hdd_cfg80211_set_privacy(pAdapter, req);
 
@@ -5859,14 +5927,6 @@ static int wlan_hdd_cfg80211_connect( struct wiphy *wiphy,
         hddLog(VOS_TRACE_LEVEL_ERROR, "%s: failed to set security params",
                 __func__);
         return status;
-    }
-
-    //If Device Mode is Station Concurrent Sessions Exit BMps
-    //P2P Mode will be taken care in Open/close adapter
-    if((WLAN_HDD_INFRA_STATION == pAdapter->device_mode) &&
-        (vos_concurrent_sessions_running()))
-    {
-        exitbmpsStatus = hdd_disable_bmps_imps(pHddCtx, WLAN_HDD_INFRA_STATION);
     }
 
     if ( req->channel )
@@ -6189,6 +6249,15 @@ static int wlan_hdd_cfg80211_join_ibss( struct wiphy *wiphy,
         hddLog (VOS_TRACE_LEVEL_ERROR, "%s ERROR: Data Storage Corruption\n",
                 __func__);
         return -EIO;
+    }
+
+    /*Try disconnecting if already in connected state*/
+    status = wlan_hdd_try_disconnect(pAdapter);
+    if ( 0 > status)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR, FL("Failed to disconnect the existing"
+                " IBSS connection"));
+        return -EALREADY;
     }
 
     pRoamProfile = &pWextState->roamProfile;
@@ -7917,7 +7986,7 @@ static int wlan_hdd_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *d
 
     if (WLAN_IS_TDLS_SETUP_ACTION(action_code))
     {
-        if (NULL != wlan_hdd_tdls_is_progress(pHddCtx, peer, TRUE, TRUE))
+        if (NULL != wlan_hdd_tdls_is_progress(pHddCtx, peer, TRUE))
         {
             VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                        "%s: " MAC_ADDRESS_STR
@@ -7961,7 +8030,7 @@ static int wlan_hdd_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *d
         else
         {
             hddTdlsPeer_t *pTdlsPeer;
-            pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer);
+            pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer, TRUE);
             if (pTdlsPeer && TDLS_IS_CONNECTED(pTdlsPeer))
             {
                 VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
@@ -7986,7 +8055,7 @@ static int wlan_hdd_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *d
     {
 
        hddTdlsPeer_t *pTdlsPeer;
-       pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peerMac);
+       pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peerMac, TRUE);
 
        if(pTdlsPeer && TDLS_IS_CONNECTED(pTdlsPeer))
             responder = pTdlsPeer->is_responder;
@@ -8087,19 +8156,6 @@ static int wlan_hdd_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *d
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     hdd_context_t *pHddCtx = wiphy_priv(wiphy);
     int status;
-#ifdef FEATURE_WLAN_TDLS_OXYGEN_DISAPPEAR_AP
-    hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-    tANI_U8 staIdx;
-#endif
-#ifdef WLAN_FEATURE_TDLS_DEBUG
-    const char *tdls_oper_str[]= {
-        "NL80211_TDLS_DISCOVERY_REQ",
-        "NL80211_TDLS_SETUP",
-        "NL80211_TDLS_TEARDOWN",
-        "NL80211_TDLS_ENABLE_LINK",
-        "NL80211_TDLS_DISABLE_LINK",
-        "NL80211_TDLS_UNKNOWN_OPER"};
-#endif
     hddTdlsPeer_t *pTdlsPeer;
 
     if ( NULL == peer )
@@ -8118,23 +8174,6 @@ static int wlan_hdd_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *d
         return status;
     }
 
-    pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer);
-
-    if ( NULL == pTdlsPeer ) {
-        hddLog(VOS_TRACE_LEVEL_ERROR, "%s: " MAC_ADDRESS_STR " (oper %d) not exsting. ignored",
-               __func__, MAC_ADDR_ARRAY(peer), (int)oper);
-        return -EINVAL;
-    }
-
-#ifdef WLAN_FEATURE_TDLS_DEBUG
-    if((int)oper > 4)
-        oper = 5;
-
-    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-               "%s: " MAC_ADDRESS_STR " link_status %d (%s) ", "tdls_oper",
-               MAC_ADDR_ARRAY(peer), pTdlsPeer->link_status,
-               tdls_oper_str[(int)oper]);
-#endif
 
     if( FALSE == pHddCtx->cfg_ini->fEnableTDLSSupport ||
         FALSE == sme_IsFeatureSupportedByFW(TDLS))
@@ -8150,6 +8189,20 @@ static int wlan_hdd_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *d
             {
                 VOS_STATUS status;
                 tCsrTdlsLinkEstablishParams tdlsLinkEstablishParams;
+
+                pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer, TRUE);
+
+                if ( NULL == pTdlsPeer ) {
+                    hddLog(VOS_TRACE_LEVEL_ERROR, "%s: " MAC_ADDRESS_STR
+                           " (oper %d) not exsting. ignored",
+                           __func__, MAC_ADDR_ARRAY(peer), (int)oper);
+                    return -EINVAL;
+                }
+
+                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                           "%s: " MAC_ADDRESS_STR " link_status %d (%s) ", "tdls_oper",
+                           MAC_ADDR_ARRAY(peer), pTdlsPeer->link_status,
+                           "NL80211_TDLS_ENABLE_LINK");
 
                 if (!TDLS_STA_INDEX_VALID(pTdlsPeer->staId))
                 {
@@ -8234,6 +8287,20 @@ static int wlan_hdd_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *d
             break;
         case NL80211_TDLS_DISABLE_LINK:
             {
+                pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer, TRUE);
+
+                if ( NULL == pTdlsPeer ) {
+                    hddLog(VOS_TRACE_LEVEL_ERROR, "%s: " MAC_ADDRESS_STR
+                           " (oper %d) not exsting. ignored",
+                           __func__, MAC_ADDR_ARRAY(peer), (int)oper);
+                    return -EINVAL;
+                }
+
+                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                           "%s: " MAC_ADDRESS_STR " link_status %d (%s) ", "tdls_oper",
+                           MAC_ADDR_ARRAY(peer), pTdlsPeer->link_status,
+                           "NL80211_TDLS_DISABLE_LINK");
+
                 if(TDLS_STA_INDEX_VALID(pTdlsPeer->staId))
                 {
                     long status;
@@ -8260,27 +8327,56 @@ static int wlan_hdd_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *d
                     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                               "%s: TDLS Peer Station doesn't exist.", __func__);
                 }
-#ifdef FEATURE_WLAN_TDLS_OXYGEN_DISAPPEAR_AP
-                if (pHddTdlsCtx->defer_link_lost_indication)
-                {
-                    if (( TRUE == pHddCtx->cfg_ini->fEnableTDLSOxygenSupport ) &&
-                        (wlan_hdd_tdlsConnectedPeers(pAdapter) == 0))
-                    {
-                        status = wlan_hdd_disconnect(pAdapter, eCSR_DISCONNECT_REASON_UNSPECIFIED);
-                        if ( 0 != status)
-                        {
-                            hddLog(VOS_TRACE_LEVEL_ERROR,
-                                   "%s wlan_hdd_disconnect failure, returned %d \n",
-                                   __func__, (int)status );
-                            return -EINVAL;
-                        }
-                    }
-                }
-#endif
             }
             break;
         case NL80211_TDLS_TEARDOWN:
+            {
+                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                          " %s : NL80211_TDLS_TEARDOWN for " MAC_ADDRESS_STR,
+                          __func__, MAC_ADDR_ARRAY(peer));
+
+                if ( (FALSE == pHddCtx->cfg_ini->fTDLSExternalControl) ||
+                     (FALSE == pHddCtx->cfg_ini->fEnableTDLSImplicitTrigger) ) {
+
+                    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                          " %s TDLS External control and Implicit Trigger not enabled ",
+                          __func__);
+                    return -ENOTSUPP;
+                }
+
+                if ( 0 != wlan_hdd_tdls_remove_force_peer(pAdapter, peer) )
+                    return -EINVAL;
+
+                pTdlsPeer = wlan_hdd_tdls_find_peer(pAdapter, peer, TRUE);
+
+                if ( NULL == pTdlsPeer ) {
+                    hddLog(VOS_TRACE_LEVEL_INFO, "%s: " MAC_ADDRESS_STR
+                           " peer not exsting",
+                           __func__, MAC_ADDR_ARRAY(peer));
+                }
+                else {
+                    wlan_hdd_tdls_indicate_teardown(pAdapter, pTdlsPeer,
+                                       eSIR_MAC_TDLS_TEARDOWN_UNSPEC_REASON);
+                }
+                break;
+            }
         case NL80211_TDLS_SETUP:
+            {
+                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                          " %s : NL80211_TDLS_SETUP for " MAC_ADDRESS_STR,
+                          __func__, MAC_ADDR_ARRAY(peer));
+
+                if ( (FALSE == pHddCtx->cfg_ini->fTDLSExternalControl) ||
+                     (FALSE == pHddCtx->cfg_ini->fEnableTDLSImplicitTrigger) ) {
+
+                    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                          " %s TDLS External control and Implicit Trigger not enabled ",
+                          __func__);
+                    return -ENOTSUPP;
+                }
+
+                return wlan_hdd_tdls_add_force_peer(pAdapter, peer);
+            }
         case NL80211_TDLS_DISCOVERY_REQ:
             /* We don't support in-driver setup/teardown/discovery */
             return -ENOTSUPP;

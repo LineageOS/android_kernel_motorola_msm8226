@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -209,6 +209,8 @@
 /* value should not be greater than PNO_MAX_SCAN_TIMERS */
 #define HDD_PNO_SCAN_TIMERS_SET_MULTIPLE 6
 #endif
+
+#define MAX_USER_COMMAND_SIZE 4096
 
 #define HDD_MAC_ADDR_LEN    6
 typedef v_U8_t tWlanHddMacAddr[HDD_MAC_ADDR_LEN];
@@ -1206,6 +1208,8 @@ struct hdd_context_s
     /* TDLS peer connected count */
     tANI_U16 connected_peer_count;
     tdls_scan_context_t tdls_scan_ctxt;
+   /* Lock to avoid race condition during TDLS operations*/
+   struct mutex tdls_lock;
 #endif
 
     hdd_traffic_monitor_t traffic_monitor;
