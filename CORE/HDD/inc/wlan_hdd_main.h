@@ -1255,6 +1255,8 @@ struct hdd_context_s
    v_U16_t unsafeChannelList[NUM_20MHZ_RF_CHANNELS];
    v_U16_t safeChannelList[NUM_20MHZ_RF_CHANNELS];
 #endif /* FEATURE_WLAN_CH_AVOID */
+
+   v_BOOL_t btCoexModeSet;
 };
 
 
