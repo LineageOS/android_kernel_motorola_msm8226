@@ -3508,6 +3508,16 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
 #endif
     }
 
+    if (pHddCtx->isLoadUnloadInProgress)
+    {
+        wiphy_dbg(wiphy, "info: %s: Unloading/Loading in Progress. Ignore!!!",
+                  __func__);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
+        return;
+#else
+        return 0;
+#endif
+    }
     /* first check if this callback is in response to the driver callback */
 
     if (request->initiator == NL80211_REGDOM_SET_BY_DRIVER)
