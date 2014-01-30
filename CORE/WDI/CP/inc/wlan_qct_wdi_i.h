@@ -455,6 +455,9 @@ typedef enum
   /* WLAN FW set batch scan request */
   WDI_SET_BATCH_SCAN_REQ                        = 86,
 
+  /*WLAN DAL Set Max Tx Power Per band Request*/
+  WDI_SET_MAX_TX_POWER_PER_BAND_REQ             = 87,
+
   WDI_MAX_REQ,
 
   /*Send a suspend Indication down to HAL*/
@@ -477,6 +480,9 @@ typedef enum
 
   /* Send a delete periodic Tx pattern indicationto HAL */
   WDI_DEL_PERIODIC_TX_PATTERN_IND,
+
+  /* Send Rate Update Indication */
+  WDI_RATE_UPDATE_IND,
 
   /*Send stop batch scan indication to FW*/
   WDI_STOP_BATCH_SCAN_IND,
@@ -747,6 +753,7 @@ typedef enum
 
   WDI_SET_BATCH_SCAN_RESP                       = 85,
 
+  WDI_SET_MAX_TX_POWER_PER_BAND_RSP             = 86,
   /*-------------------------------------------------------------------------
     Indications
      !! Keep these last in the enum if possible
@@ -2233,6 +2240,22 @@ WDI_ProcessNvDownloadReq
  @return Result of the function call
 */
 WDI_Status WDI_ProcessSetMaxTxPowerReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ @brief Process Set Max Tx Power Per Band Request function (called when Main
+        FSM allows it)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
@@ -5568,6 +5591,22 @@ WDI_ProcessChAvoidInd
   WDI_EventInfoType*     pEventData
 );
 #endif /* FEATURE_WLAN_CH_AVOID */
+
+/**
+ @brief Process Rate Update Indication and post it to HAL
+
+ @param  pWDICtx:    pointer to the WLAN DAL context
+         pEventData: pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessRateUpdateInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+);
 
 #endif /*WLAN_QCT_WDI_I_H*/
 

@@ -151,6 +151,11 @@ static struct kparam_string fwpath = {
    .string = fwpath_buffer,
    .maxlen = BUF_LEN,
 };
+
+static char *country_code;
+static int   enable_11d = -1;
+static int   enable_dfs_chan_scan = -1;
+
 #ifndef MODULE
 static int wlan_hdd_inited;
 #endif
@@ -183,6 +188,8 @@ static VOS_STATUS  hdd_get_tsm_stats(hdd_adapter_t *pAdapter, const tANI_U8 tid,
 static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
                                      tCsrCcxBeaconReq *pCcxBcnReq);
 #endif /* FEATURE_WLAN_CCX && FEATURE_WLAN_CCX_UPLOAD */
+
+#define WLAN_PRIV_DATA_MAX_LEN 4096
 
 /*
  * Driver miracast parameters 0-Disabled
@@ -1899,7 +1906,8 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
        goto exit;
    }
 
-   if (priv_data.total_len <= 0)
+   if (priv_data.total_len <= 0 ||
+	    priv_data.total_len > WLAN_PRIV_DATA_MAX_LEN)
    {
        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN,
                  "%s:invalid priv_data.total_len(%d)!!!", __func__,
@@ -3501,9 +3509,10 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
         }
        else if (strncmp(command, "SETMCRATE", 9) == 0)
        {
-           int      rc;
            tANI_U8 *value = command;
            int      targetRate;
+           tSirRateUpdateInd *rateUpdate;
+           eHalStatus status;
 
            /* Only valid for SAP mode */
            if (WLAN_HDD_SOFTAP != pAdapter->device_mode)
@@ -3520,13 +3529,32 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            /* Convert the value from ascii to integer, decimal base */
            ret = kstrtouint(value, 10, &targetRate);
 
-           rc = hdd_hostapd_set_mc_rate(pAdapter, targetRate);
-           if (rc)
+           rateUpdate = (tSirRateUpdateInd *)vos_mem_malloc(sizeof(tSirRateUpdateInd));
+           if (NULL == rateUpdate)
            {
-               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: Set MC Rate Fail %d", __func__, rc);
-               ret = -EFAULT;
-               goto exit;
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: SETMCRATE indication alloc fail", __func__);
+              ret = -EFAULT;
+              goto exit;
+           }
+           vos_mem_zero(rateUpdate, sizeof(tSirRateUpdateInd ));
+
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                     "MC Target rate %d", targetRate);
+           /* Ignore unicast */
+           rateUpdate->ucastDataRate = -1;
+           rateUpdate->mcastDataRate24GHz = targetRate;
+           rateUpdate->mcastDataRate5GHz = targetRate;
+           rateUpdate->mcastDataRate24GHzTxFlag = 0;
+           rateUpdate->mcastDataRate5GHzTxFlag = 0;
+           status = sme_SendRateUpdateInd(pHddCtx->hHal, rateUpdate);
+           if (eHAL_STATUS_SUCCESS != status)
+           {
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: SET_MC_RATE failed", __func__);
+              vos_mem_free(rateUpdate);
+              ret = -EFAULT;
+              goto exit;
            }
        }
 #if defined(FEATURE_WLAN_CCX) && defined(FEATURE_WLAN_CCX_UPLOAD)
@@ -3782,7 +3810,7 @@ static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
     if ('\0' == *inPtr) return -EINVAL;
 
     /*getting the first argument ie number of fields*/
-    v = sscanf(inPtr, "%32s ", buf);
+    v = sscanf(inPtr, "%31s ", buf);
     if (1 != v) return -EINVAL;
 
     v = kstrtos32(buf, 10, &tempInt);
@@ -3808,7 +3836,7 @@ static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
             /*no ie data after the number of ie fields argument and spaces*/
             if ( '\0' == *inPtr ) return -EINVAL;
 
-            v = sscanf(inPtr, "%32s ", buf);
+            v = sscanf(inPtr, "%31s ", buf);
             if (1 != v) return -EINVAL;
 
             v = kstrtos32(buf, 10, &tempInt);
@@ -4068,8 +4096,8 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     int v = 0;
     tANI_U8 tempBuf[32];
     tANI_U8 tempByte = 0;
-    /* 12 hexa decimal digits and 5 ':' */
-    tANI_U8 macAddress[17];
+    /* 12 hexa decimal digits, 5 ':' and '\0' */
+    tANI_U8 macAddress[18];
 
     inPtr = strnchr(pValue, strlen(pValue), SPACE_ASCII_VALUE);
     /*no argument after the command*/
@@ -4123,7 +4151,7 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     }
 
     /*getting the next argument ie the channel number */
-    v = sscanf(inPtr, "%32s ", tempBuf);
+    v = sscanf(inPtr, "%31s ", tempBuf);
     if (1 != v) return -EINVAL;
 
     v = kstrtos32(tempBuf, 10, &tempInt);
@@ -4146,7 +4174,7 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     }
 
     /*getting the next argument ie the dwell time */
-    v = sscanf(inPtr, "%32s ", tempBuf);
+    v = sscanf(inPtr, "%31s ", tempBuf);
     if (1 != v) return -EINVAL;
 
     v = kstrtos32(tempBuf, 10, &tempInt);
@@ -4261,7 +4289,7 @@ VOS_STATUS hdd_parse_channellist(tANI_U8 *pValue, tANI_U8 *pChannelList, tANI_U8
     }
 
     /*getting the first argument ie the number of channels*/
-    v = sscanf(inPtr, "%32s ", buf);
+    v = sscanf(inPtr, "%31s ", buf);
     if (1 != v) return -EINVAL;
 
     v = kstrtos32(buf, 10, &tempInt);
@@ -4312,7 +4340,7 @@ VOS_STATUS hdd_parse_channellist(tANI_U8 *pValue, tANI_U8 *pChannelList, tANI_U8
             }
         }
 
-        v = sscanf(inPtr, "%32s ", buf);
+        v = sscanf(inPtr, "%31s ", buf);
         if (1 != v) return -EINVAL;
 
         v = kstrtos32(buf, 10, &tempInt);
@@ -4353,8 +4381,8 @@ VOS_STATUS hdd_parse_reassoc_command_data(tANI_U8 *pValue, tANI_U8 *pTargetApBss
     int tempInt;
     int v = 0;
     tANI_U8 tempBuf[32];
-    /* 12 hexa decimal digits and 5 ':' */
-    tANI_U8 macAddress[17];
+    /* 12 hexa decimal digits, 5 ':' and '\0'  */
+    tANI_U8 macAddress[18];
 
     inPtr = strnchr(pValue, strlen(pValue), SPACE_ASCII_VALUE);
     /*no argument after the command*/
@@ -4408,7 +4436,7 @@ VOS_STATUS hdd_parse_reassoc_command_data(tANI_U8 *pValue, tANI_U8 *pTargetApBss
     }
 
     /*getting the next argument ie the channel number */
-    v = sscanf(inPtr, "%32s ", tempBuf);
+    v = sscanf(inPtr, "%31s ", tempBuf);
     if (1 != v) return -EINVAL;
 
     v = kstrtos32(tempBuf, 10, &tempInt);
@@ -4547,7 +4575,6 @@ v_BOOL_t hdd_is_valid_mac_address(const tANI_U8 *pMacAddr)
         }
         else
         {
-            separator = -1;
             /* Invalid MAC found */
             return 0;
         }
@@ -7980,6 +8007,19 @@ int hdd_wlan_startup(struct device *dev )
       goto err_vosclose;
    }
 
+   if (0 == enable_dfs_chan_scan || 1 == enable_dfs_chan_scan)
+   {
+      pHddCtx->cfg_ini->enableDFSChnlScan = enable_dfs_chan_scan;
+      hddLog(VOS_TRACE_LEVEL_INFO, "%s: module enable_dfs_chan_scan set to %d",
+             __func__, enable_dfs_chan_scan);
+   }
+   if (0 == enable_11d || 1 == enable_11d)
+   {
+      pHddCtx->cfg_ini->Is11dSupportEnabled = enable_11d;
+      hddLog(VOS_TRACE_LEVEL_INFO, "%s: module enable_11d set to %d",
+             __func__, enable_11d);
+   }
+
    /* Note that the vos_preStart() sequence triggers the cfg download.
       The cfg download must occur before we update the SME config
       since the SME config operation must access the cfg database */
@@ -8179,6 +8219,40 @@ int hdd_wlan_startup(struct device *dev )
    {
       hddLog(VOS_TRACE_LEVEL_ERROR, "%s: hdd_open_adapter failed", __func__);
       goto err_close_adapter;
+   }
+
+   if (country_code)
+   {
+      eHalStatus ret;
+      INIT_COMPLETION(pAdapter->change_country_code);
+      hdd_checkandupdate_dfssetting(pAdapter, country_code);
+#ifndef CONFIG_ENABLE_LINUX_REG
+      hdd_checkandupdate_phymode(pAdapter, country_code);
+#endif
+      ret = sme_ChangeCountryCode(pHddCtx->hHal,
+                                  (void *)(tSmeChangeCountryCallback)
+                                  wlan_hdd_change_country_code_callback,
+                                  country_code,
+                                  pAdapter, pHddCtx->pvosContext,
+                                  eSIR_TRUE, eSIR_TRUE);
+      if (eHAL_STATUS_SUCCESS == ret)
+      {
+         ret = wait_for_completion_interruptible_timeout(
+                       &pAdapter->change_country_code,
+                       msecs_to_jiffies(WLAN_WAIT_TIME_COUNTRY));
+
+         if (0 >= ret)
+         {
+            VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                      "%s: SME while setting country code timed out", __func__);
+         }
+      }
+      else
+      {
+         VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                   "%s: SME Change Country code from module param fail ret=%d",
+                   __func__, ret);
+      }
    }
 
 #ifdef WLAN_BTAMP_FEATURE
@@ -9246,3 +9320,12 @@ module_param_call(con_mode, con_mode_handler, param_get_int, &con_mode,
 
 module_param_call(fwpath, fwpath_changed_handler, param_get_string, &fwpath,
                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+module_param(enable_dfs_chan_scan, int,
+             S_IRUSR | S_IRGRP | S_IROTH);
+
+module_param(enable_11d, int,
+             S_IRUSR | S_IRGRP | S_IROTH);
+
+module_param(country_code, charp,
+             S_IRUSR | S_IRGRP | S_IROTH);

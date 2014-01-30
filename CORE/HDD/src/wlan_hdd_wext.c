@@ -156,6 +156,8 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 #define WE_SET_HIGHER_DTIM_TRANSITION   8
 #define WE_SET_TM_LEVEL      9
 #define WE_ENABLE_STRICT_FCC_REG  10
+#define WE_SET_MAX_TX_POWER_2_4   11
+#define WE_SET_MAX_TX_POWER_5_0   12
 
 /* Private ioctls and their sub-ioctls */
 #define WLAN_PRIV_SET_NONE_GET_INT    (SIOCIWFIRSTPRIV + 1)
@@ -1128,8 +1130,8 @@ void hdd_clearRoamProfileIe( hdd_adapter_t *pAdapter)
 #endif
 
    pWextState->roamProfile.bWPSAssociation = VOS_FALSE;
-   pWextState->roamProfile.pAddIEScan = (tANI_U8 *)NULL;
    pWextState->roamProfile.nAddIEScanLength = 0;
+   memset(pWextState->roamProfile.addIEScan, 0 , SIR_MAC_MAX_IE_LENGTH+2);
    pWextState->roamProfile.pAddIEAssoc = (tANI_U8 *)NULL;
    pWextState->roamProfile.nAddIEAssocLength = 0;
 
@@ -4132,6 +4134,38 @@ static int iw_setint_getnone(struct net_device *dev, struct iw_request_info *inf
            {
               hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Setting maximum tx power failed",
               __func__);
+              return -EIO;
+           }
+
+           break;
+        }
+        case WE_SET_MAX_TX_POWER_2_4:
+        {
+           hddLog(VOS_TRACE_LEVEL_INFO,
+                  "%s: Setting maximum tx power %d dBm for 2.4 GHz band",
+                  __func__, set_value);
+           if (sme_SetMaxTxPowerPerBand(eCSR_BAND_24, set_value) !=
+                                        eHAL_STATUS_SUCCESS)
+           {
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: Setting maximum tx power failed for 2.4 GHz band",
+                     __func__);
+              return -EIO;
+           }
+
+           break;
+        }
+        case WE_SET_MAX_TX_POWER_5_0:
+        {
+           hddLog(VOS_TRACE_LEVEL_INFO,
+                  "%s: Setting maximum tx power %d dBm for 5.0 GHz band",
+                  __func__, set_value);
+           if (sme_SetMaxTxPowerPerBand(eCSR_BAND_5G, set_value) !=
+                                        eHAL_STATUS_SUCCESS)
+           {
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: Setting maximum tx power failed for 5.0 GHz band",
+                     __func__);
               return -EIO;
            }
 
@@ -7461,7 +7495,17 @@ static const struct iw_priv_args we_private_args[] = {
     {   WE_SET_MAX_TX_POWER,
         IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
         0,
-        "setMaxTxPower" },
+       "setMaxTxPower" },
+
+    {   WE_SET_MAX_TX_POWER_2_4,
+        IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
+        0,
+        "setTxMaxPower2G" },
+
+    {   WE_SET_MAX_TX_POWER_5_0,
+        IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
+        0,
+        "setTxMaxPower5G" },
 
     /* SAP has TxMax whereas STA has MaxTx, adding TxMax for STA
      * as well to keep same syntax as in SAP. Now onwards, STA
