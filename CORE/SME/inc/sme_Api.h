@@ -2281,6 +2281,16 @@ eHalStatus sme_SetMaxTxPower(tHalHandle hHal, tSirMacAddr pBssid,
                              tSirMacAddr pSelfMacAddress, v_S7_t dB);
 
 /* ---------------------------------------------------------------------------
+    \fn sme_SetMaxTxPowerPerBand
+    \brief  Used to set the Maximum Transmit Power for
+    specific band dynamically. Note: this setting will not persist over reboots
+    \param band
+    \param power to set in dB
+    \- return eHalStatus
+    -------------------------------------------------------------------------*/
+eHalStatus sme_SetMaxTxPowerPerBand(eCsrBand band, v_S7_t db);
+
+/* ---------------------------------------------------------------------------
 
     \fn sme_SetTxPower
 
@@ -3086,6 +3096,15 @@ eHalStatus sme_DelPeriodicTxPtrn(tHalHandle hHal, tSirDelPeriodicTxPtrn
   --------------------------------------------------------------------------*/
 void sme_enable_disable_split_scan (tHalHandle hHal, tANI_U8 nNumStaChan,
                                     tANI_U8 nNumP2PChan);
+
+/* ---------------------------------------------------------------------------
+    \fn sme_SendRateUpdateInd
+    \brief  API to Update rate
+    \param  hHal - The handle returned by macOpen
+    \param  rateUpdateParams - Pointer to rate update params
+    \return eHalStatus
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_SendRateUpdateInd(tHalHandle hHal, tSirRateUpdateInd *rateUpdateParams);
 
 /*
  * sme API to trigger fast BSS roam to a given BSSID independent of RSSI

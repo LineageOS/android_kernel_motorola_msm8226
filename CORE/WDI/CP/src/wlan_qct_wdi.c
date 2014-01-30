@@ -401,6 +401,7 @@ WDI_ReqProcFuncType  pfnReqProcTbl[WDI_MAX_UMAC_IND] =
   NULL,
 #endif /* FEATURE_WLAN_BATCH_SCAN */
 
+  WDI_ProcessSetMaxTxPowerPerBandReq,   /* WDI_SET_MAX_TX_POWER_PER_BAND_REQ*/
   /*-------------------------------------------------------------------------
     Indications
   -------------------------------------------------------------------------*/
@@ -422,6 +423,7 @@ WDI_ReqProcFuncType  pfnReqProcTbl[WDI_MAX_UMAC_IND] =
   NULL,
   NULL,
 #endif /* FEATURE_WLAN_BATCH_SCAN */
+  WDI_ProcessRateUpdateInd,             /* WDI_RATE_UPDATE_IND */
 };
 
 
@@ -926,6 +928,7 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
     CASE_RETURN_STRING( WDI_SET_STA_BCAST_KEY_REQ );
     CASE_RETURN_STRING( WDI_RMV_STA_BCAST_KEY_REQ );
     CASE_RETURN_STRING( WDI_SET_MAX_TX_POWER_REQ );
+    CASE_RETURN_STRING( WDI_SET_MAX_TX_POWER_PER_BAND_REQ );
     CASE_RETURN_STRING( WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ );
 #ifdef FEATURE_WLAN_TDLS
     CASE_RETURN_STRING( WDI_TDLS_LINK_ESTABLISH_REQ );
@@ -2930,6 +2933,55 @@ WDI_SetMaxTxPowerReq
   wdiEventData.wdiRequest      = WDI_SET_MAX_TX_POWER_REQ;
   wdiEventData.pEventData      = pwdiSetMaxTxPowerParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetMaxTxPowerParams);
+  wdiEventData.pCBfnc          = wdiReqStatusCb;
+  wdiEventData.pUserData       = pUserData;
+
+  return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+}
+
+/**
+ @brief WDI_SetMaxTxPowerPerBandReq will be called when the upper
+        MAC wants to set Max Tx Power to HW for specific band.
+
+ @param pwdiSetMaxTxPowerPerBandParams: Tx Power Information
+
+        wdiReqStatusCb: callback for passing back the
+        response msg from the device
+
+        pUserData: user data will be passed back with the
+        callback
+
+ @see WDI_SetMaxTxPowerPerBandReq
+ @return Result of the function call
+*/
+WDI_Status
+WDI_SetMaxTxPowerPerBandReq
+(
+  WDI_SetMaxTxPowerPerBandParamsType*   pwdiSetMaxTxPowerPerBandParams,
+  WDA_SetMaxTxPowerPerBandRspCb         wdiReqStatusCb,
+  void*                          pUserData
+)
+{
+  WDI_EventInfoType      wdiEventData;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*------------------------------------------------------------------------
+    Sanity Check
+  ------------------------------------------------------------------------*/
+  if ( eWLAN_PAL_FALSE == gWDIInitialized )
+  {
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+               "WDI API call before module is initialized - Fail request");
+
+    return WDI_STATUS_E_NOT_ALLOWED;
+  }
+
+  /*------------------------------------------------------------------------
+    Fill in Event data and post to the Main FSM
+  ------------------------------------------------------------------------*/
+  wdiEventData.wdiRequest      = WDI_SET_MAX_TX_POWER_PER_BAND_REQ;
+  wdiEventData.pEventData      = pwdiSetMaxTxPowerPerBandParams;
+  wdiEventData.uEventDataSize  = sizeof(*pwdiSetMaxTxPowerPerBandParams);
   wdiEventData.pCBfnc          = wdiReqStatusCb;
   wdiEventData.pUserData       = pUserData;
 
@@ -12598,6 +12650,88 @@ if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_MAX_TX_POWER_
                        wdiSetMaxTxPowerRspCb, pEventData->pUserData,
                                                       WDI_SET_MAX_TX_POWER_RESP);
 
+}
+
+/*
+ @brief Process Set Max Tx Power Per Band Request function (called when Main
+        FSM allows it)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_SetMaxTxPowerPerBandParamsType*    pwdiSetMaxTxPowerPerBandParams = NULL;
+  WDA_SetMaxTxPowerPerBandRspCb          wdiSetMaxTxPowerPerBandRspCb;
+  wpt_uint8*                             pSendBuffer         = NULL;
+  wpt_uint16                             usDataOffset        = 0;
+  wpt_uint16                             usSendSize          = 0;
+  tpSetMaxTxPwrPerBandReq                phalSetMxTxPwrPerBand = NULL;
+  WDI_Status                             rValue = WDI_STATUS_SUCCESS;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*-------------------------------------------------------------------------
+    Sanity check
+  -------------------------------------------------------------------------*/
+  if (( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData ) ||
+      ( NULL == pEventData->pCBfnc ))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+  pwdiSetMaxTxPowerPerBandParams = \
+  (WDI_SetMaxTxPowerPerBandParamsType*)pEventData->pEventData;
+
+  wdiSetMaxTxPowerPerBandRspCb = \
+  (WDA_SetMaxTxPowerPerBandRspCb)pEventData->pCBfnc;
+
+  /*-----------------------------------------------------------------------
+    Get message buffer
+  -----------------------------------------------------------------------*/
+
+  rValue = WDI_GetMessageBuffer(pWDICtx,
+                                WDI_SET_MAX_TX_POWER_PER_BAND_REQ,
+                                sizeof(tSetMaxTxPwrPerBandParams),
+                                &pSendBuffer, &usDataOffset, &usSendSize);
+
+  if ((WDI_STATUS_SUCCESS != rValue)|| (usSendSize <
+      (usDataOffset + sizeof(tSetMaxTxPwrPerBandParams))))
+  {
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
+                "Unable to get Set Max Tx Power Per Band req %p %p %p",
+                pEventData, pwdiSetMaxTxPowerPerBandParams,
+                wdiSetMaxTxPowerPerBandRspCb);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+
+  phalSetMxTxPwrPerBand = (tpSetMaxTxPwrPerBandReq)(pSendBuffer + usDataOffset);
+  phalSetMxTxPwrPerBand->setMaxTxPwrPerBandParams.bandInfo = \
+  pwdiSetMaxTxPowerPerBandParams->wdiMaxTxPowerPerBandInfo.bandInfo;
+
+  phalSetMxTxPwrPerBand->setMaxTxPwrPerBandParams.power = \
+  pwdiSetMaxTxPowerPerBandParams->wdiMaxTxPowerPerBandInfo.ucPower;
+
+  pWDICtx->wdiReqStatusCB     = pwdiSetMaxTxPowerPerBandParams->wdiReqStatusCB;
+  pWDICtx->pReqStatusUserData = pwdiSetMaxTxPowerPerBandParams->pUserData;
+
+  /*-------------------------------------------------------------------------
+    Send Set Max Tx Power Per Band Request to HAL
+  -------------------------------------------------------------------------*/
+  return  WDI_SendMsg(pWDICtx, pSendBuffer, usSendSize,
+                      wdiSetMaxTxPowerPerBandRspCb, pEventData->pUserData,
+                      WDI_SET_MAX_TX_POWER_PER_BAND_RSP);
 }
 
 /**
@@ -22548,6 +22682,8 @@ WDI_2_HAL_REQ_TYPE
     return WLAN_HAL_UPDATE_PROBE_RSP_TEMPLATE_REQ;
    case WDI_SET_MAX_TX_POWER_REQ:
     return WLAN_HAL_SET_MAX_TX_POWER_REQ;
+  case WDI_SET_MAX_TX_POWER_PER_BAND_REQ:
+    return WLAN_HAL_SET_MAX_TX_POWER_PER_BAND_REQ;
    case WDI_SET_TX_POWER_REQ:
     return WLAN_HAL_SET_TX_POWER_REQ;
   case WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ:
@@ -22683,6 +22819,8 @@ WDI_2_HAL_REQ_TYPE
     return WLAN_HAL_ADD_PERIODIC_TX_PTRN_IND;
   case WDI_DEL_PERIODIC_TX_PATTERN_IND:
     return WLAN_HAL_DEL_PERIODIC_TX_PTRN_IND;
+  case WDI_RATE_UPDATE_IND:
+    return WLAN_HAL_RATE_UPDATE_IND;
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
   case WDI_SET_BATCH_SCAN_REQ:
@@ -22803,6 +22941,8 @@ HAL_2_WDI_RSP_TYPE
     return WDI_HAL_TX_PER_HIT_IND;
   case WLAN_HAL_SET_MAX_TX_POWER_RSP:
     return WDI_SET_MAX_TX_POWER_RESP;
+  case WLAN_HAL_SET_MAX_TX_POWER_PER_BAND_RSP:
+    return WDI_SET_MAX_TX_POWER_PER_BAND_RSP;
   case WLAN_HAL_SET_TX_POWER_RSP:
     return WDI_SET_TX_POWER_RESP;
   case WLAN_HAL_SET_P2P_GONOA_RSP:
@@ -28929,3 +29069,143 @@ WDI_ProcessChAvoidInd
   return WDI_STATUS_SUCCESS;
 }
 #endif /* FEATURE_WLAN_CH_AVOID */
+
+/**
+@brief WDI_RateUpdateInd will be called when the upper MAC
+        requests the device to set rates.
+
+
+@param wdiRateUpdateIndParams:
+
+
+@see
+@return Result of the function call
+*/
+WDI_Status
+WDI_RateUpdateInd
+(
+    WDI_RateUpdateIndParams  *wdiRateUpdateIndParams
+)
+{
+   WDI_EventInfoType      wdiEventData;
+   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+   /*------------------------------------------------------------------------
+    Sanity Check
+   ------------------------------------------------------------------------*/
+   if ( eWLAN_PAL_FALSE == gWDIInitialized )
+   {
+       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                  "WDI API call before module is initialized - Fail request");
+
+       return WDI_STATUS_E_NOT_ALLOWED;
+   }
+
+   /*------------------------------------------------------------------------
+     Fill in Event data and post to the Main FSM
+   ------------------------------------------------------------------------*/
+    wdiEventData.wdiRequest      = WDI_RATE_UPDATE_IND;
+    wdiEventData.pEventData      = wdiRateUpdateIndParams;
+    wdiEventData.uEventDataSize  = sizeof(WDI_RateUpdateIndParams);
+    wdiEventData.pCBfnc          = NULL;
+    wdiEventData.pUserData       = NULL;
+
+    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+
+}/* WDI_RateUpdateInd */
+
+/**
+ @brief Process Rate Update Indication and post it to HAL
+
+ @param  pWDICtx:    pointer to the WLAN DAL context
+         pEventData: pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessRateUpdateInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+)
+{
+    wpt_uint8*              pSendBuffer        = NULL;
+    wpt_uint16              usDataOffset       = 0;
+    wpt_uint16              usSendSize         = 0;
+    WDI_RateUpdateIndParams *pwdiRateUpdateInd = NULL;
+    tHalRateUpdateInd       *pRateUpdateInd;
+    WDI_Status              wdiStatus;
+
+    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+           "%s", __func__);
+
+    /*-------------------------------------------------------------------------
+      Sanity check
+    -------------------------------------------------------------------------*/
+    if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
+    {
+       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                   "%s: Invalid parameters", __func__);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+    }
+    pwdiRateUpdateInd = (WDI_RateUpdateIndParams *)pEventData->pEventData;
+    /*-----------------------------------------------------------------------
+      Get message buffer
+    -----------------------------------------------------------------------*/
+
+    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
+                          WDI_RATE_UPDATE_IND,
+                          sizeof(tHalRateUpdateParams),
+                          &pSendBuffer, &usDataOffset, &usSendSize))||
+                          ( usSendSize < (usDataOffset +
+                                 sizeof(tHalRateUpdateParams) )))
+    {
+       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "Unable to get send buffer in Rate Update Indication %p ",
+                  pEventData);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+    }
+
+    pRateUpdateInd = (tHalRateUpdateInd *)pSendBuffer;
+
+    /* Copy the bssid */
+    wpalMemoryCopy(pRateUpdateInd->halRateUpdateParams.bssid,
+                     pwdiRateUpdateInd->bssid, WDI_MAC_ADDR_LEN);
+
+    /* Copy the tx flags */
+    pRateUpdateInd->halRateUpdateParams.ucastDataRateTxFlag =
+                             pwdiRateUpdateInd->ucastDataRateTxFlag;
+    pRateUpdateInd->halRateUpdateParams.reliableMcastDataRateTxFlag =
+                             pwdiRateUpdateInd->reliableMcastDataRateTxFlag;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate24GHzTxFlag =
+                             pwdiRateUpdateInd->mcastDataRate24GHzTxFlag;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate5GHzTxFlag =
+                             pwdiRateUpdateInd->mcastDataRate5GHzTxFlag;
+
+    /* Copy the tx rates */
+    pRateUpdateInd->halRateUpdateParams.ucastDataRate =
+                             pwdiRateUpdateInd->ucastDataRate;
+    pRateUpdateInd->halRateUpdateParams.reliableMcastDataRate =
+                             pwdiRateUpdateInd->reliableMcastDataRate;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate24GHz =
+                             pwdiRateUpdateInd->mcastDataRate24GHz;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate5GHz =
+                             pwdiRateUpdateInd->mcastDataRate5GHz;
+
+    /*-------------------------------------------------------------------------
+     Send Rate Update Indication to HAL
+    -------------------------------------------------------------------------*/
+    pWDICtx->wdiReqStatusCB     = pwdiRateUpdateInd->wdiReqStatusCB;
+    pWDICtx->pReqStatusUserData = pwdiRateUpdateInd->pUserData;
+
+    wdiStatus = WDI_SendIndication(pWDICtx, pSendBuffer, usSendSize);
+
+    return (wdiStatus != WDI_STATUS_SUCCESS) ?
+                 wdiStatus : WDI_STATUS_SUCCESS_SYNC;
+
+} /* WDI_ProcessRateUpdateInd */

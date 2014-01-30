@@ -1007,6 +1007,11 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_SET_MAX_TX_POWER_REQ       SIR_HAL_SET_MAX_TX_POWER_REQ
 #define WDA_SET_MAX_TX_POWER_RSP       SIR_HAL_SET_MAX_TX_POWER_RSP
 
+#define WDA_SET_MAX_TX_POWER_PER_BAND_REQ \
+        SIR_HAL_SET_MAX_TX_POWER_PER_BAND_REQ
+#define WDA_SET_MAX_TX_POWER_PER_BAND_RSP \
+        SIR_HAL_SET_MAX_TX_POWER_PER_BAND_RSP
+
 #define WDA_SEND_MSG_COMPLETE          SIR_HAL_SEND_MSG_COMPLETE 
 
 /// PE <-> HAL Host Offload message
@@ -1112,6 +1117,7 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_SET_BATCH_SCAN_RSP            SIR_HAL_SET_BATCH_SCAN_RSP
 #define WDA_STOP_BATCH_SCAN_IND           SIR_HAL_STOP_BATCH_SCAN_IND
 #define WDA_TRIGGER_BATCH_SCAN_RESULT_IND SIR_HAL_TRIGGER_BATCH_SCAN_RESULT_IND
+#define WDA_RATE_UPDATE_IND         SIR_HAL_RATE_UPDATE_IND
 #endif
 
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
