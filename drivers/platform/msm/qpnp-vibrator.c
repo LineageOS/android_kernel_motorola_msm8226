@@ -67,7 +67,7 @@ static ssize_t qpnp_vib_level_show(struct device *dev,
         struct qpnp_vib *vib = container_of(tdev, struct qpnp_vib,
                                          timed_dev);
 
-        return scnprintf(buf, PAGE_SIZE, "%d\n", vib->vtg_level_haptic);
+        return scnprintf(buf, PAGE_SIZE, "%d\n", vib->vtg_level_normal);
 }
 
 
@@ -95,7 +95,7 @@ static ssize_t qpnp_vib_level_store(struct device *dev,
                 val = QPNP_VIB_MAX_LEVEL;
         }
 
-        vib->vtg_level_haptic = val;
+        vib->vtg_level_normal = val;
 
         return strnlen(buf, count);
 }
