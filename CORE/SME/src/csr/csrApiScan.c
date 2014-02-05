@@ -7916,6 +7916,11 @@ eHalStatus csrScanSavePreferredNetworkFound(tpAniSirGlobal pMac,
        vos_mem_free(pIesLocal);
    }
 
+   if( (pScanResult->Result.pvIes == NULL) && pIesLocal )
+   {
+       vos_mem_free(pIesLocal);
+   }
+
    vos_mem_free(pParsedFrame);
 
    return eHAL_STATUS_SUCCESS;
