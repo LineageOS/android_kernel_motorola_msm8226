@@ -4517,6 +4517,27 @@ tANI_BOOLEAN csrScanComplete( tpAniSirGlobal pMac, tSirSmeScanRsp *pScanRsp )
                 //This check only valid here because csrSaveScanresults is not yet called
                 fSuccess = (!csrLLIsListEmpty(&pMac->scan.tempScanResults, LL_ACCESS_LOCK));
             }
+            if (pCommand->u.scanCmd.abortScanDueToBandChange)
+            {
+                /*
+                 * Scan aborted due to band change
+                 * The scan results need to be flushed
+                 */
+                if (pCommand->u.scanCmd.callback
+                    != pMac->scan.callback11dScanDone)
+                {
+                    smsLog(pMac, LOG1, FL("Filtering the scan results as the "
+                                          "results may belong to wrong band"));
+                    csrScanFilterResults(pMac);
+                }
+                else
+                {
+                    smsLog(pMac, LOG1, FL("11d_scan_done will flush the scan"
+                                          " results"));
+                }
+                pCommand->u.scanCmd.abortScanDueToBandChange
+                    = eANI_BOOLEAN_FALSE;
+            }
             csrSaveScanResults(pMac, pCommand->u.scanCmd.reason);
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_CSR
@@ -7817,6 +7838,11 @@ eHalStatus csrScanAbortMacScan(tpAniSirGlobal pMac, eCsrAbortReason reason)
             if(HAL_STATUS_SUCCESS(status))
             {
                 palZeroMemory(pMac->hHdd, (void *)pMsg, msgLen);
+                if(reason == eCSR_SCAN_ABORT_DUE_TO_BAND_CHANGE)
+                {
+                    pCommand->u.scanCmd.abortScanDueToBandChange
+                        = eANI_BOOLEAN_TRUE;
+                }
                 pMsg->type = pal_cpu_to_be16((tANI_U16)eWNI_SME_SCAN_ABORT_IND);
                 pMsg->msgLen = pal_cpu_to_be16(msgLen);
                 status = palSendMBMessage(pMac->hHdd, pMsg);
