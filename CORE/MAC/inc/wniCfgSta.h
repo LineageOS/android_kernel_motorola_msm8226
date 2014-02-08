@@ -1,46 +1,11 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
- */
-/*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
+ * Copyright (C) 2011-2012 Qualcomm Atheros, Inc. All Rights Reserved.
+ * Qualcomm Atheros Confidential and Proprietary.
+ * Copyright (C) 2007-2009 QUALCOMM Incorporated. All rights reserved. Proprietary and Confidential.
  */
 
 /*
- * DO NOT EDIT - This file is generated automatically
+ * DO NOT EDIT - This file is generated automaticlly
  */
 
 /*
@@ -364,6 +329,7 @@
 #define WNI_CFG_BTC_SAP_ACTIVE_WLAN_LEN    309
 #define WNI_CFG_BTC_SAP_ACTIVE_BT_LEN    310
 #define WNI_CFG_DEBUG_P2P_REMAIN_ON_CHANNEL    311
+#define WNI_CFG_GO_LINK_MONITOR_TIMEOUT    312
 
 /*
  * String parameter lengths 
@@ -1694,8 +1660,12 @@
 #define WNI_CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_STAMAX    1
 #define WNI_CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_STADEF    0
 
-#define CFG_PARAM_MAX_NUM        312
-#define CFG_STA_IBUF_MAX_SIZE    246
+#define WNI_CFG_GO_LINK_MONITOR_TIMEOUT_STAMIN    3
+#define WNI_CFG_GO_LINK_MONITOR_TIMEOUT_STAMAX    50
+#define WNI_CFG_GO_LINK_MONITOR_TIMEOUT_STADEF    10
+
+#define CFG_PARAM_MAX_NUM        313
+#define CFG_STA_IBUF_MAX_SIZE    247
 #define CFG_STA_SBUF_MAX_SIZE    3388
 #define CFG_SEM_MAX_NUM          19
 
