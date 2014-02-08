@@ -21063,6 +21063,7 @@ WDI_SendMsg
 
    /*cache current timestamp for debugging */
    pWDICtx->uTimeStampRspTmrStart = wpalGetSystemTime();
+   pWDICtx->uArchTimeStampRspTmrStart = wpalGetArchCounterTime();
   }
   else
   {
@@ -21223,6 +21224,7 @@ WDI_ResponseTimerCB
 
   /*cache current timestamp for debugging */
   pWDICtx->uTimeStampRspTmrExp = wpalGetSystemTime();
+  pWDICtx->uArchTimeStampRspTmrExp = wpalGetArchCounterTime();
 
   /* If response timer is running at this time that means this timer
    * event is not for the last request but rather last-to-last request and
@@ -21235,6 +21237,12 @@ WDI_ResponseTimerCB
                "WDI_ResponseTimerCB: timer in running state on timer event, "
                "ignore tmr event, timeStampTmrStart: %ld, timeStampTmrExp: %ld",
                pWDICtx->uTimeStampRspTmrStart, pWDICtx->uTimeStampRspTmrExp);
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+               "uArchTimeStampTmrStart: %llu seconds, "
+               "uArchTimeStampTmrExp: %llu seconds",
+               pWDICtx->uArchTimeStampRspTmrStart,
+               pWDICtx->uArchTimeStampRspTmrExp);
+
     return;
   }
 
@@ -21247,6 +21255,11 @@ WDI_ResponseTimerCB
             WDI_getRespMsgString(pWDICtx->wdiExpectedResponse),
             pWDICtx->wdiExpectedResponse, pWDICtx->uTimeStampRspTmrStart,
             pWDICtx->uTimeStampRspTmrExp);
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "uArchTimeStampTmrStart: %llu seconds, "
+                "uArchTimeStampTmrExp: %llu seconds",
+                pWDICtx->uArchTimeStampRspTmrStart,
+                pWDICtx->uArchTimeStampRspTmrExp);
 
     /* WDI timeout means Riva is not responding or SMD communication to Riva
      * is not happening. The only possible way to recover from this error
@@ -21277,6 +21290,12 @@ WDI_ResponseTimerCB
                  "timeStampTmrStart: %ld, timeStampTmrExp: %ld",
                  pWDICtx->wdiExpectedResponse, pWDICtx->uTimeStampRspTmrStart,
                  pWDICtx->uTimeStampRspTmrExp);
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "uArchTimeStampTmrStart: %llu seconds, "
+                "uArchTimeStampTmrExp: %llu seconds",
+                pWDICtx->uArchTimeStampRspTmrStart,
+                pWDICtx->uArchTimeStampRspTmrExp);
+
   }
 
   return; 
