@@ -506,19 +506,28 @@ typedef enum
 #define CFG_ENABLE_LTE_COEX_DEFAULT           ( 0 )
 
 #define CFG_AP_KEEP_ALIVE_PERIOD_NAME          "gApKeepAlivePeriod"
-#define CFG_AP_KEEP_ALIVE_PERIOD_MIN           ( 0 )
-#define CFG_AP_KEEP_ALIVE_PERIOD_MAX           ( 255)
-#define CFG_AP_KEEP_ALIVE_PERIOD_DEFAULT       ( 20 )
+#define CFG_AP_KEEP_ALIVE_PERIOD_MIN           ( 3 )
+#define CFG_AP_KEEP_ALIVE_PERIOD_MAX           ( 20 )
+#define CFG_AP_KEEP_ALIVE_PERIOD_DEFAULT       ( 5 )
 
 #define CFG_GO_KEEP_ALIVE_PERIOD_NAME          "gGoKeepAlivePeriod"
-#define CFG_GO_KEEP_ALIVE_PERIOD_MIN           ( 0 )
-#define CFG_GO_KEEP_ALIVE_PERIOD_MAX           ( 255)
-#define CFG_GO_KEEP_ALIVE_PERIOD_DEFAULT       ( 20 )
+#define CFG_GO_KEEP_ALIVE_PERIOD_MIN           ( 3 )
+#define CFG_GO_KEEP_ALIVE_PERIOD_MAX           ( 20 )
+#define CFG_GO_KEEP_ALIVE_PERIOD_DEFAULT       ( 5 )
 
 #define CFG_AP_LINK_MONITOR_PERIOD_NAME          "gApLinkMonitorPeriod"
-#define CFG_AP_LINK_MONITOR_PERIOD_MIN           ( 0 )
-#define CFG_AP_LINK_MONITOR_PERIOD_MAX           ( 255)
-#define CFG_AP_LINK_MONITOR_PERIOD_DEFAULT       ( 3 )
+#define CFG_AP_LINK_MONITOR_PERIOD_MIN           ( 3 )
+#define CFG_AP_LINK_MONITOR_PERIOD_MAX           ( 50 )
+#define CFG_AP_LINK_MONITOR_PERIOD_DEFAULT       ( 10 )
+
+/* gGoLinkMonitorPeriod is period where link is idle and where
+ * we send NULL frame
+ */
+#define CFG_GO_LINK_MONITOR_PERIOD_NAME          "gGoLinkMonitorPeriod"
+#define CFG_GO_LINK_MONITOR_PERIOD_MIN           ( 3 )
+#define CFG_GO_LINK_MONITOR_PERIOD_MAX           ( 50 )
+#define CFG_GO_LINK_MONITOR_PERIOD_DEFAULT       ( 10 )
+
 
 #define CFG_BEACON_INTERVAL_NAME               "gBeaconInterval"
 #define CFG_BEACON_INTERVAL_MIN                WNI_CFG_BEACON_INTERVAL_STAMIN
@@ -1973,6 +1982,14 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_MIN     ( 0 )
 #define CFG_DEBUG_P2P_REMAIN_ON_CHANNEL_MAX     ( 1 )
 
+//Enable Memory Debug
+#ifdef MEMORY_DEBUG
+#define CFG_ENABLE_MEMORY_DEBUG_NAME             "gEnableMemoryDebug"
+#define CFG_ENABLE_MEMORY_DEBUG_MIN              (0)
+#define CFG_ENABLE_MEMORY_DEBUG_MAX              (1)
+#define CFG_ENABLE_MEMORY_DEBUG_DEFAULT          (0)
+#endif
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -2085,6 +2102,7 @@ typedef struct
    v_U32_t       apKeepAlivePeriod;
    v_U32_t       goKeepAlivePeriod;
    v_U32_t       apLinkMonitorPeriod;
+   v_U32_t       goLinkMonitorPeriod;
    v_U32_t       nBeaconInterval;
    v_U8_t        nTxPowerCap;   //In dBm
    v_BOOL_t      fIsLowGainOverride;
@@ -2383,6 +2401,9 @@ typedef struct
    v_U32_t                     cfgBtcSapActiveBtLen;
    v_U8_t                      nSelect5GHzMargin;
    v_BOOL_t                    debugP2pRemainOnChannel;
+#ifdef MEMORY_DEBUG
+   v_BOOL_t                    IsMemoryDebugSupportEnabled;
+#endif
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation

@@ -2149,11 +2149,17 @@ limProcessMlmPostJoinSuspendLink(tpAniSirGlobal pMac, eHalStatus status, tANI_U3
 
     if( eHAL_STATUS_SUCCESS != status )
     {
-       limLog(pMac, LOGE, FL("Suspend link(NOTIFY_BSS) failed. still proceeding with join"));
+       limLog(pMac, LOGE, FL("Sessionid %d Suspend link(NOTIFY_BSS) failed. "
+       "still proceeding with join"),psessionEntry->peSessionId);
     }
     psessionEntry->limPrevMlmState = psessionEntry->limMlmState;
     psessionEntry->limMlmState = eLIM_MLM_WT_JOIN_BEACON_STATE;
     MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, psessionEntry->peSessionId, psessionEntry->limMlmState));
+
+    limLog(pMac, LOG1, FL("Sessionid %d prev lim state %d new lim state %d "
+    "systemrole = %d"), psessionEntry->peSessionId,
+    psessionEntry->limPrevMlmState,
+    psessionEntry->limMlmState,psessionEntry->limSystemRole);
 
     limDeactivateAndChangeTimer(pMac, eLIM_JOIN_FAIL_TIMER);
 
@@ -2184,7 +2190,10 @@ limProcessMlmPostJoinSuspendLink(tpAniSirGlobal pMac, eHalStatus status, tANI_U3
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
     psessionEntry->pLimMlmReassocRetryReq = NULL;
 #endif
-
+    limLog(pMac, LOG1, FL("[limProcessMlmJoinReq]: suspend link sucess(%d) "
+             "on sessionid: %d setting channel to: %d with secChanOffset:%d"
+             "and maxtxPower: %d"), status, psessionEntry->peSessionId,
+             chanNum, secChanOffset, psessionEntry->maxTxPower);
     limSetChannel(pMac, chanNum, secChanOffset, psessionEntry->maxTxPower, psessionEntry->peSessionId); 
 
     return;
@@ -2265,11 +2274,17 @@ limProcessMlmJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
         if( isLimSessionOffChannel(pMac, sessionId) )
         {
           //suspend link
+          limLog(pMac, LOG1, FL("Suspend link as LimSession on sessionid %d"
+          "is off channel"),sessionId);
           limSuspendLink(pMac, eSIR_DONT_CHECK_LINK_TRAFFIC_BEFORE_SCAN, 
                    limProcessMlmPostJoinSuspendLink, (tANI_U32*)psessionEntry );
         }
         else
         {
+          limLog(pMac, LOG1, FL("No need to Suspend link as LimSession on "
+              "sessionid %d is not off channel, calling "
+              "limProcessMlmPostJoinSuspendLink with status as SUCCESS"),
+              sessionId);
           //No need to suspend link.
           limProcessMlmPostJoinSuspendLink( pMac, eHAL_STATUS_SUCCESS,
                                                     (tANI_U32*) psessionEntry );
@@ -2347,9 +2362,17 @@ limProcessMlmAuthReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     sessionId = pMac->lim.gpLimMlmAuthReq->sessionId;
     if((psessionEntry= peFindSessionBySessionId(pMac,sessionId) )== NULL)
     {
-        limLog(pMac, LOGP, FL("Session Does not exist for given sessionId"));
+        limLog(pMac, LOGP, FL("Session Does not exist for given sessionId %d"),
+        sessionId);
         return;
     }
+
+    limLog(pMac, LOG1,FL("Process Auth Req on sessionID %d Systemrole %d"
+    "mlmstate %d from: "MAC_ADDRESS_STR" with authtype %d"), sessionId,
+     psessionEntry->limSystemRole,psessionEntry->limMlmState,
+     MAC_ADDR_ARRAY(pMac->lim.gpLimMlmAuthReq->peerMacAddr),
+     pMac->lim.gpLimMlmAuthReq->authType);
+
 
     /**
      * Expect Auth request only when:
@@ -2409,10 +2432,9 @@ limProcessMlmAuthReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
              (preAuthNode->authType ==
                                    pMac->lim.gpLimMlmAuthReq->authType)))
         {
-           PELOG2(limLog(pMac, LOG2,
-                   FL("Already have pre-auth context with peer"));
-            limPrintMacAddr(pMac, pMac->lim.gpLimMlmAuthReq->peerMacAddr,
-                            LOG2);)
+           limLog(pMac, LOG2,
+                   FL("Already have pre-auth context with peer: "MAC_ADDRESS_STR),
+                   MAC_ADDR_ARRAY(pMac->lim.gpLimMlmAuthReq->peerMacAddr));
 
             mlmAuthCnf.resultCode = (tSirResultCodes)
                                     eSIR_MAC_SUCCESS_STATUS;
@@ -2543,10 +2565,16 @@ limProcessMlmAssocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
     if( (psessionEntry = peFindSessionBySessionId(pMac,pMlmAssocReq->sessionId) )== NULL) 
     {
-        limLog(pMac, LOGP,FL("Session Does not exist for given sessionID"));
+        limLog(pMac, LOGP,FL("Session Does not exist for given sessionID %d"),
+        pMlmAssocReq->sessionId);
         vos_mem_free(pMlmAssocReq);
         return;
     }
+
+    limLog(pMac, LOG1,FL("Process Assoc Req on sessionID %d Systemrole %d"
+    "mlmstate %d from: "MAC_ADDRESS_STR), pMlmAssocReq->sessionId,
+    psessionEntry->limSystemRole, psessionEntry->limMlmState,
+    MAC_ADDR_ARRAY(pMlmAssocReq->peerMacAddr));
 
     #if 0
     if (wlan_cfgGetStr(pMac, WNI_CFG_BSSID, currentBssId, &cfg) !=
@@ -2608,10 +2636,9 @@ limProcessMlmAssocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
         // Log error
         PELOGW(limLog(pMac, LOGW,
-           FL("received unexpected MLM_ASSOC_CNF in state %X for role=%d, MAC addr= "),
-           psessionEntry->limMlmState,
-           psessionEntry->limSystemRole);)
-        limPrintMacAddr(pMac, pMlmAssocReq->peerMacAddr, LOGW);
+           FL("received unexpected MLM_ASSOC_CNF in state %X for role=%d, MAC addr= "
+           MAC_ADDRESS_STR), psessionEntry->limMlmState,
+           psessionEntry->limSystemRole, MAC_ADDR_ARRAY(pMlmAssocReq->peerMacAddr));)
         limPrintMlmState(pMac, LOGW, psessionEntry->limMlmState);
 
         mlmAssocCnf.resultCode = eSIR_SME_INVALID_PARAMETERS;
@@ -2666,14 +2693,20 @@ limProcessMlmReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     }
 
     pMlmReassocReq = (tLimMlmReassocReq *) pMsgBuf;
-    
+
     if((psessionEntry = peFindSessionBySessionId(pMac,pMlmReassocReq->sessionId)) == NULL)
     {
-        PELOGE(limLog(pMac, LOGE,FL("Session Does not exist for given sessionId"));)
+        limLog(pMac, LOGE,FL("Session Does not exist for given sessionId %d"),
+        pMlmReassocReq->sessionId);
         vos_mem_free(pMlmReassocReq);
         return;
     }
-    
+
+    limLog(pMac, LOG1,FL("Process ReAssoc Req on sessionID %d Systemrole %d"
+    "mlmstate %d from: "MAC_ADDRESS_STR), pMlmReassocReq->sessionId,
+    psessionEntry->limSystemRole, psessionEntry->limMlmState,
+    MAC_ADDR_ARRAY(pMlmReassocReq->peerMacAddr));
+
     if (((psessionEntry->limSystemRole != eLIM_AP_ROLE) && (psessionEntry->limSystemRole != eLIM_BT_AMP_AP_ROLE)) &&
          (psessionEntry->limMlmState == eLIM_MLM_LINK_ESTABLISHED_STATE))
     {
@@ -2756,12 +2789,12 @@ limProcessMlmReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
          */
 
         // Log error
-        PELOGW(limLog(pMac, LOGW,
-           FL("received unexpected MLM_REASSOC_CNF in state %X for role=%d, MAC addr= "),
-           psessionEntry->limMlmState,
-           psessionEntry->limSystemRole);)
-        limPrintMacAddr(pMac, pMlmReassocReq->peerMacAddr,
-                        LOGW);
+        limLog(pMac, LOGW,
+           FL("received unexpected MLM_REASSOC_CNF in state %X for role=%d, "
+           "MAC addr= "
+           MAC_ADDRESS_STR), psessionEntry->limMlmState,
+           psessionEntry->limSystemRole,
+           MAC_ADDR_ARRAY(pMlmReassocReq->peerMacAddr));
         limPrintMlmState(pMac, LOGW, psessionEntry->limMlmState);
 
         mlmReassocCnf.resultCode = eSIR_SME_INVALID_PARAMETERS;
@@ -2805,15 +2838,20 @@ limProcessMlmDisassocReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_
 
     pMlmDisassocReq = (tLimMlmDisassocReq *) pMsgBuf;
 
-
     if((psessionEntry = peFindSessionBySessionId(pMac,pMlmDisassocReq->sessionId))== NULL)
     {
     
-        PELOGE(limLog(pMac, LOGE,
-                  FL("session does not exist for given sessionId"));)
+        limLog(pMac, LOGE,
+                  FL("session does not exist for given sessionId %d"),
+        pMlmDisassocReq->sessionId);
         mlmDisassocCnf.resultCode = eSIR_SME_INVALID_PARAMETERS;
         goto end;
     }
+    limLog(pMac, LOG1,FL("Process DisAssoc Req on sessionID %d Systemrole %d"
+    "mlmstate %d from: "MAC_ADDRESS_STR), pMlmDisassocReq->sessionId,
+    psessionEntry->limSystemRole, psessionEntry->limMlmState,
+    MAC_ADDR_ARRAY(pMlmDisassocReq->peerMacAddr));
+
     #if 0
     if (wlan_cfgGetStr(pMac, WNI_CFG_BSSID, currentBssId, &cfg) !=
                                 eSIR_SUCCESS)
@@ -2833,8 +2871,9 @@ limProcessMlmDisassocReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_
                           sizeof(tSirMacAddr)) )
             {
                 PELOGW(limLog(pMac, LOGW,
-                   FL("received MLM_DISASSOC_REQ with invalid BSS id "));)
-                limPrintMacAddr(pMac, pMlmDisassocReq->peerMacAddr, LOGW);
+                   FL("received MLM_DISASSOC_REQ with invalid BSS id from: "
+                   MAC_ADDRESS_STR),
+                   MAC_ADDR_ARRAY(pMlmDisassocReq->peerMacAddr));)
 
                 /// Prepare and Send LIM_MLM_DISASSOC_CNF
 
@@ -2877,8 +2916,9 @@ limProcessMlmDisassocReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_
          * Log error
          */
         PELOGW(limLog(pMac, LOGW,
-           FL("received MLM_DISASSOC_REQ for STA that either has no context or in some transit state, Addr= "));)
-           limPrintMacAddr(pMac, pMlmDisassocReq->peerMacAddr, LOGW);
+           FL("received MLM_DISASSOC_REQ for STA that either has no context "
+           "or in some transit state, Addr= "
+           MAC_ADDRESS_STR),MAC_ADDR_ARRAY(pMlmDisassocReq->peerMacAddr));)
 
         /// Prepare and Send LIM_MLM_DISASSOC_CNF
 
@@ -3039,6 +3079,7 @@ void limCleanUpDisassocDeauthReq(tpAniSirGlobal pMac,
 
 void limProcessDisassocAckTimeout(tpAniSirGlobal pMac)
 {
+    limLog(pMac, LOG1, FL(""));
     limSendDisassocCnf(pMac);
 }
 
@@ -3078,15 +3119,18 @@ limProcessMlmDisassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     }
 
     pMlmDisassocReq = (tLimMlmDisassocReq *) pMsgBuf;
+    limLog(pMac, LOG1,FL("Process DisAssoc Req on sessionID %d "
+    "from: "MAC_ADDRESS_STR), pMlmDisassocReq->sessionId,
+    MAC_ADDR_ARRAY(pMlmDisassocReq->peerMacAddr));
 
     if((psessionEntry = peFindSessionBySessionId(pMac,pMlmDisassocReq->sessionId))== NULL)
     {
     
-        PELOGE(limLog(pMac, LOGE,
-                  FL("session does not exist for given sessionId"));)
+        limLog(pMac, LOGE,
+                  FL("session does not exist for given sessionId %d"),
+                  pMlmDisassocReq->sessionId);
         return;
     }
-
     limProcessMlmDisassocReqNtf( pMac, eHAL_STATUS_SUCCESS, (tANI_U32*) pMsgBuf );
     
 } /*** limProcessMlmDisassocReq() ***/
@@ -3118,10 +3162,15 @@ limProcessMlmDeauthReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_U3
     if((psessionEntry = peFindSessionBySessionId(pMac,pMlmDeauthReq->sessionId))== NULL)
     {
     
-        PELOGE(limLog(pMac, LOGE, FL("session does not exist for given sessionId"));)
+        limLog(pMac, LOGE, FL("session does not exist for given sessionId %d"),
+        pMlmDeauthReq->sessionId);
         vos_mem_free(pMlmDeauthReq);
         return;
     }
+    limLog(pMac, LOG1,FL("Process Deauth Req on sessionID %d Systemrole %d"
+    "mlmstate %d from: "MAC_ADDRESS_STR), pMlmDeauthReq->sessionId,
+    psessionEntry->limSystemRole, psessionEntry->limMlmState,
+    MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr));
     #if 0
     if (wlan_cfgGetStr(pMac, WNI_CFG_BSSID, currentBssId, &cfg) !=
                                 eSIR_SUCCESS)
@@ -3152,13 +3201,12 @@ limProcessMlmDeauthReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_U3
                                   currentBssId,
                                   sizeof(tSirMacAddr)) )
                     {
-                        PELOGW(limLog(pMac, LOGW,
-                           FL("received MLM_DEAUTH_REQ with invalid BSS id "));)
-                        PELOGE(limLog(pMac, LOGE, FL("Peer MAC Addr : "));)
-                        limPrintMacAddr(pMac, pMlmDeauthReq->peerMacAddr,LOGE);
-
-                        PELOGE(limLog(pMac, LOGE, FL("\n CFG BSSID Addr : "));)
-                        limPrintMacAddr(pMac, currentBssId,LOGE);
+                        limLog(pMac, LOGE,
+                           FL("received MLM_DEAUTH_REQ with invalid BSS id "
+                           "Peer MAC: "MAC_ADDRESS_STR " CFG BSSID Addr : "
+                           MAC_ADDRESS_STR),
+                           MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr),
+                           MAC_ADDR_ARRAY(currentBssId));
 
                         /// Prepare and Send LIM_MLM_DEAUTH_CNF
 
@@ -3198,9 +3246,8 @@ limProcessMlmDeauthReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_U3
                 default:
 
                     PELOGW(limLog(pMac, LOGW,
-                       FL("received MLM_DEAUTH_REQ with in state %d for peer "),
-                       psessionEntry->limMlmState);)
-                    limPrintMacAddr(pMac, pMlmDeauthReq->peerMacAddr, LOGW);
+                       FL("received MLM_DEAUTH_REQ with in state %d for peer "MAC_ADDRESS_STR),
+                       psessionEntry->limMlmState,MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr));)
                     limPrintMlmState(pMac, LOGW, psessionEntry->limMlmState);
 
                     /// Prepare and Send LIM_MLM_DEAUTH_CNF
@@ -3242,8 +3289,10 @@ limProcessMlmDeauthReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_U3
              * Prepare and Send LIM_MLM_DEAUTH_CNF
              */
             PELOGW(limLog(pMac, LOGW,
-               FL("received MLM_DEAUTH_REQ for STA that does not have context, Addr="));)
-            limPrintMacAddr(pMac, pMlmDeauthReq->peerMacAddr, LOGW);
+               FL("received MLM_DEAUTH_REQ in mlme state %d for STA that "
+               "does not have context, Addr="MAC_ADDRESS_STR),
+               psessionEntry->limMlmState,
+               MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr));)
 
             mlmDeauthCnf.resultCode =
                                     eSIR_SME_STA_NOT_AUTHENTICATED;
@@ -3274,8 +3323,8 @@ limProcessMlmDeauthReqNtf(tpAniSirGlobal pMac, eHalStatus suspendStatus, tANI_U3
          * some transit state. Log error.
          */
         PELOGW(limLog(pMac, LOGW,
-           FL("received MLM_DEAUTH_REQ for STA that either has no context or in some transit state, Addr="));)
-        limPrintMacAddr(pMac, pMlmDeauthReq->peerMacAddr, LOGW);
+           FL("received MLM_DEAUTH_REQ for STA that either has no context or in some transit state, Addr="
+           MAC_ADDRESS_STR),MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr));)
 
         /// Prepare and Send LIM_MLM_DEAUTH_CNF
 
@@ -3328,6 +3377,7 @@ end:
 
 void limProcessDeauthAckTimeout(tpAniSirGlobal pMac)
 {
+    limLog(pMac, LOG1, FL(""));
     limSendDeauthCnf(pMac);
 }
 
@@ -3368,13 +3418,17 @@ limProcessMlmDeauthReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
     pMlmDeauthReq = (tLimMlmDeauthReq *) pMsgBuf;
 
+    limLog(pMac, LOG1,FL("Process Deauth Req on sessionID %d "
+    "from: "MAC_ADDRESS_STR), pMlmDeauthReq->sessionId,
+    MAC_ADDR_ARRAY(pMlmDeauthReq->peerMacAddr));
+
     if((psessionEntry = peFindSessionBySessionId(pMac,pMlmDeauthReq->sessionId))== NULL)
     {
     
-        PELOGE(limLog(pMac, LOGE, FL("session does not exist for given sessionId"));)
+        limLog(pMac, LOGE, FL("session does not exist for given sessionId %d"),
+        pMlmDeauthReq->sessionId);
         return;
     }
-
     limProcessMlmDeauthReqNtf( pMac, eHAL_STATUS_SUCCESS, (tANI_U32*) pMsgBuf );
 
 } /*** limProcessMlmDeauthReq() ***/
@@ -4154,12 +4208,14 @@ limProcessAuthFailureTimeout(tpAniSirGlobal pMac)
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT_LIM
     vos_log_rssi_pkt_type *pRssiLog = NULL;
 #endif //FEATURE_WLAN_DIAG_SUPPORT_LIM
-
     if((psessionEntry = peFindSessionBySessionId(pMac, pMac->lim.limTimers.gLimAuthFailureTimer.sessionId))== NULL) 
     {
         limLog(pMac, LOGP,FL("Session Does not exist for given sessionID"));
         return;
     }
+    limLog(pMac, LOGE, FL("received AUTH failure timeout in sessionid %d "
+    "limMlmstate %X limSmeState %X"), psessionEntry->peSessionId,
+    psessionEntry->limMlmState, psessionEntry->limSmeState);
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT_LIM
     WLAN_VOS_DIAG_LOG_ALLOC(pRssiLog,
                             vos_log_rssi_pkt_type, LOG_WLAN_RSSI_UPDATE_C);
@@ -4251,8 +4307,9 @@ limProcessAuthRspTimeout(tpAniSirGlobal pMac, tANI_U32 authIndex)
              * in unexpected state. Log error
              */
             PELOGE(limLog(pMac, LOGE,
-                        FL("received unexpected AUTH rsp timeout for MAC address "));
-            limPrintMacAddr(pMac, pAuthNode->peerMacAddr, LOGE);)
+                        FL("received AUTH rsp timeout in unexpected state "
+                        "for MAC address: "MAC_ADDRESS_STR),
+                        MAC_ADDR_ARRAY(pAuthNode->peerMacAddr));)
         }
         else
         {
@@ -4261,8 +4318,8 @@ limProcessAuthRspTimeout(tpAniSirGlobal pMac, tANI_U32 authIndex)
             pAuthNode->mlmState = eLIM_MLM_AUTH_RSP_TIMEOUT_STATE;
             pAuthNode->fTimerStarted = 0;
             PELOG1( limLog(pMac, LOG1,
-                        FL("AUTH rsp timedout for MAC address "));
-            limPrintMacAddr(pMac, pAuthNode->peerMacAddr, LOG1);)
+                        FL("AUTH rsp timedout for MAC address "MAC_ADDRESS_STR),
+                        MAC_ADDR_ARRAY(pAuthNode->peerMacAddr));)
 
             // Change timer to reactivate it in future
             limDeactivateAndChangePerStaIdTimer(pMac,
