@@ -1544,7 +1544,7 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
 
     \param device_mode the mode of the device
 
-    \param macAddr the macAddress of the devices
+    \param sessionId session ID
 
     \return eHalStatus  SUCCESS.
 
@@ -1554,7 +1554,7 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
 
 eHalStatus sme_DHCPStartInd( tHalHandle hHal,
                              tANI_U8 device_mode,
-                             tANI_U8 *macAddr );
+                             tANI_U8 sessionId );
 
 /* ---------------------------------------------------------------------------
 
@@ -1566,7 +1566,7 @@ eHalStatus sme_DHCPStartInd( tHalHandle hHal,
 
     \param device_mode the mode of the device
 
-    \param macAddr the macAddress of the devices
+    \param sessionId session ID
 
     \return eHalStatus  SUCCESS.
 
@@ -1575,7 +1575,7 @@ eHalStatus sme_DHCPStartInd( tHalHandle hHal,
  -------------------------------------------------------------------------------*/
 eHalStatus sme_DHCPStopInd( tHalHandle hHal,
                             tANI_U8 device_mode,
-                            tANI_U8 *macAddr );
+                            tANI_U8 sessionId );
 
 
 /* ---------------------------------------------------------------------------
