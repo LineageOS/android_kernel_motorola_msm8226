@@ -7604,7 +7604,7 @@ eHalStatus csrProcessSetBGScanParam(tpAniSirGlobal pMac, tSmeCmd *pCommand)
 }
 
 
-eHalStatus csrScanAbortMacScan(tpAniSirGlobal pMac)
+eHalStatus csrScanAbortMacScan(tpAniSirGlobal pMac, eCsrAbortReason reason)
 {
     eHalStatus status = eHAL_STATUS_SUCCESS;
     tSirMbMsg *pMsg;
@@ -7707,7 +7707,7 @@ eHalStatus csrScanAbortMacScanNotForConnect(tpAniSirGlobal pMac)
     if( !csrIsScanForRoamCommandActive( pMac ) )
     {
         //Only abort the scan if it is not used for other roam/connect purpose
-        status = csrScanAbortMacScan(pMac);
+        status = csrScanAbortMacScan(pMac, eCSR_SCAN_ABORT_DEFAULT);
     }
 
     return (status);
