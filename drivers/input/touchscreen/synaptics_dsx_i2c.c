@@ -3640,6 +3640,7 @@ static int synaptics_rmi4_resume(struct device *dev)
 		}
 	}
 
+	msleep(100);
 	synaptics_dsx_sensor_ready_state(rmi4_data, false);
 	rmi4_data->poweron = true;
 
