@@ -68,6 +68,10 @@ include $(BUILD_PREBUILT)
 
 endif
 
+# Copy WCNSS_cfg.dat file from firmware_bin/ folder to target out directory.
+$(shell rm -f $(TARGET_OUT_ETC)/firmware/wlan/prima/WCNSS_cfg.dat)
+$(shell cp $(LOCAL_PATH)/firmware_bin/WCNSS_cfg.dat $(TARGET_OUT_ETC)/firmware/wlan/prima)
+
 # Build wlan.ko as either prima_wlan.ko or pronto_wlan.ko
 ###########################################################
 
