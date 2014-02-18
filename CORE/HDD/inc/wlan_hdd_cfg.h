@@ -1445,6 +1445,36 @@ typedef enum
 #define CFG_ENABLE_SSR_MAX                  ( 1 )
 #define CFG_ENABLE_SSR_DEFAULT              ( 1 )
 
+/* In cfg.dat 1=1MBPS, 2=2MBPS, 3=5_5MBPS, 4=11MBPS, 5=6MBPS, 6=9MBPS,
+ * 7=12MBPS, 8=18MBPS, 9=24MBPS. But 6=9MBPS and 8=18MBPS are not basic
+ * 11g rates and should not be set by gDefaultRateIndex24Ghz. So instead
+ * of using index 1-9 we will use 1-7 and if user set gDefaultRateIndex24Ghz=6
+ * set 7=12MBPS in CFG and if user set gDefaultRateIndex24Ghz=7 set
+ * 9=24MBPS in CFG.
+*/
+
+#define HDD_DEFAULT_RATE_12MBPS                   6
+#define HDD_DEFAULT_RATE_24MBPS                   7
+#define CFG_DEFAULT_RATE_12MBPS                   7
+#define CFG_DEFAULT_RATE_24MBPS                   9
+#define CFG_DEFAULT_RATE_INDEX_24GH               "gDefaultRateIndex24Ghz"
+#define CFG_DEFAULT_RATE_INDEX_24GH_MIN           ( 1 )
+#define CFG_DEFAULT_RATE_INDEX_24GH_MAX           ( 7 )
+#define CFG_DEFAULT_RATE_INDEX_24GH_DEFAULT       ( 1 )
+
+static __inline tANI_U32 defHddRateToDefCfgRate( tANI_U32 defRateIndex )
+{
+    switch(defRateIndex){
+       case HDD_DEFAULT_RATE_12MBPS:
+            return CFG_DEFAULT_RATE_12MBPS;
+            break;
+       case HDD_DEFAULT_RATE_24MBPS:
+            return CFG_DEFAULT_RATE_24MBPS;
+            break;
+       default:
+            return defRateIndex;
+    }
+}
 /*
  * VOS Trace Enable Control
  * Notes:
@@ -2516,6 +2546,7 @@ typedef struct
    char                        overrideCountryCode[4];
    eHddDot11Mode               sapDot11Mode;
    v_U32_t                     gEnableDebugLog;
+   v_U32_t                     defaultRateIndex24Ghz;
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
