@@ -1373,39 +1373,6 @@ static iw_softap_setparam(struct net_device *dev,
                 break;
             }
 
-        case QCSAP_PARAM_SET_MC_RATE:
-            {
-                tSirRateUpdateInd *rateUpdate;
-
-                rateUpdate = (tSirRateUpdateInd *)
-                             vos_mem_malloc(sizeof(tSirRateUpdateInd));
-                if (NULL == rateUpdate)
-                {
-                   hddLog(VOS_TRACE_LEVEL_ERROR,
-                          "%s: SET_MC_RATE indication alloc fail", __func__);
-                   ret = -1;
-                   break;
-                }
-                vos_mem_zero(rateUpdate, sizeof(tSirRateUpdateInd ));
-
-                hddLog(VOS_TRACE_LEVEL_INFO, "MC Target rate %d", set_value);
-                /* Ignore unicast */
-                rateUpdate->ucastDataRate = -1;
-                rateUpdate->mcastDataRate24GHz = set_value;
-                rateUpdate->mcastDataRate5GHz = set_value;
-                rateUpdate->mcastDataRate24GHzTxFlag = 0;
-                rateUpdate->mcastDataRate5GHzTxFlag = 0;
-                status = sme_SendRateUpdateInd(hHal, rateUpdate);
-                if (eHAL_STATUS_SUCCESS != status)
-                {
-                    hddLog(VOS_TRACE_LEVEL_ERROR,
-                            "%s: SET_MC_RATE failed", __func__);
-                    vos_mem_free(rateUpdate);
-                    ret = -1;
-                }
-                break;
-            }
-
         default:
             hddLog(LOGE, FL("Invalid setparam command %d value %d"),
                     sub_cmd, set_value);
@@ -3149,7 +3116,7 @@ int iw_get_softap_linkspeed(struct net_device *dev,
    unsigned short staId;
    int len = sizeof(v_U32_t)+1;
    v_BYTE_t macAddress[VOS_MAC_ADDR_SIZE];
-   VOS_STATUS status;
+   VOS_STATUS status = VOS_STATUS_E_FAILURE;
    int rc, valid;
 
    pHddCtx = WLAN_HDD_GET_CTX(pHostapdAdapter);
@@ -3163,36 +3130,35 @@ int iw_get_softap_linkspeed(struct net_device *dev,
    }
 
    hddLog(VOS_TRACE_LEVEL_INFO, "%s wrqu->data.length= %d", __func__, wrqu->data.length);
-   if (wrqu->data.length != MAC_ADDRESS_STR_LEN)
+
+   if (wrqu->data.length >= MAC_ADDRESS_STR_LEN - 1)
    {
-       hddLog(LOG1, "Invalid length");
-       return -EINVAL;
-   }
-   pmacAddress = kmalloc(MAC_ADDRESS_STR_LEN, GFP_KERNEL);
-   if(NULL == pmacAddress) {
-       hddLog(LOG1, "unable to allocate memory");
-       return -ENOMEM;
-   }
-   if (copy_from_user((void *)pmacAddress,
-       wrqu->data.pointer, wrqu->data.length))
-   {
-       hddLog(LOG1, "%s: failed to copy data to user buffer", __func__);
+       pmacAddress = kmalloc(MAC_ADDRESS_STR_LEN, GFP_KERNEL);
+       if (NULL == pmacAddress) {
+           hddLog(LOG1, "unable to allocate memory");
+           return -ENOMEM;
+       }
+       if (copy_from_user((void *)pmacAddress,
+          wrqu->data.pointer, MAC_ADDRESS_STR_LEN))
+       {
+           hddLog(LOG1, "%s: failed to copy data to user buffer", __func__);
+           kfree(pmacAddress);
+           return -EFAULT;
+       }
+       pmacAddress[MAC_ADDRESS_STR_LEN] = '\0';
+
+       status = hdd_string_to_hex (pmacAddress, MAC_ADDRESS_STR_LEN, macAddress );
        kfree(pmacAddress);
-       return -EFAULT;
+
+       if (!VOS_IS_STATUS_SUCCESS(status ))
+       {
+           hddLog(VOS_TRACE_LEVEL_ERROR, FL("String to Hex conversion Failed"));
+       }
    }
-
-   status = hdd_string_to_hex (pmacAddress, wrqu->data.length, macAddress );
-   kfree(pmacAddress);
-
-   if (!VOS_IS_STATUS_SUCCESS(status ))
-   {
-      hddLog(VOS_TRACE_LEVEL_ERROR, FL("String to Hex conversion Failed"));
-   }
-
    /* If no mac address is passed and/or its length is less than 17,
     * link speed for first connected client will be returned.
     */
-   if (!VOS_IS_STATUS_SUCCESS(status ) || wrqu->data.length < 17)
+   if (wrqu->data.length < 17 || !VOS_IS_STATUS_SUCCESS(status ))
    {
       status = hdd_softap_GetConnectedStaId(pHostapdAdapter, (void *)(&staId));
    }
@@ -3352,7 +3318,7 @@ static const struct iw_priv_args hostapd_private_args[] = {
   { QCSAP_IOCTL_GET_STA_INFO, 0,
       IW_PRIV_TYPE_CHAR | WE_SAP_MAX_STA_INFO, "get_sta_info" },
   { QCSAP_IOCTL_GET_WPS_PBC_PROBE_REQ_IES,
-      IW_PRIV_TYPE_BYTE | sizeof(sQcSapreq_WPSPBCProbeReqIES_t) | IW_PRIV_SIZE_FIXED | 1, 0, "getProbeReqIEs" },
+      IW_PRIV_TYPE_BYTE | sizeof(sQcSapreq_WPSPBCProbeReqIES_t) | IW_PRIV_SIZE_FIXED, 0, "getProbeReqIEs" },
   { QCSAP_IOCTL_GET_CHANNEL, 0,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, "getchannel" },
   { QCSAP_IOCTL_ASSOC_STA_MACADDR, 0,

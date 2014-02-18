@@ -172,7 +172,15 @@
 
 #define WLAN_HDD_PUBLIC_ACTION_FRAME 4
 #define WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET 24
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_BODY_OFFSET 24
 #define WLAN_HDD_PUBLIC_ACTION_FRAME_TYPE_OFFSET 30
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_CATEGORY_OFFSET 0
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_ACTION_OFFSET 1
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_OUI_OFFSET 2
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_OUI_TYPE_OFFSET 5
+#define WLAN_HDD_VENDOR_SPECIFIC_ACTION 0x09
+#define WLAN_HDD_WFA_OUI   0x506F9A
+#define WLAN_HDD_WFA_P2P_OUI_TYPE 0x09
 #define WLAN_HDD_P2P_SOCIAL_CHANNELS 3
 #define WLAN_HDD_P2P_SINGLE_CHANNEL_SCAN 1
 
@@ -468,6 +476,7 @@ typedef struct WLAN_WAPI_KEY WLAN_WAPI_KEY;
 typedef struct WLAN_WAPI_KEY *pWLAN_WAPI_KEY;
 
 #define WPA_GET_LE16(a) ((u16) (((a)[1] << 8) | (a)[0]))
+#define WPA_GET_BE24(a) ((u32) ( (a[0] << 16) | (a[1] << 8) | a[2]))
 #define WLAN_EID_WAPI 68
 #define WAPI_PSK_AKM_SUITE  0x02721400
 #define WAPI_CERT_AKM_SUITE 0x01721400
@@ -563,6 +572,7 @@ typedef struct hdd_remain_on_chan_ctx
   unsigned int duration;
   u64 cookie;
   rem_on_channel_request_type_t rem_on_chan_request;
+  v_U32_t p2pRemOnChanTimeStamp;
 }hdd_remain_on_chan_ctx_t;
 
 typedef enum{
@@ -1006,6 +1016,7 @@ struct hdd_adapter_s
    v_U8_t psbChanged;
    /* UAPSD psb value configured through framework */
    v_U8_t configuredPsb;
+   v_BOOL_t internalCancelRemainOnChReq;
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) (&(pAdapter)->sessionCtx.station)
