@@ -4961,7 +4961,7 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
 
         pMsg->msgType = pal_cpu_to_be16((tANI_U16)eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE);
         pMsg->msgLen = (tANI_U16)sizeof(tAniGenericChangeCountryCodeReq);
-        palCopyMemory(pMac->hHdd, pMsg->countryCode, pCountry, 3);
+        palCopyMemory(pMac->hHdd, pMsg->countryCode, pCountry, 2);
         pMsg->domain_index = reg_domain;
 
         msg.type = eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE;
@@ -10014,40 +10014,6 @@ eHalStatus sme_TriggerBatchScanResultInd
        status = pmcTriggerBatchScanResultInd(hHal, pRequest, sessionId,
                    callbackRoutine, callbackContext);
        sme_ReleaseGlobalLock( &pMac->sme );
-    }
-
-    return status;
-}
-/* ---------------------------------------------------------------------------
-    \fn sme_SendRateUpdateInd
-    \brief  API to Update rate
-    \param  hHal - The handle returned by macOpen
-    \param  rateUpdateParams - Pointer to rate update params
-    \return eHalStatus
-  ---------------------------------------------------------------------------*/
-eHalStatus sme_SendRateUpdateInd(tHalHandle hHal, tSirRateUpdateInd *rateUpdateParams)
-{
-    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
-    eHalStatus status;
-    vos_msg_t msg;
-
-    if (eHAL_STATUS_SUCCESS == (status = sme_AcquireGlobalLock(&pMac->sme)))
-    {
-        msg.type     = WDA_RATE_UPDATE_IND;
-        msg.bodyptr  = rateUpdateParams;
-
-        if (!VOS_IS_STATUS_SUCCESS(vos_mq_post_message(VOS_MODULE_ID_WDA, &msg)))
-        {
-           VOS_TRACE( VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,"%s: Not able "
-                       "to post WDA_SET_RMC_RATE_IND to WDA!",
-                       __func__);
-
-            sme_ReleaseGlobalLock(&pMac->sme);
-            return eHAL_STATUS_FAILURE;
-        }
-
-        sme_ReleaseGlobalLock(&pMac->sme);
-        return eHAL_STATUS_SUCCESS;
     }
 
     return status;
