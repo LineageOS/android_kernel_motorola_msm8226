@@ -282,8 +282,9 @@
 		qcom,hsusb-otg-phy-type = <2>;
 		qcom,hsusb-otg-mode = <1>;
 		qcom,hsusb-otg-otg-control = <2>;
+		qcom,hsusb-otg-disable-reset;
 		qcom,dp-manual-pullup;
-		qcom,ahb-async-bridge-bypass;
+		qcom,usbin-vadc = <&pm8226_vadc>;
 
 		qcom,msm-bus,name = "usb";
 		qcom,msm-bus,num-cases = <3>;
@@ -1013,9 +1014,9 @@
 		clock-names = "clk-4", "clk-5";
 		qcom,speed0-bin-v0 =
 			<         0 0>,
-			< 384000000 2>,
-			< 787200000 4>,
-			<1190400000 7>;
+			< 384000000 1>,
+			< 787200000 2>,
+			<1190400000 3>;
 
 		cpu-vdd-supply = <&apc_vreg_corner>;
 	};
@@ -1508,6 +1509,7 @@
 		qcom,hw-settle-time = <2>;
 		qcom,fast-avg-setup = <3>;
 		qcom,btm-channel-number = <0x48>;
+		qcom,meas-interval-timer-idx = <2>;
 	};
 
 	chan@8 {
