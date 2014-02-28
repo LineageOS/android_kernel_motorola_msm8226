@@ -3508,6 +3508,56 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            pHddCtx->drvr_miracast = filterType;
            hdd_tx_rx_pkt_cnt_stat_timer_handler(pHddCtx);
         }
+       else if (strncmp(command, "SETMCRATE", 9) == 0)
+       {
+           tANI_U8 *value = command;
+           int      targetRate;
+           tSirRateUpdateInd *rateUpdate;
+           eHalStatus status;
+
+           /* Only valid for SAP mode */
+           if (WLAN_HDD_SOFTAP != pAdapter->device_mode)
+           {
+               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  "%s: SAP mode is not running", __func__);
+               ret = -EFAULT;
+               goto exit;
+           }
+
+           /* Move pointer to ahead of SETMCRATE<delimiter> */
+           /* input value is in units of hundred kbps */
+           value = value + 10;
+           /* Convert the value from ascii to integer, decimal base */
+           ret = kstrtouint(value, 10, &targetRate);
+
+           rateUpdate = (tSirRateUpdateInd *)vos_mem_malloc(sizeof(tSirRateUpdateInd));
+           if (NULL == rateUpdate)
+           {
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: SETMCRATE indication alloc fail", __func__);
+              ret = -EFAULT;
+              goto exit;
+           }
+           vos_mem_zero(rateUpdate, sizeof(tSirRateUpdateInd ));
+
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                     "MC Target rate %d", targetRate);
+           /* Ignore unicast */
+           rateUpdate->ucastDataRate = -1;
+           rateUpdate->mcastDataRate24GHz = targetRate;
+           rateUpdate->mcastDataRate5GHz = targetRate;
+           rateUpdate->mcastDataRate24GHzTxFlag = 0;
+           rateUpdate->mcastDataRate5GHzTxFlag = 0;
+           status = sme_SendRateUpdateInd(pHddCtx->hHal, rateUpdate);
+           if (eHAL_STATUS_SUCCESS != status)
+           {
+              hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: SET_MC_RATE failed", __func__);
+              vos_mem_free(rateUpdate);
+              ret = -EFAULT;
+              goto exit;
+           }
+       }
 #if defined(FEATURE_WLAN_CCX) && defined(FEATURE_WLAN_CCX_UPLOAD)
        else if (strncmp(command, "SETCCXROAMSCANCHANNELS", 22) == 0)
        {
