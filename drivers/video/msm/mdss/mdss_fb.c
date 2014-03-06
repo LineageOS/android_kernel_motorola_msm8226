@@ -440,12 +440,32 @@ static ssize_t mdss_fb_get_idle_notify(struct device *dev,
 	return ret;
 }
 
+static ssize_t mdss_fb_get_panel_info(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = fbi->par;
+	struct mdss_panel_info *pinfo = mfd->panel_info;
+	int ret;
+
+	ret = scnprintf(buf, PAGE_SIZE,
+			"pu_en=%d\nxstart=%d\nwalign=%d\nystart=%d\nhalign=%d\n"
+			"min_w=%d\nmin_h=%d",
+			pinfo->partial_update_enabled, pinfo->xstart_pix_align,
+			pinfo->width_pix_align, pinfo->ystart_pix_align,
+			pinfo->height_pix_align, pinfo->min_width,
+			pinfo->min_height);
+
+	return ret;
+}
+
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO, mdss_fb_get_split, NULL);
 static DEVICE_ATTR(show_blank_event, S_IRUGO, mdss_mdp_show_blank_event, NULL);
 static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
+static DEVICE_ATTR(msm_fb_panel_info, S_IRUGO, mdss_fb_get_panel_info, NULL);
 static DEVICE_ATTR(rgb, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_rgb, mdss_set_rgb);
 
 static struct attribute *mdss_fb_attrs[] = {
@@ -454,6 +474,7 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_show_blank_event.attr,
 	&dev_attr_idle_time.attr,
 	&dev_attr_idle_notify.attr,
+	&dev_attr_msm_fb_panel_info.attr,
 	&dev_attr_rgb.attr,
 	NULL,
 };
