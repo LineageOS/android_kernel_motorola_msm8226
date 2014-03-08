@@ -1990,6 +1990,11 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ENABLE_MEMORY_DEBUG_DEFAULT          (0)
 #endif
 
+#define CFG_ENABLE_STRICT_REGULATORY_FOR_FCC_NAME                "gEnableStrictRegulatoryForFCC"
+#define CFG_ENABLE_STRICT_REGULATORY_FOR_FCC_MIN                 ( 0 )
+#define CFG_ENABLE_STRICT_REGULATORY_FOR_FCC_MAX                 ( 1 )
+#define CFG_ENABLE_STRICT_REGULATORY_FOR_FCC_DEFAULT             ( 1 )
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -2404,6 +2409,7 @@ typedef struct
 #ifdef MEMORY_DEBUG
    v_BOOL_t                    IsMemoryDebugSupportEnabled;
 #endif
+   v_BOOL_t                    gEnableStrictRegulatoryForFCC;
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
