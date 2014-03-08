@@ -978,7 +978,7 @@ WLANTL_AMSDUProcess
       return VOS_STATUS_SUCCESS; /*Not a transport error*/ 
     }
     pClientSTA->ucMPDUHeaderLen = ucMPDUHLen;
-    memcpy(pClientSTA->aucMPDUHeader, MPDUHeaderAMSDUHeader, ucMPDUHLen);
+    vos_mem_copy(pClientSTA->aucMPDUHeader, MPDUHeaderAMSDUHeader, ucMPDUHLen);
     /* AMSDU header stored to handle garbage data within next frame */
   }
   else
@@ -1018,7 +1018,7 @@ WLANTL_AMSDUProcess
   }
 
   /* Find Padding and remove */
-  memcpy(&subFrameLength, MPDUHeaderAMSDUHeader + ucMPDUHLen + WLANTL_AMSDU_SUBFRAME_LEN_OFFSET, sizeof(v_U16_t));
+  vos_mem_copy(&subFrameLength, MPDUHeaderAMSDUHeader + ucMPDUHLen + WLANTL_AMSDU_SUBFRAME_LEN_OFFSET, sizeof(v_U16_t));
   subFrameLength = vos_be16_to_cpu(subFrameLength);
   paddingSize = usMPDULen - ucMPDUHLen - subFrameLength - TL_AMSDU_SUBFRM_HEADER_LEN;
 
