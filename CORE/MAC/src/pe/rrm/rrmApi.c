@@ -692,6 +692,11 @@ rrmProcessBeaconReportReq( tpAniSirGlobal pMac,
          }
       }
    }
+   else
+   {
+       pSmeBcnReportReq->measurementDuration[0] = SYS_TU_TO_MS(measDuration);
+       pSmeBcnReportReq->fMeasurementtype[0] = pBeaconReq->measurement_request.Beacon.meas_mode;
+   }
 
    //Send request to SME.
    mmhMsg.type    = eWNI_SME_BEACON_REPORT_REQ_IND;
