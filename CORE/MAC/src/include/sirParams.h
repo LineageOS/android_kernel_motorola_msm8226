@@ -109,6 +109,7 @@ typedef enum {
    BATCH_SCAN = 30,
 #endif
 
+   EXTENDED_NSOFFLOAD_SLOT = 32,
    //MAX_FEATURE_SUPPORTED = 128
 } placeHolderInCapBitmap;
 
