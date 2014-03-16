@@ -564,9 +564,6 @@ typedef enum
     eCSR_ROAM_RESULT_TEARDOWN_TDLS_PEER_IND,
     eCSR_ROAM_RESULT_DELETE_ALL_TDLS_PEER_IND,
     eCSR_ROAM_RESULT_LINK_ESTABLISH_REQ_RSP,
-#ifdef FEATURE_WLAN_TDLS_OXYGEN_DISAPPEAR_AP
-    eCSR_ROAM_RESULT_TDLS_DISAPPEAR_AP_IND,
-#endif
 #endif
 
 }eCsrRoamResult;
@@ -872,8 +869,13 @@ typedef struct tagCsrRoamProfile
     tANI_U8 *pWAPIReqIE;   //If not null, it has the IE byte stream for WAPI
 #endif /* FEATURE_WLAN_WAPI */
 
-    tANI_U32 nAddIEScanLength;   //The byte count in the pAddIE for scan (at the time of join)
-    tANI_U8 *pAddIEScan;       //If not null, it has the IE byte stream for additional IE, which can be WSC IE and/or P2P IE
+    //The byte count in the pAddIE for scan (at the time of join)
+    tANI_U32 nAddIEScanLength;
+    /* Additional IE information.
+     * It has the IE byte stream for additional IE,
+     * which can be WSC IE and/or P2P IE
+     */
+    tANI_U8  addIEScan[SIR_MAC_MAX_IE_LENGTH+2];       //Additional IE information.
     tANI_U32 nAddIEAssocLength;   //The byte count in the pAddIE for assoc
     tANI_U8 *pAddIEAssoc;       //If not null, it has the IE byte stream for additional IE, which can be WSC IE and/or P2P IE
 

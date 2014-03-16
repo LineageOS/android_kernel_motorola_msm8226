@@ -780,6 +780,8 @@ typedef struct tagCsrScanStruct
 #endif
     tCsrChannel occupiedChannels;   //This includes all channels on which candidate APs are found
     tANI_S8     inScanResultBestAPRssi;
+
+    csrScanCompleteCallback callback11dScanDone;
 }tCsrScanStruct;
 
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
@@ -906,8 +908,11 @@ typedef struct tagCsrRoamSession
     tANI_U32 nWapiRspIeLength;    //the byte count for pWapiRspIE
     tANI_U8 *pWapiRspIE;  //this contain the WAPI IE in beacon/probe rsp
 #endif /* FEATURE_WLAN_WAPI */
-    tANI_U32 nAddIEScanLength;  //the byte count of pAddIeScanIE;
-    tANI_U8 *pAddIEScan; //this contains the additional IE in (unicast) probe request at the time of join
+    tANI_U32 nAddIEScanLength;  //length of addIeScan
+    /* This contains the additional IE in (unicast)
+     *  probe request at the time of join
+     */
+    tANI_U8 addIEScan[SIR_MAC_MAX_IE_LENGTH+2];
     tANI_U32 nAddIEAssocLength;      //the byte count for pAddIeAssocIE
     tANI_U8 *pAddIEAssoc; //this contains the additional IE in (re) assoc request
 
@@ -1137,6 +1142,7 @@ void csrScanSuspendIMPS( tpAniSirGlobal pMac );
 void csrScanResumeIMPS( tpAniSirGlobal pMac );
 
 eHalStatus csrInitGetChannels(tpAniSirGlobal pMac);
+eHalStatus csrScanFilter11dResult(tpAniSirGlobal pMac);
 
 eHalStatus csrSetModifyProfileFields(tpAniSirGlobal pMac, tANI_U32 sessionId,
                                      tCsrRoamModifyProfileFields *pModifyProfileFields);

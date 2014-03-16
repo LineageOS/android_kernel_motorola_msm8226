@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -41,12 +41,12 @@
 
 
 /**=========================================================================
-  
+
   \file  sme_Qos.c
-  
+
   \brief implementation for SME QoS APIs
-  
-  
+
+
   ========================================================================*/
 /* $Header$ */
 /*--------------------------------------------------------------------------
@@ -6099,7 +6099,7 @@ static eHalStatus sme_QosBufferExistingFlows(tpAniSirGlobal pMac,
    pEntry = csrLLPeekHead( &sme_QosCb.flow_list, VOS_FALSE );
    if(!pEntry)
    {
-      VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, 
+      VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO_HIGH,
                 "%s: %d: Flow List empty, nothing to buffer",
                 __func__, __LINE__);
       return eHAL_STATUS_FAILURE;
@@ -7166,6 +7166,30 @@ static v_BOOL_t sme_QosIsRspPending(v_U8_t sessionId, sme_QosEdcaAcType ac)
    }
    return status;
 }
+
+/*--------------------------------------------------------------------------
+  \brief sme_QosUpdateHandOff() - Function which can be called to update
+   Hand-off state of SME QoS Session
+  \param sessionId - session id
+  \param updateHandOff - value True/False to update the handoff flag
+
+  \sa
+
+-------------------------------------------------------------------------*/
+void sme_QosUpdateHandOff(v_U8_t sessionId,
+                          v_BOOL_t updateHandOff)
+{
+   sme_QosSessionInfo *pSession;
+   pSession = &sme_QosCb.sessionInfo[sessionId];
+   VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO_MED,
+             "%s: %d: handoffRequested %d updateHandOff %d",
+             __func__, __LINE__,pSession->handoffRequested,
+             updateHandOff);
+
+   pSession->handoffRequested = updateHandOff;
+
+}
+
 /*--------------------------------------------------------------------------
   \brief sme_QosIsUapsdActive() - Function which can be called to determine
   if any sessions require PMC to be in U-APSD mode.

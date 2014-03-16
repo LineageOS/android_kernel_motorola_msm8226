@@ -229,10 +229,17 @@ limDeferMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg)
 
     if (retCode == TX_SUCCESS)
     {
+        limLog(pMac, LOG1,
+               FL("Deferred message(0x%X) limSmeState %d (prev sme state %d)"
+                  " sysRole %d mlm state %d (prev mlm state %d)"),
+               pMsg->type, pMac->lim.gLimSmeState, pMac->lim.gLimPrevSmeState,
+               pMac->lim.gLimSystemRole, pMac->lim.gLimMlmState,
+               pMac->lim.gLimPrevMlmState);
         MTRACE(macTraceMsgRx(pMac, NO_SESSION, LIM_TRACE_MAKE_RXMSG(pMsg->type, LIM_MSG_DEFERRED));)
     }
     else
     {
+        limLog(pMac, LOGE, FL("Dropped lim message (0x%X)"), pMsg->type);
         MTRACE(macTraceMsgRx(pMac, NO_SESSION, LIM_TRACE_MAKE_RXMSG(pMsg->type, LIM_MSG_DROPPED));)
     }
 
@@ -862,6 +869,7 @@ eHalStatus limSendStopScanOffloadReq(tpAniSirGlobal pMac)
         return eHAL_STATUS_FAILURE;
     }
 
+    limLog(pMac, LOG1, FL("Abort ongoing offload scan."));
     return eHAL_STATUS_SUCCESS;
 
 }
@@ -1661,26 +1669,6 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
             }
             else
             {
-#if defined(FEATURE_WLAN_TDLS) && defined(FEATURE_WLAN_TDLS_OXYGEN_DISAPPEAR_AP)
-                 tpPESession psessionEntry = &pMac->lim.gpSession[0];
-                 for (i=0; i < pMac->lim.maxBssId; i++)
-                 {
-                     psessionEntry = &pMac->lim.gpSession[i];
-                     if ((psessionEntry != NULL) && (psessionEntry->valid) &&
-                         ((psessionEntry->pePersona == VOS_P2P_CLIENT_MODE) ||
-                         (psessionEntry->pePersona == VOS_STA_MODE)))
-                     {
-                         if ((TRUE == pMac->lim.gLimTDLSOxygenSupport) &&
-                             (limGetTDLSPeerCount(pMac, psessionEntry) != 0)) {
-                             if (limMsg->bodyptr) {
-                                 vos_mem_free(limMsg->bodyptr);
-                                 limMsg->bodyptr = NULL;
-                             }
-                             return;
-                         }
-                     }
-                 }
-#endif
                  if (NULL == limMsg->bodyptr)
                  {
                      limHandleHeartBeatTimeout(pMac);
