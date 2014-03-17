@@ -145,6 +145,8 @@ v_VOID_t hdd_connSetConnectionState( hdd_station_ctx_t *pHddStaCtx,
                                         eConnectionState connState )
 {
    // save the new connection state
+   hddLog(LOG1, FL("ConnectionState Changed from oldState:%d to State:%d"),
+                    pHddStaCtx->conn_info.connState,connState);
    pHddStaCtx->conn_info.connState = connState;
 }
 
@@ -1338,6 +1340,13 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
 #endif /* FEATURE_WLAN_CCX */
 
                 {
+                    hddLog(VOS_TRACE_LEVEL_INFO,
+                            "%s: sending connect indication to nl80211:"
+                            " for bssid " MAC_ADDRESS_STR
+                            " reason:%d and Status:%d\n",
+                            __func__, MAC_ADDR_ARRAY(pRoamInfo->bssid),
+                            roamResult, roamStatus);
+
                     /* inform connect result to nl80211 */
                     cfg80211_connect_result(dev, pRoamInfo->bssid,
                             reqRsnIe, reqRsnLength,
@@ -1467,6 +1476,21 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
          * completed operation - with a ASSOCIATION_FAILURE status.*/
         if ( eCSR_ROAM_ASSOCIATION_FAILURE == roamStatus )
         {
+            if (pRoamInfo)
+                hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: send connect failure to nl80211:"
+                     " for bssid " MAC_ADDRESS_STR
+                     " reason:%d and Status:%d\n" ,
+                     __func__, MAC_ADDR_ARRAY(pRoamInfo->bssid),
+                     roamResult, roamStatus);
+             else
+                 hddLog(VOS_TRACE_LEVEL_ERROR,
+                     "%s: connect failed:"
+                     " for bssid " MAC_ADDRESS_STR
+                     " reason:%d and Status:%d\n" ,
+                     __func__, MAC_ADDR_ARRAY(pWextState->req_bssId),
+                     roamResult, roamStatus);
+
             /* inform association failure event to nl80211 */
             if ( eCSR_ROAM_RESULT_ASSOC_FAIL_CON_CHANNEL == roamResult )
             {

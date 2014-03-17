@@ -84,8 +84,8 @@
 #include "sme_Trace.h"
 #include "vos_types.h"
 #include "vos_trace.h"
-
 #include "sapApi.h"
+#include "macTrace.h"
 
 
 
@@ -2445,13 +2445,21 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
 #endif
                         status = csrScanRequest( hHal, sessionId, pscanReq,
                                                  pScanRequestID, callback, pContext );
+                        if ( !HAL_STATUS_SUCCESS( status ) )
+                        {
+                            smsLog(pMac, LOGE, FL("csrScanRequest failed"
+                                    " SId=%d"), sessionId);
+                        }
 #ifdef FEATURE_WLAN_LFR
                     } 
                     else 
                     {
-                        smsLog(pMac, LOGE, FL("Scan denied in state %d (sub-state %d)"),
-                                pMac->roam.neighborRoamInfo.neighborRoamState,
-                                pMac->roam.curSubState[sessionId]);
+                        smsLog(pMac, LOGE, FL("Scan denied in state %s"
+                               "(sub-state %s)"),
+                               macTraceGetNeighbourRoamState(
+                               pMac->roam.neighborRoamInfo.neighborRoamState),
+                               macTraceGetcsrRoamSubState(
+                               pMac->roam.curSubState[sessionId]));
                         /*HandOff is in progress. So schedule this scan later*/
                         status = eHAL_STATUS_RESOURCES;
                     }
@@ -8330,10 +8338,12 @@ eHalStatus sme_UpdateImmediateRoamRssiDiff(tHalHandle hHal, v_U8_t nImmediateRoa
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set immediate roam rssi diff to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set immediate roam rssi diff to"
+                     "%d - old value is %d - roam state is %s",
                      nImmediateRoamRssiDiff,
                      pMac->roam.configParam.nImmediateRoamRssiDiff,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.nImmediateRoamRssiDiff = nImmediateRoamRssiDiff;
         sme_ReleaseGlobalLock( &pMac->sme );
     }
@@ -8364,10 +8374,12 @@ eHalStatus sme_UpdateRoamRssiDiff(tHalHandle hHal, v_U8_t RoamRssiDiff)
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set roam rssi diff to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set roam rssi diff to %d"
+                     " - old value is %d - roam state is %s",
                      RoamRssiDiff,
                      pMac->roam.configParam.RoamRssiDiff,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.RoamRssiDiff = RoamRssiDiff;
         sme_ReleaseGlobalLock( &pMac->sme );
     }
@@ -8431,10 +8443,12 @@ eHalStatus sme_UpdateWESMode(tHalHandle hHal, v_BOOL_t isWESModeEnabled)
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set WES Mode to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set WES Mode to %d"
+                     "- old value is %d - roam state is %s",
                      isWESModeEnabled,
                      pMac->roam.configParam.isWESModeEnabled,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.isWESModeEnabled = isWESModeEnabled;
         sme_ReleaseGlobalLock( &pMac->sme );
     }
@@ -8463,10 +8477,12 @@ eHalStatus sme_SetRoamScanControl(tHalHandle hHal, v_BOOL_t roamScanControl)
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set roam scan control to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set roam scan control to %d"
+                     " - old value is %d - roam state is %s",
                      roamScanControl,
                      pMac->roam.configParam.nRoamScanControl,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.nRoamScanControl = roamScanControl;
         if ( 0 == roamScanControl)
         {
@@ -8683,10 +8699,12 @@ eHalStatus sme_setNeighborLookupRssiThreshold(tHalHandle hHal,
         if (HAL_STATUS_SUCCESS(status))
         {
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set Lookup threshold to %d - old value is %d - roam state is %d",
-                     neighborLookupRssiThreshold,
-                     pMac->roam.configParam.neighborRoamConfig.nNeighborLookupRssiThreshold,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                         "LFR runtime successfully set Lookup threshold to %d"
+                         " - old value is %d - roam state is %s",
+                         neighborLookupRssiThreshold,
+                         pMac->roam.configParam.neighborRoamConfig.nNeighborLookupRssiThreshold,
+                         macTraceGetNeighbourRoamState(
+                         pMac->roam.neighborRoamInfo.neighborRoamState));
             pMac->roam.configParam.neighborRoamConfig.nNeighborLookupRssiThreshold =
                                             neighborLookupRssiThreshold;
         }
@@ -8713,10 +8731,12 @@ eHalStatus sme_setNeighborReassocRssiThreshold(tHalHandle hHal,
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set Reassoc threshold to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set Reassoc threshold to %d"
+                     "- old value is %d - roam state is %s",
                      neighborReassocRssiThreshold,
                      pMac->roam.configParam.neighborRoamConfig.nNeighborReassocRssiThreshold,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nNeighborReassocRssiThreshold =
                                       neighborReassocRssiThreshold;
         pMac->roam.neighborRoamInfo.cfgParams.neighborReassocThreshold =
@@ -8760,10 +8780,12 @@ eHalStatus sme_setNeighborScanRefreshPeriod(tHalHandle hHal,
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set roam scan refresh period to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set roam scan refresh period to %d"
+                     " - old value is %d - roam state is %s",
                      neighborScanResultsRefreshPeriod,
                      pMac->roam.configParam.neighborRoamConfig.nNeighborResultsRefreshPeriod,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nNeighborResultsRefreshPeriod =
                                   neighborScanResultsRefreshPeriod;
         pMac->roam.neighborRoamInfo.cfgParams.neighborResultsRefreshPeriod =
@@ -8862,10 +8884,12 @@ eHalStatus sme_UpdateEmptyScanRefreshPeriod(tHalHandle hHal, v_U16_t nEmptyScanR
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set roam scan period to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set roam scan period to %d -"
+                     "old value is %d - roam state is %s",
                      nEmptyScanRefreshPeriod,
                      pMac->roam.configParam.neighborRoamConfig.nEmptyScanRefreshPeriod,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nEmptyScanRefreshPeriod = nEmptyScanRefreshPeriod;
         pMac->roam.neighborRoamInfo.cfgParams.emptyScanRefreshPeriod = nEmptyScanRefreshPeriod;
         sme_ReleaseGlobalLock( &pMac->sme );
@@ -8900,10 +8924,12 @@ eHalStatus sme_setNeighborScanMinChanTime(tHalHandle hHal, const v_U16_t nNeighb
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set channel min dwell time to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set channel min dwell time to %d"
+                     " - old value is %d - roam state is %s",
                      nNeighborScanMinChanTime,
                      pMac->roam.configParam.neighborRoamConfig.nNeighborScanMinChanTime,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nNeighborScanMinChanTime = nNeighborScanMinChanTime;
         pMac->roam.neighborRoamInfo.cfgParams.minChannelScanTime = nNeighborScanMinChanTime;
         sme_ReleaseGlobalLock( &pMac->sme );
@@ -8931,10 +8957,12 @@ eHalStatus sme_setNeighborScanMaxChanTime(tHalHandle hHal, const v_U16_t nNeighb
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set channel max dwell time to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set channel max dwell time to %d"
+                     " - old value is %d - roam state is %s",
                      nNeighborScanMaxChanTime,
                      pMac->roam.configParam.neighborRoamConfig.nNeighborScanMaxChanTime,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nNeighborScanMaxChanTime = nNeighborScanMaxChanTime;
         pMac->roam.neighborRoamInfo.cfgParams.maxChannelScanTime = nNeighborScanMaxChanTime;
         sme_ReleaseGlobalLock( &pMac->sme );
@@ -8993,10 +9021,12 @@ eHalStatus sme_setNeighborScanPeriod(tHalHandle hHal, const v_U16_t nNeighborSca
     if ( HAL_STATUS_SUCCESS( status ) )
     {
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                     "LFR runtime successfully set neighbor scan period to %d - old value is %d - roam state is %d",
+                     "LFR runtime successfully set neighbor scan period to %d"
+                     " - old value is %d - roam state is %s",
                      nNeighborScanPeriod,
                      pMac->roam.configParam.neighborRoamConfig.nNeighborScanTimerPeriod,
-                     pMac->roam.neighborRoamInfo.neighborRoamState);
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         pMac->roam.configParam.neighborRoamConfig.nNeighborScanTimerPeriod = nNeighborScanPeriod;
         pMac->roam.neighborRoamInfo.cfgParams.neighborScanPeriod = nNeighborScanPeriod;
         sme_ReleaseGlobalLock( &pMac->sme );
@@ -9084,9 +9114,11 @@ eHalStatus sme_ChangeRoamScanChannelList(tHalHandle hHal, tANI_U8 *pChannelList,
         }
 
         VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                  "LFR runtime successfully set roam scan channels to %s - old value is %s - roam state is %d",
-                   newChannelList, oldChannelList,
-                   pMac->roam.neighborRoamInfo.neighborRoamState);
+                     "LFR runtime successfully set roam scan channels to %s"
+                     "- old value is %s - roam state is %s",
+                     newChannelList, oldChannelList,
+                     macTraceGetNeighbourRoamState(
+                     pMac->roam.neighborRoamInfo.neighborRoamState));
         sme_ReleaseGlobalLock( &pMac->sme );
     }
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
@@ -9147,9 +9179,11 @@ eHalStatus sme_SetCcxRoamScanChannelList(tHalHandle hHal,
             }
 
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG,
-                        "CCX roam scan channel list successfully set to %s - old value is %s - roam state is %d",
-                        newChannelList, oldChannelList,
-                        pMac->roam.neighborRoamInfo.neighborRoamState);
+                         "CCX roam scan channel list successfully set to %s"
+                         " - old value is %s - roam state is %s",
+                         newChannelList, oldChannelList,
+                         macTraceGetNeighbourRoamState(
+                         pMac->roam.neighborRoamInfo.neighborRoamState));
         }
         sme_ReleaseGlobalLock( &pMac->sme );
     }
