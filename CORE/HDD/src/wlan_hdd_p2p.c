@@ -58,6 +58,7 @@
 #include "wlan_hdd_p2p.h"
 #include "sapApi.h"
 #include "wlan_hdd_main.h"
+#include "vos_trace.h"
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/etherdevice.h>
@@ -70,6 +71,34 @@
 #include "vos_trace.h"
 //Ms to Micro Sec
 #define MS_TO_MUS(x)   ((x)*1000);
+
+tANI_U8* hdd_getActionString( tANI_U16 MsgType )
+{
+    switch (MsgType)
+    {
+       CASE_RETURN_STRING(SIR_MAC_ACTION_SPECTRUM_MGMT);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_QOS_MGMT);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_DLP);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_BLKACK);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_PUBLIC_USAGE);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_RRM);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_FAST_BSS_TRNST);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_HT);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_SA_QUERY);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_PROT_DUAL_PUB);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_WNM);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_UNPROT_WNM);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_TDLS);
+       CASE_RETURN_STRING(SIR_MAC_ACITON_MESH);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_MULTIHOP);
+       CASE_RETURN_STRING(SIR_MAC_SELF_PROTECTED);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_WME);
+       CASE_RETURN_STRING(SIR_MAC_ACTION_VHT);
+       default:
+           return ("UNKNOWN");
+    }
+}
+
 
 #ifdef WLAN_FEATURE_P2P_DEBUG
 #define MAX_P2P_ACTION_FRAME_TYPE 9
@@ -116,7 +145,7 @@ static void hdd_wlan_tx_complete( hdd_adapter_t* pAdapter,
                                   tANI_BOOLEAN actionSendSuccess );
 
 static void hdd_sendMgmtFrameOverMonitorIface( hdd_adapter_t *pMonAdapter,
-                                               tANI_U32 nFrameLength, 
+                                               tANI_U32 nFrameLength,
                                                tANI_U8* pbFrames,
                                                tANI_U8 frameType );
 
@@ -169,8 +198,11 @@ eHalStatus wlan_hdd_remain_on_channel_callback( tHalHandle hHal, void* pCtx,
           "%s: No Rem on channel pending for which Rsp is received", __func__);
        return eHAL_STATUS_SUCCESS;
     }
-
-    hddLog( LOG1, "Received remain on channel rsp");
+    hddLog( VOS_TRACE_LEVEL_INFO,
+            "Received ROC rsp (request type %d, channel %d, cookie %llu",
+            pRemainChanCtx->rem_on_chan_request,
+            pRemainChanCtx->chan.center_freq,
+            pRemainChanCtx->cookie);
 
     cfgState->remain_on_chan_ctx = NULL;
     if( REMAIN_ON_CHANNEL_REQUEST == pRemainChanCtx->rem_on_chan_request &&
@@ -178,7 +210,7 @@ eHalStatus wlan_hdd_remain_on_channel_callback( tHalHandle hHal, void* pCtx,
     {
         if( cfgState->buf )
         {
-           hddLog( LOGP, 
+           hddLog( LOGP,
                    "%s: We need to receive yet an ack from one of tx packet",
                    __func__);
         }
@@ -235,11 +267,13 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
 
     if(cfgState->remain_on_chan_ctx != NULL)
     {
-        hddLog( LOG1, "Cancel Existing Remain on Channel");
+        hddLog(VOS_TRACE_LEVEL_INFO,
+               "Cancel Existing ROC (cookie=%llu)",
+                cfgState->remain_on_chan_ctx->cookie);
 
-        /* Wait till remain on channel ready indication before issuing cancel 
-         * remain on channel request, otherwise if remain on channel not 
-         * received and if the driver issues cancel remain on channel then lim 
+        /* Wait till remain on channel ready indication before issuing cancel
+         * remain on channel request, otherwise if remain on channel not
+         * received and if the driver issues cancel remain on channel then lim
          * will be in unknown state.
          */
         status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
@@ -252,7 +286,7 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
         }
 
         INIT_COMPLETION(pAdapter->cancel_rem_on_chan_var);
-        
+
         /* Issue abort remain on chan request to sme.
          * The remain on channel callback will make sure the remain_on_chan
          * expired event is sent.
@@ -303,7 +337,8 @@ int wlan_hdd_check_remain_on_channel(hdd_adapter_t *pAdapter)
         }
         else
         {
-           hddLog( LOG1, "Cannot Cancel Existing Remain on Channel");
+           hddLog(VOS_TRACE_LEVEL_DEBUG,
+                   "Cannot Cancel Existing Remain on Channel");
            status = -EBUSY;
         }
      }
@@ -323,17 +358,20 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     hdd_remain_on_chan_ctx_t *pRemainChanCtx;
     hdd_cfg80211_state_t *cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
+
     hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d",
                                  __func__,pAdapter->device_mode);
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
-    hddLog( LOG1,
-        "chan(hw_val)0x%x chan(centerfreq) %d chan type 0x%x, duration %d",
-        chan->hw_value, chan->center_freq, channel_type, duration );
+    hddLog(VOS_TRACE_LEVEL_INFO,
+           "chan(hw_val)0x%x chan(centerfreq) %d chan type 0x%x, dur %d,"
+           " request type %d, cookie %llu",
+           chan->hw_value, chan->center_freq, channel_type, duration,
+           request_type, *cookie);
 #else
-    hddLog( LOG1,
-        "chan(hw_val)0x%x chan(centerfreq) %d, duration %d",
-        chan->hw_value, chan->center_freq, duration );
+     hddLog(VOS_TRACE_LEVEL_INFO,
+            "chan(hw_val)0x%x chan(centerfreq) %d, duration %d"
+            " reuest type %d, cookie %llu", chan->hw_value, chan->center_freq,
+            duration, request_type, *cookie );
 #endif
     //Cancel existing remain On Channel if any
     wlan_hdd_cancel_existing_remain_on_channel(pAdapter);
@@ -377,7 +415,7 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
     pRemainChanCtx->rem_on_chan_request = request_type;
     cfgState->remain_on_chan_ctx = pRemainChanCtx;
     cfgState->current_freq = chan->center_freq;
-    
+
     INIT_COMPLETION(pAdapter->rem_on_chan_ready_event);
 
     //call sme API to start remain on channel.
@@ -389,16 +427,21 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
         tANI_U8 sessionId = pAdapter->sessionId;
         //call sme API to start remain on channel.
         sme_RemainOnChannel(
-                       WLAN_HDD_GET_HAL_CTX(pAdapter), sessionId,
-                       chan->hw_value, duration,
-                       wlan_hdd_remain_on_channel_callback, pAdapter,
-                       (tANI_U8)(request_type == REMAIN_ON_CHANNEL_REQUEST)? TRUE:FALSE);
+             WLAN_HDD_GET_HAL_CTX(pAdapter), sessionId,
+             chan->hw_value, duration,
+             wlan_hdd_remain_on_channel_callback, pAdapter,
+             (tANI_U8)(request_type == REMAIN_ON_CHANNEL_REQUEST)? TRUE:FALSE);
 
         if( REMAIN_ON_CHANNEL_REQUEST == request_type)
         {
-            sme_RegisterMgmtFrame(WLAN_HDD_GET_HAL_CTX(pAdapter),
-                                   sessionId, (SIR_MAC_MGMT_FRAME << 2) |
-                                  (SIR_MAC_MGMT_PROBE_REQ << 4), NULL, 0 );
+            if( eHAL_STATUS_SUCCESS != sme_RegisterMgmtFrame(
+                                      WLAN_HDD_GET_HAL_CTX(pAdapter),
+                                      sessionId, (SIR_MAC_MGMT_FRAME << 2) |
+                                      (SIR_MAC_MGMT_PROBE_REQ << 4), NULL, 0 ))
+            {
+                hddLog(VOS_TRACE_LEVEL_ERROR,
+                       "sme_RegisterMgmtFrame returned fail");
+            }
         }
 
     }
@@ -507,6 +550,8 @@ void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter )
             complete(&pAdapter->offchannel_tx_event);
         }
 #endif
+        hddLog( VOS_TRACE_LEVEL_INFO, "Ready on chan ind (cookie=%llu)",
+                pRemainChanCtx->cookie);
         complete(&pAdapter->rem_on_chan_ready_event);
     }
     else
@@ -538,8 +583,6 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
                      pAdapter->sessionId, cookie_dummy));
     hddLog( LOG1, "Cancel remain on channel req");
 
-    hddLog( LOG1, "Cancel remain on channel req");
-
     status = wlan_hdd_validate_context(pHddCtx);
 
     if (0 != status)
@@ -548,6 +591,8 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
                    "%s: HDD context is not valid", __func__);
         return status;
     }
+    hddLog( LOG1, "Cancel remain on channel req (cookie = %llu)", cookie);
+
     /* FIXME cancel currently running remain on chan.
      * Need to check cookie and cancel accordingly
      */
@@ -587,7 +632,7 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
          ( WLAN_HDD_P2P_DEVICE == pAdapter->device_mode )
        )
     {
-        tANI_U8 sessionId = pAdapter->sessionId; 
+        tANI_U8 sessionId = pAdapter->sessionId;
         sme_CancelRemainOnChannel( WLAN_HDD_GET_HAL_CTX( pAdapter ),
                                             sessionId );
     }
@@ -598,7 +643,7 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
         WLANSAP_CancelRemainOnChannel(
                                 (WLAN_HDD_GET_CTX(pAdapter))->pvosContext);
     }
-    else 
+    else
     {
        hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Invalid device_mode = %d",
                             __func__, pAdapter->device_mode);
@@ -615,7 +660,7 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
-int wlan_hdd_action( struct wiphy *wiphy, struct wireless_dev *wdev,
+int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct wireless_dev *wdev,
                      struct ieee80211_channel *chan, bool offchan,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
                      enum nl80211_channel_type channel_type,
@@ -625,20 +670,20 @@ int wlan_hdd_action( struct wiphy *wiphy, struct wireless_dev *wdev,
                      const u8 *buf, size_t len,  bool no_cck,
                      bool dont_wait_for_ack, u64 *cookie )
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
-int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
+int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan, bool offchan,
                      enum nl80211_channel_type channel_type,
                      bool channel_type_valid, unsigned int wait,
                      const u8 *buf, size_t len,  bool no_cck,
                      bool dont_wait_for_ack, u64 *cookie )
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
-int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
+int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan, bool offchan,
                      enum nl80211_channel_type channel_type,
                      bool channel_type_valid, unsigned int wait,
                      const u8 *buf, size_t len, u64 *cookie )
 #else
-int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
+int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan,
                      enum nl80211_channel_type channel_type,
                      bool channel_type_valid,
@@ -735,9 +780,9 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
         {
             if (subType == SIR_MAC_MGMT_PROBE_RSP)
             {
-                /* Drop Probe response recieved from supplicant, as for GO and 
+                /* Drop Probe response recieved from supplicant, as for GO and
                    SAP PE itself sends probe response
-                   */ 
+                   */
                 goto err_rem_channel;
             }
             else if ((subType == SIR_MAC_MGMT_DISASSOC) ||
@@ -778,7 +823,11 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
         }
     }
 
-    hddLog( LOG1, "Action frame tx request");
+    if( subType == SIR_MAC_MGMT_ACTION)
+    {
+        hddLog( LOG1, "Action frame tx request : %s",
+            hdd_getActionString(buf[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET]));
+    }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
     goAdapter = hdd_get_adapter( pAdapter->pHddCtx, WLAN_HDD_P2P_GO );
@@ -844,10 +893,15 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
            (cfgState->current_freq == chan->center_freq)
           )
         {
-            hddLog(LOG1,"action frame: extending the wait time");
             extendedWait = (tANI_U16)wait;
+            hddLog(VOS_TRACE_LEVEL_INFO,
+                   "action frame: extending the wait time %u",
+                   wait);
             goto send_frame;
         }
+
+        hddLog(VOS_TRACE_LEVEL_INFO,
+               "action frame: Request ROC for wait time %u", wait);
 
         INIT_COMPLETION(pAdapter->offchannel_tx_event);
 
@@ -923,7 +977,7 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
         }
 #endif
-    } 
+    }
 
     if ( (WLAN_HDD_INFRA_STATION == pAdapter->device_mode) ||
          (WLAN_HDD_P2P_CLIENT == pAdapter->device_mode) ||
@@ -937,16 +991,16 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
                 (buf[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET] == WLAN_HDD_PUBLIC_ACTION_FRAME))
         {
             actionFrmType = buf[WLAN_HDD_PUBLIC_ACTION_FRAME_TYPE_OFFSET];
-            hddLog(LOG1, "Tx Action Frame %u", actionFrmType);
+            hddLog(LOG1, "Tx Action Frame %u.", actionFrmType);
             if (actionFrmType == WLAN_HDD_PROV_DIS_REQ)
             {
                 cfgState->actionFrmState = HDD_PD_REQ_ACK_PENDING;
-                hddLog(LOG1, "%s: HDD_PD_REQ_ACK_PENDING", __func__);
+                hddLog(LOG1, "%s: HDD_PD_REQ_ACK_PENDING.", __func__);
             }
             else if (actionFrmType == WLAN_HDD_GO_NEG_REQ)
             {
                 cfgState->actionFrmState = HDD_GO_NEG_REQ_ACK_PENDING;
-                hddLog(LOG1, "%s: HDD_GO_NEG_REQ_ACK_PENDING", __func__);
+                hddLog(LOG1, "%s: HDD_GO_NEG_REQ_ACK_PENDING.", __func__);
             }
         }
 #ifdef WLAN_FEATURE_11W
@@ -1091,11 +1145,11 @@ void hdd_sendActionCnf( hdd_adapter_t *pAdapter, tANI_BOOLEAN actionSendSuccess 
  * hdd_setP2pNoa
  *
  *FUNCTION:
- * This function is called from hdd_hostapd_ioctl function when Driver 
+ * This function is called from hdd_hostapd_ioctl function when Driver
  * get P2P_SET_NOA comand from wpa_supplicant using private ioctl
  *
  *LOGIC:
- * Fill NoA Struct According to P2P Power save Option and Pass it to SME layer 
+ * Fill NoA Struct According to P2P Power save Option and Pass it to SME layer
  *
  *ASSUMPTIONS:
  *
@@ -1103,7 +1157,7 @@ void hdd_sendActionCnf( hdd_adapter_t *pAdapter, tANI_BOOLEAN actionSendSuccess 
  *NOTE:
  *
  * @param  dev         Pointer to net device structure
- * @param  command     Pointer to command 
+ * @param  command     Pointer to command
  *
  * @return Status
  */
@@ -1231,12 +1285,12 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
 
     /* From wpa_cli user need to use separate command to set ctWindow and Opps
      * When user want to set ctWindow during that time other parameters
-     * values are coming from wpa_supplicant as -1. 
-     * Example : User want to set ctWindow with 30 then wpa_cli command : 
-     * P2P_SET ctwindow 30 
-     * Command Received at hdd_hostapd_ioctl is as below: 
+     * values are coming from wpa_supplicant as -1.
+     * Example : User want to set ctWindow with 30 then wpa_cli command :
+     * P2P_SET ctwindow 30
+     * Command Received at hdd_hostapd_ioctl is as below:
      * P2P_SET_PS -1 -1 30 (legacy_ps = -1, opp_ps = -1, ctwindow = 30)
-     */ 
+     */
     if (ctwindow != -1)
     {
 
@@ -1247,7 +1301,7 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
         if (ctwindow != pAdapter->ctw)
         {
             pAdapter->ctw = ctwindow;
-        
+
             if(pAdapter->ops)
             {
                 NoA.opp_ps = pAdapter->ops;
@@ -1258,7 +1312,7 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
                 NoA.count = 0;
                 NoA.psSelection = P2P_POWER_SAVE_TYPE_OPPORTUNISTIC;
                 NoA.sessionid = pAdapter->sessionId;
- 
+
                 VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                             "%s: P2P_PS_ATTR:oppPS %d ctWindow %d duration %d "
                             "interval %d count %d single noa duration %d "
@@ -1277,7 +1331,7 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
     {
         pAdapter->ops = opp_ps;
 
-        if ((opp_ps != -1) && (pAdapter->ctw)) 
+        if ((opp_ps != -1) && (pAdapter->ctw))
         {
             NoA.opp_ps = opp_ps;
             NoA.ctWindow = pAdapter->ctw;
@@ -1404,7 +1458,7 @@ int wlan_hdd_add_virtual_intf( struct wiphy *wiphy, char *name,
              */
             v_MACADDR_t p2pDeviceAddress = pHddCtx->p2pDeviceAddress;
             p2pDeviceAddress.bytes[4] ^= 0x80;
-            pAdapter = hdd_open_adapter( pHddCtx, 
+            pAdapter = hdd_open_adapter( pHddCtx,
                                          wlan_hdd_get_session_type(type),
                                          name, p2pDeviceAddress.bytes,
                                          VOS_TRUE );
@@ -1477,7 +1531,7 @@ int wlan_hdd_del_virtual_intf( struct wiphy *wiphy, struct net_device *dev )
 void hdd_sendMgmtFrameOverMonitorIface( hdd_adapter_t *pMonAdapter,
                                         tANI_U32 nFrameLength,
                                         tANI_U8* pbFrames,
-                                        tANI_U8 frameType )  
+                                        tANI_U8 frameType )
 {
     //Indicate a Frame over Monitor Intf.
     int rxstat;
@@ -1553,7 +1607,7 @@ void hdd_sendMgmtFrameOverMonitorIface( hdd_adapter_t *pMonAdapter,
 }
 
 void hdd_indicateMgmtFrame( hdd_adapter_t *pAdapter,
-                            tANI_U32 nFrameLength, 
+                            tANI_U32 nFrameLength,
                             tANI_U8* pbFrames,
                             tANI_U8 frameType,
                             tANI_U32 rxChan,
@@ -1660,8 +1714,8 @@ void hdd_indicateMgmtFrame( hdd_adapter_t *pAdapter,
     }
 
     cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
-    
-    if ((type == SIR_MAC_MGMT_FRAME) && 
+
+    if ((type == SIR_MAC_MGMT_FRAME) &&
         (subType == SIR_MAC_MGMT_ACTION))
     {
         if(pbFrames[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET] == WLAN_HDD_PUBLIC_ACTION_FRAME)
@@ -1809,7 +1863,7 @@ static int hdd_wlan_add_rx_radiotap_hdr (
         pos++;
     put_unaligned_le16(rx_flags, pos);
     pos += 2;
-    
+
     // actually push the data
     memcpy(skb_push(skb, rtap_len), &rtap_temp[0], rtap_len);
 

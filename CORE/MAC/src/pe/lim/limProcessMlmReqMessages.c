@@ -2173,7 +2173,11 @@ limProcessMlmPostJoinSuspendLink(tpAniSirGlobal pMac, eHalStatus status, tANI_U3
          psessionEntry->pLimMlmJoinReq->bssDescription.bssId, 
          psessionEntry->selfMacAddr, NULL, NULL) != eSIR_SUCCESS )
     {
-        limLog(pMac, LOGE, FL("limSetLinkState to eSIR_LINK_PREASSOC_STATE Failed!!"));
+        limLog(pMac, LOGE,
+               FL("SessionId:%d limSetLinkState to eSIR_LINK_PREASSOC_STATE"
+               " Failed!!"),psessionEntry->peSessionId);
+        limPrintMacAddr(pMac,
+        psessionEntry->pLimMlmJoinReq->bssDescription.bssId,LOGE);
         mlmJoinCnf.resultCode = eSIR_SME_RESOURCES_UNAVAILABLE;
         psessionEntry->limMlmState = eLIM_MLM_IDLE_STATE;
         MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, psessionEntry->peSessionId, psessionEntry->limMlmState));
@@ -2251,8 +2255,7 @@ limProcessMlmJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
     if((psessionEntry = peFindSessionBySessionId(pMac,sessionId))== NULL)
     {
-        limLog(pMac, LOGP, FL("session does not exist for given sessionId"));
-
+        limLog(pMac, LOGE, FL("SessionId:%d session does not exist"),sessionId);
         goto error;
     }
 
@@ -2273,6 +2276,8 @@ limProcessMlmJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
         
         if( isLimSessionOffChannel(pMac, sessionId) )
         {
+          limLog(pMac,LOG1,"SessionId:%d LimSession is on OffChannel",
+                 sessionId);
           //suspend link
           limLog(pMac, LOG1, FL("Suspend link as LimSession on sessionid %d"
           "is off channel"),sessionId);
@@ -2286,6 +2291,8 @@ limProcessMlmJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
               "limProcessMlmPostJoinSuspendLink with status as SUCCESS"),
               sessionId);
           //No need to suspend link.
+          limLog(pMac,LOG1,"SessionId:%d Join request on current channel",
+                 sessionId);
           limProcessMlmPostJoinSuspendLink( pMac, eHAL_STATUS_SUCCESS,
                                                     (tANI_U32*) psessionEntry );
         }
@@ -2305,8 +2312,10 @@ limProcessMlmJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
                psessionEntry->limMlmState);)
         limPrintMlmState(pMac, LOGE, psessionEntry->limMlmState);
         
-        limLog(pMac, LOGE, FL("Unexpected Join request for role %d state %X"),
-               psessionEntry->limSystemRole, psessionEntry->limMlmState);
+        limLog(pMac, LOGE,
+               FL("SessionId:%d Unexpected Join request for role %d state %X "),
+               psessionEntry->peSessionId,psessionEntry->limSystemRole,
+               psessionEntry->limMlmState);
     }
 
 error: 
@@ -2362,8 +2371,7 @@ limProcessMlmAuthReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     sessionId = pMac->lim.gpLimMlmAuthReq->sessionId;
     if((psessionEntry= peFindSessionBySessionId(pMac,sessionId) )== NULL)
     {
-        limLog(pMac, LOGP, FL("Session Does not exist for given sessionId %d"),
-        sessionId);
+        limLog(pMac, LOGP, FL("SessionId:%d Session Does not exist"),sessionId);
         return;
     }
 
@@ -2524,6 +2532,7 @@ end:
     /// for pMac->lim.gLimMlmAuthReq
     vos_mem_free( pMac->lim.gpLimMlmAuthReq);
     pMac->lim.gpLimMlmAuthReq = NULL;
+    limLog(pMac,LOG1,"SessionId:%d LimPostSme LIM_MLM_AUTH_CNF ",sessionId);
     limPostSmeMessage(pMac, LIM_MLM_AUTH_CNF, (tANI_U32 *) &mlmAuthCnf);
 } /*** limProcessMlmAuthReq() ***/
 
@@ -2565,8 +2574,8 @@ limProcessMlmAssocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
     if( (psessionEntry = peFindSessionBySessionId(pMac,pMlmAssocReq->sessionId) )== NULL) 
     {
-        limLog(pMac, LOGP,FL("Session Does not exist for given sessionID %d"),
-        pMlmAssocReq->sessionId);
+        limLog(pMac, LOGP,FL("SessionId:%d Session Does not exist"),
+               pMlmAssocReq->sessionId);
         vos_mem_free(pMlmAssocReq);
         return;
     }
@@ -2597,6 +2606,8 @@ limProcessMlmAssocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
         psessionEntry->limPrevMlmState = psessionEntry->limMlmState;
         psessionEntry->limMlmState = eLIM_MLM_WT_ASSOC_RSP_STATE;
         MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, psessionEntry->peSessionId, psessionEntry->limMlmState));
+        limLog(pMac,LOG1,"SessionId:%d Sending Assoc_Req Frame",
+               psessionEntry->peSessionId);
  
         /// Prepare and send Association request frame
         limSendAssocReqMgmtFrame(pMac, pMlmAssocReq,psessionEntry);
@@ -2617,7 +2628,8 @@ limProcessMlmAssocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
             /// Could not start Assoc failure timer.
             // Log error
             limLog(pMac, LOGP,
-                   FL("could not start Association failure timer"));
+                   FL("SessionId:%d could not start Association failure timer"),
+                   psessionEntry->peSessionId);
             // Cleanup as if assoc timer expired
             limProcessAssocFailureTimeout(pMac,LIM_ASSOC );
            
