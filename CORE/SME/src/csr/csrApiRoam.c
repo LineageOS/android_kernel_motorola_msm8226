@@ -4226,7 +4226,6 @@ static eCsrJoinState csrRoamJoinNextBss( tpAniSirGlobal pMac, tSmeCmd *pCommand,
 #ifndef WLAN_MDM_CODE_REDUCTION_OPT
                     acm_mask = sme_QosGetACMMask(pMac, &pScanResult->Result.BssDescriptor, 
                          pIesLocal);
-                    pCommand->u.roamCmd.roamProfile.uapsd_mask &= ~(acm_mask);
 #endif /* WLAN_MDM_CODE_REDUCTION_OPT*/
                 }
                 else
@@ -12526,7 +12525,6 @@ eHalStatus csrSendJoinReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, tSirBssDe
 #ifndef WLAN_MDM_CODE_REDUCTION_OPT
                     acm_mask = sme_QosGetACMMask(pMac, pBssDescription, pIes);
 #endif /* WLAN_MDM_CODE_REDUCTION_OPT*/
-                    uapsd_mask &= ~(acm_mask);
                 }
                 else
                 {
