@@ -1419,6 +1419,39 @@ static iw_softap_setparam(struct net_device *dev,
                 break;
             }
 
+        case QCSAP_PARAM_SET_MC_RATE:
+            {
+                tSirRateUpdateInd *rateUpdate;
+
+                rateUpdate = (tSirRateUpdateInd *)
+                             vos_mem_malloc(sizeof(tSirRateUpdateInd));
+                if (NULL == rateUpdate)
+                {
+                   hddLog(VOS_TRACE_LEVEL_ERROR,
+                          "%s: SET_MC_RATE indication alloc fail", __func__);
+                   ret = -1;
+                   break;
+                }
+                vos_mem_zero(rateUpdate, sizeof(tSirRateUpdateInd ));
+
+                hddLog(VOS_TRACE_LEVEL_INFO, "MC Target rate %d", set_value);
+                /* Ignore unicast */
+                rateUpdate->ucastDataRate = -1;
+                rateUpdate->mcastDataRate24GHz = set_value;
+                rateUpdate->mcastDataRate5GHz = set_value;
+                rateUpdate->mcastDataRate24GHzTxFlag = 0;
+                rateUpdate->mcastDataRate5GHzTxFlag = 0;
+                status = sme_SendRateUpdateInd(hHal, rateUpdate);
+                if (eHAL_STATUS_SUCCESS != status)
+                {
+                    hddLog(VOS_TRACE_LEVEL_ERROR,
+                            "%s: SET_MC_RATE failed", __func__);
+                    vos_mem_free(rateUpdate);
+                    ret = -1;
+                }
+                break;
+            }
+
         default:
             hddLog(LOGE, FL("Invalid setparam command %d value %d"),
                     sub_cmd, set_value);
