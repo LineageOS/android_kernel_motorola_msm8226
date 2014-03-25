@@ -9803,8 +9803,8 @@ VOS_STATUS sme_SelectCBMode(tHalHandle hHal, eCsrPhyMode eCsrPhyMode, tANI_U8 ch
       smeConfig.csrConfig.channelBondingMode5GHz = 0;
    }
 
-   VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-         "cbmode selected=%ld\n", smeConfig.csrConfig.channelBondingMode5GHz);
+   VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_WARN,
+         "cbmode selected=%d", smeConfig.csrConfig.channelBondingMode5GHz);
 
    sme_UpdateConfig (pMac, &smeConfig);
    return VOS_STATUS_SUCCESS;
