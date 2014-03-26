@@ -457,6 +457,9 @@ typedef enum
 
   WDI_UPDATE_CHAN_REQ                           = 87,
 
+  /*WLAN DAL Set Max Tx Power Per band Request*/
+  WDI_SET_MAX_TX_POWER_PER_BAND_REQ             = 88,
+
   WDI_MAX_REQ,
 
   /*Send a suspend Indication down to HAL*/
@@ -753,6 +756,8 @@ typedef enum
   WDI_SET_BATCH_SCAN_RESP                       = 85,
 
   WDI_UPDATE_CHAN_RESP                          = 86,
+
+  WDI_SET_MAX_TX_POWER_PER_BAND_RSP             = 87,
   /*-------------------------------------------------------------------------
     Indications
      !! Keep these last in the enum if possible
@@ -2246,6 +2251,22 @@ WDI_ProcessNvDownloadReq
  @return Result of the function call
 */
 WDI_Status WDI_ProcessSetMaxTxPowerReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ @brief Process Set Max Tx Power Per Band Request function (called when Main
+        FSM allows it)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
