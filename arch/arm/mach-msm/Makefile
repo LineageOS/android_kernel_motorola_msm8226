@@ -431,3 +431,5 @@ obj-$(CONFIG_MMI_UNIT_INFO) += mmi-unit-info.o
 obj-$(CONFIG_MMI_SOC_INFO) += mmi_soc_info.o
 obj-$(CONFIG_MMI_MSM_PINMUX) += mmi-pinmux.o
 obj-$(CONFIG_PERFMAP) += perfmap.o
+
+obj-$(CONFIG_LCD_KCAL) += board_kcal.o kcal_ctrl.o
