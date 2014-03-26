@@ -47,3 +47,8 @@ config MMI_PANEL_NOTIFICATIONS
 	default n
 	---help---
 	MMI panel notifications framework
+
+config LCD_KCAL
+	depends on FB_MSM_MDSS
+	bool "Enable sysfs for LCD KCAL"
+	default n
