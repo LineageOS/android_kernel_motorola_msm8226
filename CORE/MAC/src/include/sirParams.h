@@ -615,6 +615,11 @@ typedef struct sSirMbMsgP2p
 #endif
 #define SIR_HAL_RATE_UPDATE_IND            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 217)
 
+#define SIR_HAL_SET_MAX_TX_POWER_PER_BAND_REQ \
+        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 214)
+#define SIR_HAL_SET_MAX_TX_POWER_PER_BAND_RSP \
+        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 215)
+
 #define SIR_HAL_MSG_TYPES_END              (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 // CFG message types
 #define SIR_CFG_MSG_TYPES_BEGIN        (SIR_CFG_MODULE_ID << 8)
