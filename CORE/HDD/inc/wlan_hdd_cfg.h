@@ -2040,6 +2040,26 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_INITIAL_SCAN_SKIP_DFS_CH_MIN       (0)
 #define CFG_INITIAL_SCAN_SKIP_DFS_CH_MAX       (1)
 
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
+//Enable WLAN Logging to app space
+#define CFG_WLAN_LOGGING_SUPPORT_NAME            "wlanLoggingEnable"
+#define CFG_WLAN_LOGGING_SUPPORT_ENABLE          ( 1 )
+#define CFG_WLAN_LOGGING_SUPPORT_DISABLE         ( 0 )
+#define CFG_WLAN_LOGGING_SUPPORT_DEFAULT         ( 1 )
+
+//Enable FATAL and ERROR logs for kmsg console
+#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_NAME     "wlanLoggingFEToConsole"
+#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_ENABLE   ( 1 )
+#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_DISABLE  ( 0 )
+#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_DEFAULT  ( 0 )
+
+//Number of buffers to be used for WLAN logging
+#define CFG_WLAN_LOGGING_NUM_BUF_NAME     "wlanLoggingNumBuf"
+#define CFG_WLAN_LOGGING_NUM_BUF_MIN      ( 8  )
+#define CFG_WLAN_LOGGING_NUM_BUF_MAX      ( 64 )
+#define CFG_WLAN_LOGGING_NUM_BUF_DEFAULT  ( 32 )
+#endif //WLAN_LOGGING_SOCK_SVC_ENABLE
+
 /*--------------------------------------------------------------------------- 
   Type declarations
   -------------------------------------------------------------------------*/ 
@@ -2465,6 +2485,14 @@ typedef struct
    v_U16_t                     cfgRARateLimitInterval;
    v_U32_t                     cfgBtcCTS2SduringSCO;
    v_BOOL_t                    initialScanSkipDFSCh;
+
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
+   //WLAN Logging
+   v_U32_t                     wlanLoggingEnable;
+   v_U32_t                     wlanLoggingFEToConsole;
+   v_U32_t                     wlanLoggingNumBuf;
+#endif
+
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
