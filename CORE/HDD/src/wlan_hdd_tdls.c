@@ -106,12 +106,7 @@ static v_VOID_t wlan_hdd_tdls_start_peer_discover_timer(tdlsCtx_t *pHddTdlsCtx,
 
     if ( mutexLock )
     {
-        if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-        {
-           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                     FL("unable to lock list"));
-           return;
-        }
+       mutex_lock(&pHddCtx->tdls_lock);
     }
 
     pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pHddTdlsCtx->pAdapter);
@@ -159,12 +154,7 @@ static v_VOID_t wlan_hdd_tdls_discover_peer_cb( v_PVOID_t userData )
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pHddTdlsCtx->pAdapter);
 
@@ -284,12 +274,7 @@ static v_VOID_t wlan_hdd_tdls_update_peer_cb( v_PVOID_t userData )
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     for (i = 0; i < 256; i++) {
         head = &pHddTdlsCtx->peer_list[i];
@@ -473,12 +458,7 @@ static v_VOID_t wlan_hdd_tdls_idle_cb( v_PVOID_t userData )
               curr_peer->rx_pkt,
               curr_peer->pHddTdlsCtx->threshold_config.idle_packet_n);
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     /* Check tx/rx statistics on this tdls link for recent activities and
      * then decide whether to tear down the link or keep it.
@@ -532,12 +512,7 @@ static v_VOID_t wlan_hdd_tdls_discovery_timeout_peer_cb(v_PVOID_t userData)
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  FL("unable to lock list"));
-        return ;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     for (i = 0; i < 256; i++) {
         head = &pHddTdlsCtx->peer_list[i];
@@ -648,12 +623,7 @@ int wlan_hdd_tdls_init(hdd_adapter_t *pAdapter)
     if (NULL == pHddCtx)
         return -1;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 "%s: unable to lock list", __func__);
-       return -1;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     if ((FALSE == pHddCtx->cfg_ini->fEnableTDLSSupport) ||
         (FALSE == sme_IsFeatureSupportedByFW(TDLS)))
@@ -933,13 +903,8 @@ hddTdlsPeer_t *wlan_hdd_tdls_get_peer(hdd_adapter_t *pAdapter, u8 *mac)
         return NULL;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       vos_mem_free(peer);
-       return NULL;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
+
     pHddTdlsCtx = WLAN_HDD_GET_TDLS_CTX_PTR(pAdapter);
 
     if (NULL == pHddTdlsCtx)
@@ -1062,12 +1027,7 @@ int wlan_hdd_tdls_recv_discovery_resp(hdd_adapter_t *pAdapter, u8 *mac)
     if (pHddTdlsCtx->discovery_sent_cnt)
         pHddTdlsCtx->discovery_sent_cnt--;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                FL("unable to lock list"));
-       return -1;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     wlan_hdd_tdls_check_power_save_prohibited(pAdapter);
 
@@ -1404,12 +1364,8 @@ int wlan_hdd_tdls_set_force_peer(hdd_adapter_t *pAdapter, u8 *mac,
 
     if ((NULL == pHddCtx)) return -1;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-            "%s: unable to lock list", __func__);
-        return -1;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
+
     curr_peer = wlan_hdd_tdls_find_peer(pAdapter, mac, FALSE);
     if (curr_peer == NULL)
         goto error;
@@ -1441,12 +1397,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_find_peer(hdd_adapter_t *pAdapter, u8 *mac,
 
     if ( mutexLock )
     {
-        if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-        {
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                FL("unable to lock list"));
-            return NULL;
-        }
+       mutex_lock(&pHddCtx->tdls_lock);
     }
     pHddTdlsCtx = WLAN_HDD_GET_TDLS_CTX_PTR(pAdapter);
     if (NULL == pHddTdlsCtx)
@@ -1483,12 +1434,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_find_all_peer(hdd_context_t *pHddCtx, u8 *mac)
     hddTdlsPeer_t *curr_peer= NULL;
     VOS_STATUS status = 0;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return NULL;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
     status = hdd_get_front_adapter ( pHddCtx, &pAdapterNode );
     while ( NULL != pAdapterNode && VOS_STATUS_SUCCESS == status )
     {
@@ -1643,12 +1589,7 @@ int wlan_hdd_tdls_get_all_peers(hdd_adapter_t *pAdapter, char *buf, int buflen)
     buf += len;
     buflen -= len;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return init_len-buflen;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
     pHddTdlsCtx = WLAN_HDD_GET_TDLS_CTX_PTR(pAdapter);
     if (NULL == pHddTdlsCtx) {
         mutex_unlock(&pHddCtx->tdls_lock);
@@ -1690,12 +1631,7 @@ void wlan_hdd_tdls_connection_callback(hdd_adapter_t *pAdapter)
        return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     VOS_TRACE( VOS_MODULE_ID_HDD, TDLS_LOG_LEVEL,
     "%s, update %d discover %d", __func__,
@@ -1735,12 +1671,7 @@ void wlan_hdd_tdls_disconnection_callback(hdd_adapter_t *pAdapter)
 
     VOS_TRACE( VOS_MODULE_ID_HDD, TDLS_LOG_LEVEL,"%s", __func__);
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
     if (NULL == pHddTdlsCtx)
     {
        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
@@ -1777,12 +1708,7 @@ void wlan_hdd_tdls_increment_peer_count(hdd_adapter_t *pAdapter)
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     pHddCtx->connected_peer_count++;
     wlan_hdd_tdls_check_power_save_prohibited(pAdapter);
@@ -1804,12 +1730,7 @@ void wlan_hdd_tdls_decrement_peer_count(hdd_adapter_t *pAdapter)
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("unable to lock list"));
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     if (pHddCtx->connected_peer_count)
         pHddCtx->connected_peer_count--;
@@ -1933,12 +1854,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_is_progress(hdd_context_t *pHddCtx, u8 *mac, u8 ski
     hddTdlsPeer_t *curr_peer= NULL;
     VOS_STATUS status = 0;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: unable to lock list", __func__);
-        return NULL;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     status = hdd_get_front_adapter ( pHddCtx, &pAdapterNode );
     while ( NULL != pAdapterNode && VOS_STATUS_SUCCESS == status )
@@ -2003,12 +1919,7 @@ void wlan_hdd_tdls_set_mode(hdd_context_t *pHddCtx,
         return;
     }
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 "%s: unable to lock list", __func__);
-       return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     if (pHddCtx->tdls_mode == tdls_mode)
     {
@@ -2121,12 +2032,7 @@ static void wlan_hdd_tdls_pre_setup(struct work_struct *work)
 
     pHddTdlsCtx->discovery_sent_cnt++;
 
-    if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: unable to lock list", __func__);
-        return;
-    }
+    mutex_lock(&pHddCtx->tdls_lock);
 
     wlan_hdd_tdls_check_power_save_prohibited(pHddTdlsCtx->pAdapter);
 
