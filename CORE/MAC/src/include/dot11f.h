@@ -4254,31 +4254,6 @@ tANI_U32 dot11fGetPackedIEOperatingMode(tpAniSirGlobal, tDot11fIEOperatingMode*,
 #ifdef __cplusplus
 }; /* End extern "C". */
 #endif /* C++ */
-// EID 221 (0xdd) {OUI 0x00, 0x16, 0x32}
-typedef struct sDot11fIEOxygenNetwork {
-    tANI_U8      present;
-    tANI_U16     data;
-} tDot11fIEOxygenNetwork;
-
-#define DOT11F_EID_OXYGENNETWORK ( 221 )
-
-// N.B. These #defines do *not* include the EID & length
-#define DOT11F_IE_OXYGENNETWORK_MIN_LEN ( 5 )
-
-#define DOT11F_IE_OXYGENNETWORK_MAX_LEN ( 5 )
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* C++ */
-tANI_U32 dot11fUnpackIeOxygenNetwork(tpAniSirGlobal, tANI_U8*,tANI_U8, tDot11fIEOxygenNetwork*);
-
-tANI_U32 dot11fPackIeOxygenNetwork(tpAniSirGlobal, tDot11fIEOxygenNetwork*, tANI_U8*, tANI_U32, tANI_U32*);
-
-tANI_U32 dot11fGetPackedIEOxygenNetwork(tpAniSirGlobal, tDot11fIEOxygenNetwork*, tANI_U32*);
-
-#ifdef __cplusplus
-}; /* End extern "C". */
-#endif /* C++ */
 // EID 221 (0xdd) {OUI 0x50, 0x6f, 0x9a, 0x09} (Multi-IE)
 typedef struct sDot11fIEP2PAssocReq {
     tANI_U8      present;
@@ -6429,7 +6404,6 @@ typedef struct sDot11fBeacon{
     tDot11fIEExtCap               ExtCap;
     tDot11fIEOperatingMode        OperatingMode;
     tDot11fIEWiderBWChanSwitchAnn WiderBWChanSwitchAnn;
-    tDot11fIEOxygenNetwork        OxygenNetwork;
     tDot11fIEOBSSScanParameters   OBSSScanParameters;
 } tDot11fBeacon;
 
@@ -6504,7 +6478,6 @@ typedef struct sDot11fBeacon2{
     tDot11fIEExtCap               ExtCap;
     tDot11fIEOperatingMode        OperatingMode;
     tDot11fIEWiderBWChanSwitchAnn WiderBWChanSwitchAnn;
-    tDot11fIEOxygenNetwork        OxygenNetwork;
 } tDot11fBeacon2;
 
 #define DOT11F_BEACON2 ( 10 )
@@ -6566,7 +6539,6 @@ typedef struct sDot11fBeaconIEs{
     tDot11fIEExtCap               ExtCap;
     tDot11fIEOperatingMode        OperatingMode;
     tDot11fIEWiderBWChanSwitchAnn WiderBWChanSwitchAnn;
-    tDot11fIEOxygenNetwork        OxygenNetwork;
     tDot11fIEOBSSScanParameters   OBSSScanParameters;
 } tDot11fBeaconIEs;
 
@@ -7162,7 +7134,6 @@ typedef struct sDot11fProbeResponse{
     tDot11fIEVHTOperation       VHTOperation;
     tDot11fIEVHTExtBssLoad      VHTExtBssLoad;
     tDot11fIEExtCap             ExtCap;
-    tDot11fIEOxygenNetwork      OxygenNetwork;
     tDot11fIEOBSSScanParameters OBSSScanParameters;
 } tDot11fProbeResponse;
 
