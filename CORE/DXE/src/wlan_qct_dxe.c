@@ -1963,6 +1963,7 @@ static wpt_status dxeChannelCleanInt
    return status;
 }
 
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
 /*==========================================================================
   @  Function Name
 			      dxeRXResourceAvailableTimerExpHandler
@@ -2002,6 +2003,7 @@ void dxeRXResourceAvailableTimerExpHandler
 
    return;
 }
+#endif
 
 /*==========================================================================
   @  Function Name
@@ -2208,6 +2210,7 @@ static wpt_status dxeRXFrameSingleBufferAlloc
       if(NULL == currentPalPacketBuffer)
       {
          dxeCtxt->rxPalPacketUnavailable = eWLAN_PAL_TRUE;
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
          /* Out of RX free buffer,
           * Start timer to recover from RX dead end */
          if(VOS_TIMER_STATE_RUNNING !=
@@ -2218,6 +2221,7 @@ static wpt_status dxeRXFrameSingleBufferAlloc
             wpalTimerStart(&dxeCtxt->rxResourceAvailableTimer,
                            T_WLANDXE_MAX_RX_PACKET_WAIT);
          }
+#endif
       }
    }
    
@@ -3109,6 +3113,8 @@ void dxeRXPacketAvailableEventHandler
    }
 
    dxeCtxt    = (WLANDXE_CtrlBlkType *)(rxPktAvailMsg->pContext);
+
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
    /* Available resource allocated
     * Stop timer not needed */
    if(VOS_TIMER_STATE_RUNNING ==
@@ -3116,6 +3122,7 @@ void dxeRXPacketAvailableEventHandler
    {
       wpalTimerStop(&dxeCtxt->rxResourceAvailableTimer);
    }
+#endif
 
    do
    {
@@ -4671,9 +4678,11 @@ void *WLANDXE_Open
       return NULL;
    }
 
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
    wpalTimerInit(&tempDxeCtrlBlk->rxResourceAvailableTimer,
                  dxeRXResourceAvailableTimerExpHandler,
                  tempDxeCtrlBlk);
+#endif
 
    wpalTimerInit(&tempDxeCtrlBlk->dxeSSRTimer,
                  dxeSSRTimerExpHandler, tempDxeCtrlBlk);
@@ -5187,11 +5196,13 @@ wpt_status WLANDXE_Stop
    wpalUnRegisterInterrupt(DXE_INTERRUPT_TX_COMPLE);
    wpalUnRegisterInterrupt(DXE_INTERRUPT_RX_READY);
 
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
    if(VOS_TIMER_STATE_STOPPED !=
       wpalTimerGetCurStatus(&dxeCtxt->rxResourceAvailableTimer))
    {
       wpalTimerStop(&dxeCtxt->rxResourceAvailableTimer);
    }
+#endif
 
    if(VOS_TIMER_STATE_STOPPED !=
       wpalTimerGetCurStatus(&dxeCtxt->rxResourceAvailableTimer))
@@ -5248,7 +5259,9 @@ wpt_status WLANDXE_Close
    }
 
    dxeCtxt = (WLANDXE_CtrlBlkType *)pDXEContext;
+#ifdef WLAN_DXE_LOW_RESOURCE_TIMER
    wpalTimerDelete(&dxeCtxt->rxResourceAvailableTimer);
+#endif
    wpalTimerDelete(&dxeCtxt->dxeSSRTimer);
    for(idx = 0; idx < WDTS_CHANNEL_MAX; idx++)
    {
