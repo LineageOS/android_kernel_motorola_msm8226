@@ -5965,12 +5965,7 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
          /* A Mutex Lock is introduced while changing/initializing the mode to
           * protect the concurrent access for the Adapters by TDLS module.
           */
-         if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-         {
-             VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                       "%s: unable to lock list", __func__);
-             return NULL;
-         }
+          mutex_lock(&pHddCtx->tdls_lock);
 #endif
 
          pAdapter->wdev.iftype = (session_type == WLAN_HDD_P2P_CLIENT) ?
@@ -6209,12 +6204,7 @@ VOS_STATUS hdd_close_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter,
       /* A Mutex Lock is introduced while changing/initializing the mode to
        * protect the concurrent access for the Adapters by TDLS module.
        */
-       if (mutex_lock_interruptible(&pHddCtx->tdls_lock))
-       {
-           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                     "%s: unable to lock list", __func__);
-           return VOS_STATUS_E_FAILURE;
-       }
+       mutex_lock(&pHddCtx->tdls_lock);
 #endif
 
       hdd_remove_adapter( pHddCtx, pAdapterNode );
@@ -6309,7 +6299,10 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
       case WLAN_HDD_INFRA_STATION:
       case WLAN_HDD_P2P_CLIENT:
       case WLAN_HDD_P2P_DEVICE:
-         if( hdd_connIsConnected( WLAN_HDD_GET_STATION_CTX_PTR( pAdapter )) )
+      {
+         hdd_station_ctx_t *pstation = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
+         if( hdd_connIsConnected(pstation) ||
+             (pstation->conn_info.connState == eConnectionState_Connecting) )
          {
             if (pWextState->roamProfile.BSSType == eCSR_BSS_TYPE_START_IBSS)
                 halStatus = sme_RoamDisconnect(pHddCtx->hHal,
@@ -6341,6 +6334,18 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
             wrqu.ap_addr.sa_family = ARPHRD_ETHER;
             memset(wrqu.ap_addr.sa_data,'\0',ETH_ALEN);
             wireless_send_event(pAdapter->dev, SIOCGIWAP, &wrqu, NULL);
+         }
+         else if(pstation->conn_info.connState ==
+                    eConnectionState_Disconnecting)
+         {
+             ret = wait_for_completion_interruptible_timeout(
+                   &pAdapter->disconnect_comp_var,
+                   msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
+             if (ret <= 0)
+             {
+                 hddLog(VOS_TRACE_LEVEL_ERROR,
+                 FL("wait on disconnect_comp_var failed %ld"), ret);
+             }
          }
          else
          {
@@ -6386,7 +6391,7 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
                }
             }
          }
-
+      }
          break;
 
       case WLAN_HDD_SOFTAP:

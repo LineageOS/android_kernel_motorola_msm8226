@@ -455,10 +455,10 @@ typedef enum
   /* WLAN FW set batch scan request */
   WDI_SET_BATCH_SCAN_REQ                        = 86,
 
-  WDI_UPDATE_CHAN_REQ                           = 87,
-
   /*WLAN DAL Set Max Tx Power Per band Request*/
-  WDI_SET_MAX_TX_POWER_PER_BAND_REQ             = 88,
+  WDI_SET_MAX_TX_POWER_PER_BAND_REQ             = 87,
+
+  WDI_UPDATE_CHAN_REQ                           = 88,
 
   WDI_MAX_REQ,
 
@@ -755,9 +755,10 @@ typedef enum
 
   WDI_SET_BATCH_SCAN_RESP                       = 85,
 
-  WDI_UPDATE_CHAN_RESP                          = 86,
+  WDI_SET_MAX_TX_POWER_PER_BAND_RSP             = 86,
 
-  WDI_SET_MAX_TX_POWER_PER_BAND_RSP             = 87,
+  WDI_UPDATE_CHAN_RESP                          = 87,
+
   /*-------------------------------------------------------------------------
     Indications
      !! Keep these last in the enum if possible
@@ -1124,6 +1125,8 @@ typedef struct
   /* DXE physical addr to be passed down to RIVA. RIVA HAL will use it to program
   DXE when DXE wakes up from power save*/
   unsigned int                dxePhyAddr;
+
+  wpt_boolean                 dxeRingsEmpty;
 
   /*NV download request parameters  */
   WDI_NvDownloadReqParamsType   wdiCachedNvDownloadReq;
@@ -2816,6 +2819,22 @@ WDI_Status WDI_ProcessLPHBConfReq
   WDI_EventInfoType*     pEventData
 );
 #endif /* FEATURE_WLAN_LPHB */
+
+/**
+ @brief WDI_ProcessUpdateChannelParamsReq -
+    Send update channel request to FW
+
+ @param  pWDICtx : wdi context
+         pEventData : indication data
+
+ @see
+ @return success or failure
+*/
+WDI_Status WDI_ProcessUpdateChannelParamsReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
 /**
