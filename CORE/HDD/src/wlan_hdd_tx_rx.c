@@ -565,9 +565,10 @@ int hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
    ++pAdapter->hdd_stats.hddTxRxStats.txXmitCalled;
 
-   if (unlikely(netif_queue_stopped(dev))) {
+   if (unlikely(netif_subqueue_stopped(dev, skb))) {
        VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_WARN,
-                  "%s is called when netif TX is disabled", __func__);
+                  "%s is called when netif TX %d is disabled",
+                  __func__, skb->queue_mapping);
        return NETDEV_TX_BUSY;
    }
 
@@ -587,7 +588,7 @@ int hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
       }
       else if (STAId == HDD_WLAN_INVALID_STA_ID)
       {
-         VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,
+         VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_WARN,
                     "%s: Received Unicast frame with invalid staID", __func__);
          ++pAdapter->stats.tx_dropped;
          ++pAdapter->hdd_stats.hddTxRxStats.txXmitDropped;
@@ -620,15 +621,13 @@ int hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
     *occurs very frequently in low traffic cases */
    if((pAdapter->wmm_tx_queue[ac].count + 1) % 10 == 0)
    {
-      /* Use the following debug statement during Engineering Debugging.
-       * There are chance that this will lead to a Watchdog Bark
-       * if it is in the mainline code and if the log level is enabled by someone for debugging
-       *  VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,
-       *               "%s:Queue is Filling up.Inform TL again about pending packets", __func__);*/
+      /* Use the following debug statement during Engineering Debugging.There are chance that this will lead to a Watchdog Bark
+            * if it is in the mainline code and if the log level is enabled by someone for debugging
+           VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,"%s:Queue is Filling up.Inform TL again about pending packets", __func__);*/
 
-      WLANTL_STAPktPending( (WLAN_HDD_GET_CTX(pAdapter))->pvosContext,
-                             STAId, ac
-                            );
+       WLANTL_STAPktPending( (WLAN_HDD_GET_CTX(pAdapter))->pvosContext,
+                              STAId, ac
+                             );
    }
    //If we have already reached the max queue size, disable the TX queue
    if ( pAdapter->wmm_tx_queue[ac].count == pAdapter->wmm_tx_queue[ac].max_size)

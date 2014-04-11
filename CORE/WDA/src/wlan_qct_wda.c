@@ -2089,8 +2089,6 @@ VOS_STATUS WDA_GetWcnssWlanCompiledVersion(v_PVOID_t pvosGCtx,
                                            tSirVersionType *pVersion)
 {
    tWDA_CbContext *pWDA;
-   VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO_LOW,
-             "%s: Entered", __func__);
    if ((NULL == pvosGCtx) || (NULL == pVersion))
    {
       VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
@@ -2118,8 +2116,6 @@ VOS_STATUS WDA_GetWcnssWlanReportedVersion(v_PVOID_t pvosGCtx,
                                            tSirVersionType *pVersion)
 {
    tWDA_CbContext *pWDA;
-   VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO_LOW,
-             "%s: Entered", __func__);
    if ((NULL == pvosGCtx) || (NULL == pVersion))
    {
       VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
@@ -12425,7 +12421,7 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
 
       default:
       {
-         VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+         VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                                   "No Handling for msg type %x in WDA " 
                                   ,pMsg->type);
          /* Do Nothing? MSG Body should be freed at here */
