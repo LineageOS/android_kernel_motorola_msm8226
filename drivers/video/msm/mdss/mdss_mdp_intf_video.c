@@ -441,8 +441,10 @@ static int mdss_mdp_video_wait4comp(struct mdss_mdp_ctl *ctl, void *arg)
 		rc = mdss_mdp_video_pollwait(ctl);
 	} else {
 		prev_vsync_cnt = ctl->vsync_cnt;
+		mutex_unlock(&ctl->lock);
 		rc = wait_for_completion_timeout(&ctx->vsync_comp,
 				usecs_to_jiffies(VSYNC_TIMEOUT_US));
+		mutex_lock(&ctl->lock);
 		if (rc == 0) {
 			pr_err("%s: TIMEOUT (vsync_cnt: prev: %u cur: %u)\n",
 				__func__, prev_vsync_cnt, ctl->vsync_cnt);
