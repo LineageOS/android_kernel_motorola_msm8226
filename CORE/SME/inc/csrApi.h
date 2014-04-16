@@ -1136,8 +1136,6 @@ typedef struct tagCsrConfigParam
 
     tANI_U8   enableTxLdpc;
 
-    tANI_BOOLEAN  enableOxygenNwk;
-
     tANI_U8 isAmsduSupportInAMPDU;
     tANI_U8 nSelect5GHzMargin;
     tANI_BOOLEAN initialScanSkipDFSCh;

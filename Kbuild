@@ -327,9 +327,13 @@ NLINK_OBJS :=	$(NLINK_SRC_DIR)/wlan_nlink_srv.o
 PTT_SRC_DIR :=	$(SVC_SRC_DIR)/ptt
 PTT_OBJS :=	$(PTT_SRC_DIR)/wlan_ptt_sock_svc.o
 
+WLAN_LOGGING_SRC_DIR := $(SVC_SRC_DIR)/logging
+WLAN_LOGGING_OBJS := $(WLAN_LOGGING_SRC_DIR)/wlan_logging_sock_svc.o
+
 SVC_OBJS :=	$(BTC_OBJS) \
 		$(NLINK_OBJS) \
-		$(PTT_OBJS)
+		$(PTT_OBJS) \
+                $(WLAN_LOGGING_OBJS)
 
 ############ SYS ############
 SYS_DIR :=	CORE/SYS
@@ -366,7 +370,8 @@ TL_INC := 	-I$(WLAN_ROOT)/$(TL_INC_DIR) \
 
 TL_OBJS := 	$(TL_SRC_DIR)/wlan_qct_tl.o \
 		$(TL_SRC_DIR)/wlan_qct_tl_ba.o \
-		$(TL_SRC_DIR)/wlan_qct_tl_hosupport.o
+		$(TL_SRC_DIR)/wlan_qct_tl_hosupport.o \
+               $(TL_SRC_DIR)/wlan_qct_tl_trace.o
 
 ############ VOSS ############
 VOSS_DIR :=	CORE/VOSS
@@ -542,7 +547,11 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DFEATURE_WLAN_LPHB \
                 -DFEATURE_WLAN_CH144 \
                 -DWLAN_BUG_ON_SKB_ERROR \
-                -DWLAN_DXE_LOW_RESOURCE_TIMER
+                -DWLAN_DXE_LOW_RESOURCE_TIMER \
+		-DWLAN_FEATURE_RELIABLE_MCAST \
+		-DWLAN_NL80211_TESTMODE \
+		-DFEATURE_WLAN_LPHB \
+                -DWLAN_LOGGING_SOCK_SVC_ENABLE
 
 ifneq ($(CONFIG_PRONTO_WLAN),)
 CDEFINES += -DWCN_PRONTO

@@ -2135,10 +2135,10 @@ eHalStatus sme_ProcessMsg(tHalHandle hHal, vos_msg_t* pMsg)
 
 #ifdef FEATURE_WLAN_LPHB
           /* LPHB timeout indication arrived, send IND to client */
-          case eWNI_SME_LPHB_WAIT_TIMEOUT_IND:
-                if (pMac->sme.pLphbWaitTimeoutCb)
+          case eWNI_SME_LPHB_IND:
+                if (pMac->sme.pLphbIndCb)
                 {
-                   pMac->sme.pLphbWaitTimeoutCb(pMac->pAdapter, pMsg->bodyptr);
+                   pMac->sme.pLphbIndCb(pMac->pAdapter, pMsg->bodyptr);
                 }
                 vos_mem_free(pMsg->bodyptr);
 
@@ -9806,8 +9806,8 @@ VOS_STATUS sme_SelectCBMode(tHalHandle hHal, eCsrPhyMode eCsrPhyMode, tANI_U8 ch
       smeConfig.csrConfig.channelBondingMode5GHz = 0;
    }
 
-   VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
-         "cbmode selected=%ld\n", smeConfig.csrConfig.channelBondingMode5GHz);
+   VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_WARN,
+         "cbmode selected=%d", smeConfig.csrConfig.channelBondingMode5GHz);
 
    sme_UpdateConfig (pMac, &smeConfig);
    return VOS_STATUS_SUCCESS;
@@ -9900,7 +9900,7 @@ eHalStatus sme_LPHBConfigReq
     {
         if ((LPHB_SET_EN_PARAMS_INDID == lphdReq->cmd) &&
             (NULL == pCallbackfn) &&
-            (NULL == pMac->sme.pLphbWaitTimeoutCb))
+            (NULL == pMac->sme.pLphbIndCb))
         {
            VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
                      "%s: Indication Call back did not registered", __func__);
@@ -9909,7 +9909,7 @@ eHalStatus sme_LPHBConfigReq
         }
         else if (NULL != pCallbackfn)
         {
-           pMac->sme.pLphbWaitTimeoutCb = pCallbackfn;
+           pMac->sme.pLphbIndCb = pCallbackfn;
         }
 
         /* serialize the req through MC thread */
