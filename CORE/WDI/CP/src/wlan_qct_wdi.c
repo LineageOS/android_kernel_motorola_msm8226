@@ -27078,7 +27078,7 @@ WDI_dhcpStartInd
 
    wdiEventData.wdiRequest      = WDI_DHCP_START_IND;
    wdiEventData.pEventData      = wdiDHCPInd;
-   wdiEventData.uEventDataSize  = sizeof(wdiDHCPInd);
+   wdiEventData.uEventDataSize  = sizeof(WDI_DHCPInd);
    wdiEventData.pCBfnc          = NULL;
    wdiEventData.pUserData       = NULL;
 
@@ -27116,7 +27116,7 @@ WDI_dhcpStopInd
 
    wdiEventData.wdiRequest      = WDI_DHCP_STOP_IND;
    wdiEventData.pEventData      = wdiDHCPInd;
-   wdiEventData.uEventDataSize  = sizeof(wdiDHCPInd);
+   wdiEventData.uEventDataSize  = sizeof(WDI_DHCPInd);
    wdiEventData.pCBfnc          = NULL;
    wdiEventData.pUserData       = NULL;
 
