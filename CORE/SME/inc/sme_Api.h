@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -120,6 +120,7 @@ typedef struct _smeConfigParams
 #endif
     tANI_BOOLEAN  fScanOffload;
     tANI_U8  isAmsduSupportInAMPDU;
+    tANI_U32       fEnableDebugLog;
 } tSmeConfigParams, *tpSmeConfigParams;
 
 typedef enum
@@ -1390,6 +1391,21 @@ eHalStatus sme_GetCountryCode(tHalHandle hHal, tANI_U8 *pBuf, tANI_U8 *pbLen);
 
   -------------------------------------------------------------------------------*/
 eHalStatus sme_SetCountryCode(tHalHandle hHal, tANI_U8 *pCountry, tANI_BOOLEAN *pfRestartNeeded);
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_InitChannels
+
+    \brief Used to initialize CSR channel lists while driver loading
+
+    \param hHal - global pMac structure
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+
+ -------------------------------------------------------------------------------*/
+eHalStatus sme_InitChannels(tHalHandle hHal);
 
 /* ---------------------------------------------------------------------------
     \fn sme_ResetCountryCodeInformation
@@ -2926,13 +2942,14 @@ VOS_STATUS sme_SendTdlsLinkEstablishParams(tHalHandle hHal,
     \param frame_type - Type of TDLS mgmt frame to be sent.
     \param dialog - dialog token used in the frame.
     \param status - status to be incuded in the frame.
+    \param peerCapability - peerCapability to be incuded in the frame.
     \param buf - additional IEs to be included
     \param len - lenght of additional Ies
     \param responder - Tdls request type
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
 VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac,
-      tANI_U8 frame_type, tANI_U8 dialog, tANI_U16 status, tANI_U8 *buf, tANI_U8 len, tANI_U8 responder);
+      tANI_U8 frame_type, tANI_U8 dialog, tANI_U16 status, tANI_U32 peerCapability, tANI_U8 *buf, tANI_U8 len, tANI_U8 responder);
 /* ---------------------------------------------------------------------------
     \fn sme_ChangeTdlsPeerSta
     \brief  API to Update TDLS peer sta parameters.
@@ -3192,4 +3209,5 @@ eHalStatus sme_AddChAvoidCallback
    void (*pCallbackfn)(void *pAdapter, void *indParam)
 );
 #endif /* FEATURE_WLAN_CH_AVOID */
+eHalStatus sme_UpdateConnectDebug(tHalHandle hHal, tANI_U32 set_value);
 #endif //#if !defined( __SME_API_H )

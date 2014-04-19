@@ -50,8 +50,6 @@
 
     $Id: wlan_hdd_wext.c,v 1.34 2007/04/14 01:49:23 jimz Exp jimz $
 
-    Copyright (C) 2007 Airgo Networks, Incorporated
-
     This file defines all of the types that are utilized by the CCP module
     of the "Portable" HDD.   This file also includes the underlying Linux
     Wireless Extensions Data types referred to by CCP.
@@ -128,7 +126,6 @@ extern void hdd_resume_wlan(struct early_suspend *wlan_suspend);
 
 
 extern int wlan_hdd_cfg80211_update_band(struct wiphy *wiphy, eCsrBand eBand);
-int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr);
 
 static int ioctl_debug;
 module_param(ioctl_debug, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -160,6 +157,9 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 #define WE_ENABLE_STRICT_FCC_REG  10
 #define WE_SET_MAX_TX_POWER_2_4   11
 #define WE_SET_MAX_TX_POWER_5_0   12
+/* Private IOCTL for debug connection issues */
+#define WE_SET_DEBUG_LOG     13
+
 
 /* Private ioctls and their sub-ioctls */
 #define WLAN_PRIV_SET_NONE_GET_INT    (SIOCIWFIRSTPRIV + 1)
@@ -2826,6 +2826,12 @@ VOS_STATUS  wlan_hdd_enter_bmps(hdd_adapter_t *pAdapter, int mode)
 
    hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "power mode=%d", mode);
    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+   if (pHddCtx->isLogpInProgress) {
+      VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                "%s:LOGP in Progress. Ignore!!!", __func__);
+      return VOS_STATUS_E_FAILURE;
+   }
+
    init_completion(&context.completion);
 
    context.pAdapter = pAdapter;
@@ -4358,6 +4364,13 @@ static int iw_setint_getnone(struct net_device *dev, struct iw_request_info *inf
            hddLog(VOS_TRACE_LEVEL_INFO,"%s: SUCCESS in setting strict FCC regulatory rule",
                   __func__);
 
+           break;
+        }
+        case WE_SET_DEBUG_LOG:
+        {
+           hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+           pHddCtx->cfg_ini->gEnableDebugLog = set_value;
+           sme_UpdateConnectDebug(pHddCtx->hHal, set_value);
            break;
         }
 
@@ -7166,17 +7179,15 @@ static int iw_set_pno_priv(struct net_device *dev,
 #endif /*FEATURE_WLAN_SCAN_PNO*/
 
 //Common function to SetBand
-int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr)
+int hdd_setBand(struct net_device *dev, u8 ui_band)
 {
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     tHalHandle hHal = WLAN_HDD_GET_HAL_CTX(pAdapter);
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-    tANI_U8 band = 0;
+    eCsrBand band;
     eCsrBand currBand = eCSR_BAND_MAX;
 
-    band = ptr[WLAN_HDD_UI_SET_BAND_VALUE_OFFSET] - '0'; /*convert the band value from ascii to integer*/
-
-    switch(band)
+    switch(ui_band)
     {
         case WLAN_HDD_UI_BAND_AUTO:
              band = eCSR_BAND_ALL;
@@ -7191,15 +7202,15 @@ int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr)
             band = eCSR_BAND_MAX;
     }
 
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: change band to %u",
+    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: change band to %u",
                 __func__, band);
 
     if (band == eCSR_BAND_MAX)
     {
         /* Received change band request with invalid band value */
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-               "%s: Invalid band value %u", __func__, band);
-        return -EIO;
+               "%s: Invalid band value %u", __func__, ui_band);
+        return -EINVAL;
     }
 
     if ( (band == eCSR_BAND_24 && pHddCtx->cfg_ini->nBandCapability==2) ||
@@ -7284,13 +7295,23 @@ int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr)
     return 0;
 }
 
+int hdd_setBand_helper(struct net_device *dev, const char *command)
+{
+    u8 band;
+
+    /*convert the band value from ascii to integer*/
+    band = command[WLAN_HDD_UI_SET_BAND_VALUE_OFFSET] - '0';
+
+    return hdd_setBand(dev, band);
+
+}
+
 static int iw_set_band_config(struct net_device *dev,
                            struct iw_request_info *info,
                            union iwreq_data *wrqu, char *extra)
 {
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-    tANI_U8 *ptr = NULL;
-    int ret = 0;
+    int *value = (int *)extra;
 
     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: ", __func__);
 
@@ -7301,24 +7322,7 @@ static int iw_set_band_config(struct net_device *dev,
         return -EBUSY;
     }
 
-    /* ODD number is used for set, copy data using copy_from_user */
-    ptr = mem_alloc_copy_from_user_helper(wrqu->data.pointer,
-                                          wrqu->data.length);
-    if (NULL == ptr)
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "mem_alloc_copy_from_user_helper fail");
-        return -ENOMEM;
-    }
-
-    if (memcmp(ptr, "SETBAND ", 8) == 0)
-    {
-        /* Change band request received */
-        ret = hdd_setBand_helper(dev, ptr);
-    }
-    kfree(ptr);
-
-    return ret;
+    return hdd_setBand(dev, value[0]);
 }
 
 static int iw_set_power_params_priv(struct net_device *dev,
@@ -7676,6 +7680,10 @@ static const struct iw_priv_args we_private_args[] = {
         IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
         0,
         "setStrictFCCreg" },
+
+    {   WE_SET_DEBUG_LOG,
+        IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
+        0, "setDbgLvl" },
 
     /* handlers for main ioctl */
     {   WLAN_PRIV_SET_NONE_GET_INT,
@@ -8040,7 +8048,7 @@ static const struct iw_priv_args we_private_args[] = {
 #endif
     {
         WLAN_SET_BAND_CONFIG,
-        IW_PRIV_TYPE_CHAR| WE_MAX_STR_LEN,
+        IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
         0,
         "SETBAND" },
     /* handlers for dynamic MC BC ioctl */

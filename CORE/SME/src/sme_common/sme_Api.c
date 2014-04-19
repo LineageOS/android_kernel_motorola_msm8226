@@ -1373,6 +1373,7 @@ eHalStatus sme_UpdateConfig(tHalHandle hHal, tpSmeConfigParams pSmeConfigParams)
                    "Could not pass on WNI_CFG_SCAN_IN_POWERSAVE to CCM");
        }
    }
+   pMac->fEnableDebugLog = pSmeConfigParams->fEnableDebugLog;
    return status;
 }
 
@@ -4996,6 +4997,41 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
 
     return (status);
 }
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_InitChannels
+
+    \brief Used to initialize CSR channel lists while driver loading
+
+    \param hHal - global pMac structure
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+
+ -------------------------------------------------------------------------------*/
+eHalStatus sme_InitChannels(tHalHandle hHal)
+{
+    eHalStatus          status = eHAL_STATUS_FAILURE;
+    tpAniSirGlobal      pMac = PMAC_STRUCT(hHal);
+
+    if (NULL == pMac)
+    {
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
+            "%s: pMac is null", __func__);
+        return status;
+    }
+
+    status = sme_AcquireGlobalLock(&pMac->sme);
+    if (HAL_STATUS_SUCCESS(status))
+    {
+        status = csrInitChannels(pMac);
+        sme_ReleaseGlobalLock(&pMac->sme);
+    }
+    return status;
+}
+
 /* ---------------------------------------------------------------------------
 
     \fn sme_DHCPStartInd
@@ -9433,13 +9469,14 @@ VOS_STATUS sme_SendTdlsLinkEstablishParams(tHalHandle hHal,
     \param frame_type - Type of TDLS mgmt frame to be sent.
     \param dialog - dialog token used in the frame.
     \param status - status to be incuded in the frame.
+    \param peerCapability - peer cpabilities
     \param buf - additional IEs to be included
     \param len - lenght of additional Ies
     \param responder - Tdls request type
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
 VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac,
-      tANI_U8 frame_type, tANI_U8 dialog, tANI_U16 statusCode, tANI_U8 *buf, tANI_U8 len, tANI_U8 responder)
+      tANI_U8 frame_type, tANI_U8 dialog, tANI_U16 statusCode, tANI_U32 peerCapability, tANI_U8 *buf, tANI_U8 len, tANI_U8 responder)
 {
     eHalStatus          status    = eHAL_STATUS_SUCCESS;
     tCsrTdlsSendMgmt sendTdlsReq = {{0}} ;
@@ -9455,6 +9492,7 @@ VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr
         sendTdlsReq.dialog = dialog;
         sendTdlsReq.statusCode = statusCode;
         sendTdlsReq.responder = responder;
+        sendTdlsReq.peerCapability = peerCapability;
 
         status = csrTdlsSendMgmtReq(hHal, sessionId, &sendTdlsReq) ;
 
@@ -10227,4 +10265,12 @@ eHalStatus sme_AddChAvoidCallback
     return(status);
 }
 #endif /* FEATURE_WLAN_CH_AVOID */
+
+eHalStatus sme_UpdateConnectDebug(tHalHandle hHal, tANI_U32 set_value)
+{
+    eHalStatus status = eHAL_STATUS_SUCCESS;
+    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
+    pMac->fEnableDebugLog = set_value;
+    return (status);
+}
 
