@@ -148,7 +148,7 @@ int wlan_hdd_ftm_start(hdd_context_t *pAdapter);
 #else
 #define MEMORY_DEBUG_STR ""
 #endif
-
+#define MAX_WAIT_FOR_ROC_COMPLETION 3
 /* the Android framework expects this param even though we don't use it */
 #define BUF_LEN 20
 static char fwpath_buffer[BUF_LEN];
@@ -3478,35 +3478,23 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            dhcpPhase = command + 11;
            if ('1' == *dhcpPhase)
            {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                         FL("BTCOEXMODE %d"), *dhcpPhase);
+               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                        FL("send DHCP START indication"));
 
                pHddCtx->btCoexModeSet = TRUE;
 
-              /* Firmware failing to process DHCP START/STOP indications.
-               * So, for now commentig below code, once issue is resolved,
-               * follwing will be uncommented.
-               */
-               #if 0
                sme_DHCPStartInd(pHddCtx->hHal, pAdapter->device_mode,
-                                pAdapter->macAddressCurrent.bytes);
-               #endif
+                                pAdapter->sessionId);
            }
            else if ('2' == *dhcpPhase)
            {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                         FL("BTCOEXMODE %d"), *dhcpPhase);
+               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                         FL("send DHCP STOP indication"));
 
                pHddCtx->btCoexModeSet = FALSE;
 
-               /* Firmware failing to process DHCP START/STOP indications.
-                * So, for now commentig below code, once issue is resolved,
-                * follwing will be uncommented.
-                */
-               #if 0
                sme_DHCPStopInd(pHddCtx->hHal, pAdapter->device_mode,
-                               pAdapter->macAddressCurrent.bytes);
-               #endif
+                               pAdapter->sessionId);
            }
        }
        else if (strncmp(command, "SCAN-ACTIVE", 11) == 0)
@@ -6291,6 +6279,7 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
    eHalStatus halStatus = eHAL_STATUS_SUCCESS;
    hdd_wext_state_t *pWextState = WLAN_HDD_GET_WEXT_STATE_PTR(pAdapter);
    union iwreq_data wrqu;
+   v_U8_t retry = 0;
    long ret;
 
    ENTER();
@@ -6352,6 +6341,30 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
          {
             hdd_abort_mac_scan(pHddCtx, eCSR_SCAN_ABORT_DEFAULT);
          }
+       if (pAdapter->device_mode != WLAN_HDD_INFRA_STATION)
+       {
+          while (pAdapter->is_roc_inprogress)
+          {
+              VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                         "%s: ROC in progress for session %d!!!",
+                         __func__, pAdapter->sessionId);
+              // waiting for ROC to expire
+               msleep(500);
+              /* In GO present case , if retry exceeds 3,
+                 it means something went wrong. */
+               if ( retry++ > MAX_WAIT_FOR_ROC_COMPLETION )
+               {
+                  VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                            "%s: ROC completion is not received.!!!", __func__);
+                  sme_CancelRemainOnChannel(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                                            pAdapter->sessionId);
+                  wait_for_completion_interruptible_timeout(
+                                       &pAdapter->cancel_rem_on_chan_var,
+                                       msecs_to_jiffies(WAIT_CANCEL_REM_CHAN));
+                  break;
+               }
+            }
+       }
 #ifdef WLAN_NS_OFFLOAD
 #ifdef WLAN_OPEN_SOURCE
          cancel_work_sync(&pAdapter->ipv6NotifierWorkQueue);
@@ -6398,6 +6411,24 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
       case WLAN_HDD_SOFTAP:
       case WLAN_HDD_P2P_GO:
          //Any softap specific cleanup here...
+         if (pAdapter->device_mode == WLAN_HDD_P2P_GO) {
+            while (pAdapter->is_roc_inprogress) {
+               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                         "%s: ROC in progress for session %d!!!",
+                         __func__, pAdapter->sessionId);
+               msleep(500);
+               if ( retry++ > MAX_WAIT_FOR_ROC_COMPLETION ) {
+                  VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                            "%s: ROC completion is not received.!!!", __func__);
+                  WLANSAP_CancelRemainOnChannel(
+                                     (WLAN_HDD_GET_CTX(pAdapter))->pvosContext);
+                  wait_for_completion_interruptible_timeout(
+                                       &pAdapter->cancel_rem_on_chan_var,
+                                       msecs_to_jiffies(WAIT_CANCEL_REM_CHAN));
+                  break;
+               }
+            }
+         }
          mutex_lock(&pHddCtx->sap_lock);
          if (test_bit(SOFTAP_BSS_STARTED, &pAdapter->event_flags)) 
          {
