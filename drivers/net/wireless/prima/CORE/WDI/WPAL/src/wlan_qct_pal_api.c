@@ -61,6 +61,7 @@
 #ifndef MEMORY_DEBUG
 #include "vos_memory.h"
 #endif /* MEMORY_DEBUG */
+#include "vos_sched.h"
 #include "vos_api.h"
 
 #include "dma-mapping.h"
@@ -461,5 +462,17 @@ void wpalDevicePanic(void)
 {
    BUG_ON(0);
    return;
+}
+/*---------------------------------------------------------------------------
+    wpalIsWDresetInProgress -  calls vos API isWDresetInProgress()
+
+    Param:
+       NONE
+    Return:
+       STATUS
+ ---------------------------------------------------------------------------*/
+int  wpalIsWDresetInProgress(void)
+{
+   return isWDresetInProgress();
 }
 
