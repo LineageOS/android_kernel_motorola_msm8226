@@ -3547,7 +3547,7 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
     hdd_context_t *pHddCtx = wiphy_priv(wiphy);
     eCsrBand nBandCapability = eCSR_BAND_ALL;
     v_COUNTRYCODE_t country_code;
-    int i;
+    int i, j;
     v_BOOL_t isVHT80Allowed;
 
     VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
@@ -3633,7 +3633,6 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
         if  (REGDOMAIN_COUNT == temp_reg_domain)
             temp_reg_domain = REGDOMAIN_WORLD;
 
-        nBandCapability = pHddCtx->cfg_ini->nBandCapability;
         isVHT80Allowed = pHddCtx->isVHT80Allowed;
         if (create_linux_regulatory_entry(wiphy, request,
                                           nBandCapability) == 0)
@@ -3664,6 +3663,31 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
         }
 
     }
+
+    /* Mark channels 36-48 as passive for US CC */
+
+    if (request->initiator == NL80211_REGDOM_SET_BY_DRIVER ||
+       (request->initiator == NL80211_REGDOM_SET_BY_CORE)||
+       (request->initiator == NL80211_REGDOM_SET_BY_USER))
+    {
+       if (wiphy->bands[IEEE80211_BAND_5GHZ])
+       {
+          for (j=0; j<wiphy->bands[IEEE80211_BAND_5GHZ]->n_channels; j++)
+          {
+              // UNII-1 band channels are passive when domain is FCC.
+             if ((wiphy->bands[IEEE80211_BAND_5GHZ ]->channels[j].center_freq == 5180 ||
+                  wiphy->bands[IEEE80211_BAND_5GHZ]->channels[j].center_freq == 5200 ||
+                  wiphy->bands[IEEE80211_BAND_5GHZ]->channels[j].center_freq == 5220 ||
+                  wiphy->bands[IEEE80211_BAND_5GHZ]->channels[j].center_freq == 5240) &&
+                  ((request->alpha2[0]== 'U'&& request->alpha2[1]=='S') &&
+                                pHddCtx->nEnableStrictRegulatoryForFCC))
+             {
+                 wiphy->bands[IEEE80211_BAND_5GHZ]->channels[j].flags |= IEEE80211_CHAN_PASSIVE_SCAN;
+             }
+          }
+       }
+    }
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
     return;
 #else
@@ -3718,6 +3742,8 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
         reg_domain = pnvEFSTable->halnv.tables.defaultCountryTable.regDomain;
         wiphy->flags |= WIPHY_FLAG_STRICT_REGULATORY;
     }
+
+    temp_reg_domain = cur_reg_domain = reg_domain;
 
     m = 0;
     for (i = 0; i < IEEE80211_NUM_BANDS; i++)
