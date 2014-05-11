@@ -3499,11 +3499,15 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
        }
        else if (strncmp(command, "SCAN-ACTIVE", 11) == 0)
        {
-          pHddCtx->scan_info.scan_mode = eSIR_ACTIVE_SCAN;
+           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                              FL("making default scan to ACTIVE"));
+           pHddCtx->scan_info.scan_mode = eSIR_ACTIVE_SCAN;
        }
        else if (strncmp(command, "SCAN-PASSIVE", 12) == 0)
        {
-          pHddCtx->scan_info.scan_mode = eSIR_PASSIVE_SCAN;
+           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                              FL("making default scan to PASSIVE"));
+           pHddCtx->scan_info.scan_mode = eSIR_PASSIVE_SCAN;
        }
        else if (strncmp(command, "GETDWELLTIME", 12) == 0)
        {
@@ -3817,7 +3821,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            hddLog( VOS_TRACE_LEVEL_WARN, "%s: Unsupported GUI command %s",
                    __func__, command);
        }
-
    }
 exit:
    if (command)

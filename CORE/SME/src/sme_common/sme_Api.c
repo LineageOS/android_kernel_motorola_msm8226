@@ -2537,6 +2537,29 @@ eHalStatus sme_ScanFlushResult(tHalHandle hHal, tANI_U8 sessionId)
    return (status);
 }
 
+/* ---------------------------------------------------------------------------
+    \fn sme_FilterScanResults
+    \brief a wrapper function to request CSR to clear scan results.
+    This is a synchronous call
+    \return eHalStatus
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_FilterScanResults(tHalHandle hHal, tANI_U8 sessionId)
+{
+   eHalStatus status = eHAL_STATUS_SUCCESS;
+   tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+
+   MTRACE(macTraceNew(pMac, VOS_MODULE_ID_SME,
+          TRACE_CODE_SME_RX_HDD_MSG_SCAN_FLUSH_RESULTS, sessionId,0 ));
+   status = sme_AcquireGlobalLock( &pMac->sme );
+   if ( HAL_STATUS_SUCCESS( status ) )
+   {
+       csrScanFilterResults(pMac);
+       sme_ReleaseGlobalLock( &pMac->sme );
+   }
+
+   return (status);
+}
+
 eHalStatus sme_ScanFlushP2PResult(tHalHandle hHal, tANI_U8 sessionId)
 {
         eHalStatus status = eHAL_STATUS_FAILURE;
@@ -4883,9 +4906,9 @@ eHalStatus sme_ChangeCountryCode( tHalHandle hHal,
    {
        smsLog(pMac, LOG1, FL(" called"));
 
-       if ((csrGetInfraSessionId(pMac) != -1) &&
-           (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority))
-       {
+      if ((pMac->roam.configParam.Is11dSupportEnabledOriginal == true) &&
+          (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority))
+      {
 
            smsLog(pMac, LOGW, "Set Country Code Fail since the STA is associated and userspace does not have priority ");
 
@@ -7279,7 +7302,7 @@ eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf)
     * which does not have channel number belong to 11d
     * channel list
     */
-   csrScanFilter11dResult(pMac);
+   csrScanFilterResults(pMac);
 
 #endif
    if( pMsg->changeCCCallback )
@@ -7323,22 +7346,26 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
         is11dCountry = VOS_TRUE;
     }
 
-    if ((!is11dCountry) && (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority) &&
-        (csrGetInfraSessionId(pMac) != -1 ))
+    /* Set the country code given by userspace when 11dOriginal is FALSE
+     * when 11doriginal is True,is11dCountry =0 and
+     * fSupplicantCountryCodeHasPriority = 0, then revert the country code,
+     * and return failure
+     */
+    if (pMac->roam.configParam.Is11dSupportEnabledOriginal == true)
     {
+        if ((!is11dCountry) && (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority))
+        {
 
-        smsLog( pMac, LOGW, FL(" incorrect country being set, nullify this request"));
+            smsLog( pMac, LOGW, FL(" incorrect country being set, nullify this request"));
 
-        /* we have got a request for a country that should not have been added since the
-           STA is associated; nullify this request */
-        status = csrGetRegulatoryDomainForCountry(pMac,
+            status = csrGetRegulatoryDomainForCountry(pMac,
                                                   pMac->scan.countryCode11d,
                                                   (v_REGDOMAIN_t *) &reg_domain_id,
                                                   COUNTRY_IE);
 
-        return eHAL_STATUS_FAILURE;
+            return eHAL_STATUS_FAILURE;
+        }
     }
-
     /* if Supplicant country code has priority, disable 11d */
     if (!is11dCountry && pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
     {
@@ -7398,7 +7425,7 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
      * which does not have channel number belong to 11d
      * channel list
      */
-    csrScanFilter11dResult(pMac);
+    csrScanFilterResults(pMac);
     // Do active scans after the country is set by User hints or Country IE
     pMac->scan.curScanType = eSIR_ACTIVE_SCAN;
 
@@ -7462,7 +7489,7 @@ eHalStatus sme_HandleChangeCountryCodeByCore(tpAniSirGlobal pMac, tAniGenericCha
      * which does not have channel number belong to 11d
      * channel list
      */
-    csrScanFilter11dResult(pMac);
+    csrScanFilterResults(pMac);
     smsLog(pMac, LOG1, FL(" returned"));
     return eHAL_STATUS_SUCCESS;
 }
