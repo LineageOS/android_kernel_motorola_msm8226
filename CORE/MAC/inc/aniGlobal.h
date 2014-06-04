@@ -447,6 +447,8 @@ typedef struct sAniSirLim
 
     // Heart-Beat interval value
     tANI_U32   gLimHeartBeatCount;
+    tSirMacAddr gLimHeartBeatApMac[2];
+    tANI_U8 gLimHeartBeatApMacIndex;
 
     // Statistics to keep track of no. beacons rcvd in heart beat interval
     tANI_U16            gLimHeartBeatBeaconStats[MAX_NO_BEACONS_PER_HEART_BEAT_INTERVAL];
@@ -1060,6 +1062,8 @@ typedef struct sAniSirGlobal
     tANI_U8 isCoalesingInIBSSAllowed;
     tANI_U32 fEnableDebugLog;
     tSirQosMapSet QosMapSet;
+    tANI_U32 fDeferIMPSTime;
+    tANI_BOOLEAN deferImps;
 } tAniSirGlobal;
 
 #ifdef FEATURE_WLAN_TDLS

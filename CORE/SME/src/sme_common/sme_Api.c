@@ -106,6 +106,8 @@ eCsrPhyMode sme_GetPhyMode(tHalHandle hHal);
 
 eHalStatus sme_HandleChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf);
 
+void sme_DisconnectConnectedSessions(tpAniSirGlobal pMac);
+
 eHalStatus sme_HandleGenericChangeCountryCode(tpAniSirGlobal pMac,  void *pMsgBuf);
 
 eHalStatus sme_HandlePreChannelSwitchInd(tHalHandle hHal);
@@ -726,13 +728,18 @@ sme_process_cmd:
             {
                 pCommand = GET_BASE_ADDR( pEntry, tSmeCmd, Link );
 
-                //We cannot execute any command in wait-for-key state until setKey is through.
-                if( CSR_IS_WAIT_FOR_KEY( pMac, pCommand->sessionId ) )
+                /* Allow only disconnect command
+                 * in wait-for-key state until setKey is through.
+                 */
+                if( CSR_IS_WAIT_FOR_KEY( pMac, pCommand->sessionId ) &&
+                    !CSR_IS_DISCONNECT_COMMAND( pCommand ) )
                 {
                     if( !CSR_IS_SET_KEY_COMMAND( pCommand ) )
                     {
                         csrLLUnlock( &pMac->sme.smeCmdActiveList );
-                        smsLog(pMac, LOGE, "  Cannot process command(%d) while waiting for key", pCommand->command);
+                        smsLog(pMac, LOGE, FL("SessionId %d:  Cannot process "
+                               "command(%d) while waiting for key"),
+                               pCommand->sessionId, pCommand->command);
                         fContinue = eANI_BOOLEAN_FALSE;
                         goto sme_process_scan_queue;
                     }
@@ -795,6 +802,16 @@ sme_process_cmd:
 
                     // Insert the command onto the ActiveList...
                     csrLLInsertHead( &pMac->sme.smeCmdActiveList, &pCommand->Link, LL_ACCESS_NOLOCK );
+
+                    if( pMac->deferImps )
+                    {
+                        /* IMPS timer is already running so stop it and
+                         * it will get restarted when no command is pending
+                         */
+                        csrScanStopIdleScanTimer( pMac );
+                        pMac->scan.fRestartIdleScan = eANI_BOOLEAN_TRUE;
+                        pMac->deferImps = eANI_BOOLEAN_FALSE;
+                    }
 
                     // .... and process the command.
 
@@ -1411,6 +1428,8 @@ eHalStatus sme_UpdateConfig(tHalHandle hHal, tpSmeConfigParams pSmeConfigParams)
    pMac->isCoalesingInIBSSAllowed =
          pSmeConfigParams->csrConfig.isCoalesingInIBSSAllowed;
    pMac->fEnableDebugLog = pSmeConfigParams->fEnableDebugLog;
+   pMac->fDeferIMPSTime = pSmeConfigParams->fDeferIMPSTime;
+
    return status;
 }
 
@@ -5146,6 +5165,34 @@ eHalStatus sme_InitChannels(tHalHandle hHal)
     return status;
 }
 
+/*-------------------------------------------------------------------------
+    \fn sme_InitChannelsForCC
+
+    \brief Used to issue regulatory hint to user
+
+    \param hHal - global pMac structure
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+--------------------------------------------------------------------------*/
+
+eHalStatus sme_InitChannelsForCC(tHalHandle hHal)
+{
+    eHalStatus          status = eHAL_STATUS_FAILURE;
+    tpAniSirGlobal      pMac = PMAC_STRUCT(hHal);
+
+    if (NULL == pMac)
+    {
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
+            "%s: pMac is null", __func__);
+        return status;
+    }
+    status = csrInitChannelsForCC(pMac);
+
+    return status;
+}
+
 /* ---------------------------------------------------------------------------
 
     \fn sme_DHCPStartInd
@@ -7529,7 +7576,7 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
     csrScanFilterResults(pMac);
     // Do active scans after the country is set by User hints or Country IE
     pMac->scan.curScanType = eSIR_ACTIVE_SCAN;
-
+    sme_DisconnectConnectedSessions(pMac);
     smsLog(pMac, LOG1, FL(" returned"));
     return eHAL_STATUS_SUCCESS;
 }
@@ -7595,6 +7642,63 @@ eHalStatus sme_HandleChangeCountryCodeByCore(tpAniSirGlobal pMac, tAniGenericCha
     return eHAL_STATUS_SUCCESS;
 }
 
+/* ---------------------------------------------------------------------------
+
+    \fn sme_DisconnectConnectedSessions
+
+    \brief Disconnect STA and P2P client session if channel is not supported
+
+    If new country code does not support the channel on which STA/P2P client
+    is connetced, it sends the disconnect to the AP/P2P GO
+
+    \param pMac - The handle returned by macOpen
+
+    \return eHalStatus
+
+   -------------------------------------------------------------------------------*/
+
+void sme_DisconnectConnectedSessions(tpAniSirGlobal pMac)
+{
+    v_U8_t i, sessionId, isChanFound = false;
+    tANI_U8 currChannel;
+
+    for (sessionId=0; sessionId < CSR_ROAM_SESSION_MAX; sessionId++)
+    {
+        if (csrIsSessionClientAndConnected(pMac, sessionId))
+        {
+            isChanFound = false;
+            //Session is connected.Check the channel
+            currChannel = csrGetInfraOperationChannel(pMac, sessionId);
+            smsLog(pMac, LOGW, "Current Operating channel : %d, session :%d",
+                                                     currChannel, sessionId);
+            for (i=0; i < pMac->scan.base20MHzChannels.numChannels; i++)
+            {
+                if (pMac->scan.base20MHzChannels.channelList[i] == currChannel)
+                {
+                    isChanFound = true;
+                    break;
+                }
+            }
+
+            if (!isChanFound)
+            {
+                for (i=0; i < pMac->scan.base40MHzChannels.numChannels; i++)
+                {
+                    if (pMac->scan.base40MHzChannels.channelList[i] == currChannel)
+                    {
+                        isChanFound = true;
+                        break;
+                    }
+                }
+            }
+            if (!isChanFound)
+            {
+                smsLog(pMac, LOGW, "%s : Disconnect Session :%d", __func__, sessionId);
+                csrRoamDisconnect(pMac, sessionId, eCSR_DISCONNECT_REASON_UNSPECIFIED);
+            }
+        }
+    }
+}
 /* ---------------------------------------------------------------------------
 
     \fn sme_HandleGenericChangeCountryCode

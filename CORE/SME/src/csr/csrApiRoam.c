@@ -349,7 +349,7 @@ eHalStatus csrOpen(tpAniSirGlobal pMac)
         status = csrInitGetChannels( pMac );
 #endif
     }while(0);
-    
+
     return (status);
 }
 
@@ -363,7 +363,7 @@ eHalStatus csrInitChannels(tpAniSirGlobal pMac)
     eHalStatus status = eHAL_STATUS_SUCCESS;
     static uNvTables nvTables;
     VOS_STATUS vosStatus = VOS_STATUS_SUCCESS;
-    v_REGDOMAIN_t regId;
+    v_REGDOMAIN_t regId = REGDOMAIN_WORLD;
 
     vosStatus = vos_nv_readDefaultCountryTable( &nvTables );
     if ( VOS_IS_STATUS_SUCCESS(vosStatus) )
@@ -382,17 +382,6 @@ eHalStatus csrInitChannels(tpAniSirGlobal pMac)
     }
     smsLog( pMac, LOG1, FL(" country Code from nvRam %.2s"), pMac->scan.countryCodeDefault );
 
-    if (!('0' == pMac->scan.countryCodeDefault[0] &&
-        '0' == pMac->scan.countryCodeDefault[1]))
-    {
-        csrGetRegulatoryDomainForCountry(pMac, pMac->scan.countryCodeDefault,
-                                         &regId, COUNTRY_NV);
-    }
-    else
-    {
-        regId = REGDOMAIN_WORLD;
-    }
-
     WDA_SetRegDomain(pMac, regId, eSIR_TRUE);
     pMac->scan.domainIdDefault = regId;
     pMac->scan.domainIdCurrent = pMac->scan.domainIdDefault;
@@ -403,6 +392,31 @@ eHalStatus csrInitChannels(tpAniSirGlobal pMac)
     status = csrInitGetChannels( pMac );
     csrClearVotesForCountryInfo(pMac);
 
+    return status;
+}
+
+eHalStatus csrInitChannelsForCC(tpAniSirGlobal pMac)
+{
+    eHalStatus status = eHAL_STATUS_SUCCESS;
+    v_REGDOMAIN_t regId = REGDOMAIN_WORLD;
+
+    if (!('0' == pMac->scan.countryCodeDefault[0] &&
+        '0' == pMac->scan.countryCodeDefault[1]))
+    {
+        csrGetRegulatoryDomainForCountry(pMac, pMac->scan.countryCodeDefault,
+                                           &regId, COUNTRY_NV);
+
+    }
+    else
+    {
+        return status;
+    }
+    WDA_SetRegDomain(pMac, regId, eSIR_TRUE);
+    pMac->scan.domainIdDefault = regId;
+    pMac->scan.domainIdCurrent = pMac->scan.domainIdDefault;
+    vos_mem_copy(pMac->scan.countryCodeCurrent, pMac->scan.countryCodeDefault,
+                 WNI_CFG_COUNTRY_CODE_LEN);
+    status = csrInitGetChannels( pMac );
     return status;
 }
 
@@ -1812,6 +1826,7 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         pMac->roam.configParam.isCoalesingInIBSSAllowed =
                                pParam->isCoalesingInIBSSAllowed;
         pMac->roam.configParam.allowDFSChannelRoam = pParam->allowDFSChannelRoam;
+        pMac->roam.configParam.sendDeauthBeforeCon = pParam->sendDeauthBeforeCon;
     }
     
     return status;
@@ -1947,6 +1962,7 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
                                 pMac->roam.configParam.isCoalesingInIBSSAllowed;
         pParam->allowDFSChannelRoam =
                                     pMac->roam.configParam.allowDFSChannelRoam;
+        pParam->sendDeauthBeforeCon = pMac->roam.configParam.sendDeauthBeforeCon;
         csrSetChannels(pMac, pParam);
 
         status = eHAL_STATUS_SUCCESS;
@@ -4405,8 +4421,22 @@ static eCsrJoinState csrRoamJoinNextBss( tpAniSirGlobal pMac, tSmeCmd *pCommand,
         {
             //Need to assign these value because they are used in csrIsSameProfile
             pScanResult = GET_BASE_ADDR(pCommand->u.roamCmd.pRoamBssEntry, tCsrScanResult, Link);
-            pCommand->u.roamCmd.roamProfile.negotiatedUCEncryptionType = pScanResult->ucEncryptionType; //Negotiated while building scan result.
-            pCommand->u.roamCmd.roamProfile.negotiatedMCEncryptionType = pScanResult->mcEncryptionType;
+           /* The OSEN IE doesn't provide the cipher suite.
+            * Therefore set to constant value of AES */
+            if(pCommand->u.roamCmd.roamProfile.bOSENAssociation)
+            {
+                pCommand->u.roamCmd.roamProfile.negotiatedUCEncryptionType =
+                                                         eCSR_ENCRYPT_TYPE_AES;
+                pCommand->u.roamCmd.roamProfile.negotiatedMCEncryptionType =
+                                                         eCSR_ENCRYPT_TYPE_AES;
+            }
+            else
+            {
+                pCommand->u.roamCmd.roamProfile.negotiatedUCEncryptionType =
+                                                   pScanResult->ucEncryptionType; //Negotiated while building scan result.
+                pCommand->u.roamCmd.roamProfile.negotiatedMCEncryptionType =
+                                                   pScanResult->mcEncryptionType;
+            }
             pCommand->u.roamCmd.roamProfile.negotiatedAuthType = pScanResult->authType;
             if ( CSR_IS_START_IBSS(&pCommand->u.roamCmd.roamProfile) )
             {
@@ -4574,7 +4604,7 @@ eHalStatus csrRoamProcessCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand )
         smsLog(pMac, LOGE, FL("  session %d not found "), sessionId);
         return eHAL_STATUS_FAILURE;
     }
-    
+
     switch ( pCommand->u.roamCmd.roamReason )
     {
     case eCsrForcedDisassoc:
@@ -6881,7 +6911,14 @@ eHalStatus csrRoamProcessDisassocDeauth( tpAniSirGlobal pMac, tSmeCmd *pCommand,
     tANI_BOOLEAN fComplete = eANI_BOOLEAN_FALSE;
     eCsrRoamSubState NewSubstate;
     tANI_U32 sessionId = pCommand->sessionId;
-    
+
+    if( CSR_IS_WAIT_FOR_KEY( pMac, sessionId ) )
+    {
+        smsLog(pMac, LOG1, FL(" Stop Wait for key timer and change substate to"
+                              " eCSR_ROAM_SUBSTATE_NONE"));
+        csrRoamStopWaitForKeyTimer( pMac );
+        csrRoamSubstateChange( pMac, eCSR_ROAM_SUBSTATE_NONE, sessionId);
+    }
     // change state to 'Roaming'...
     csrRoamStateChange( pMac, eCSR_ROAMING_STATE_JOINING, sessionId );
 
@@ -17015,8 +17052,12 @@ void csrRoamFTPreAuthRspProcessor( tHalHandle hHal, tpSirFTPreAuthRsp pFTPreAuth
     pMac->ft.ftSmeContext.FTState = eFT_AUTH_COMPLETE;
     // Indicate SME QoS module the completion of Preauth success. This will trigger the creation of RIC IEs
     pMac->ft.ftSmeContext.psavedFTPreAuthRsp = pFTPreAuthRsp;
-    /* No need to notify qos module if this is a non 11r roam*/
-    if (csrRoamIs11rAssoc(pMac))
+    /* No need to notify qos module if this is a non 11r & ESE roam*/
+    if (csrRoamIs11rAssoc(pMac)
+#if defined(FEATURE_WLAN_ESE) || defined(FEATURE_WLAN_ESE_UPLOAD)
+       || csrRoamIsESEAssoc(pMac)
+#endif
+       )
     {
         sme_QosCsrEventInd(pMac, pMac->ft.ftSmeContext.smeSessionId, SME_QOS_CSR_PREAUTH_SUCCESS_IND, NULL);
     }

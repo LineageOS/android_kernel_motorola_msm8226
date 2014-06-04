@@ -187,6 +187,7 @@ static VOS_STATUS hdd_parse_ese_beacon_req(tANI_U8 *pValue,
                                      tCsrEseBeaconReq *pEseBcnReq);
 #endif /* FEATURE_WLAN_ESE && FEATURE_WLAN_ESE_UPLOAD */
 
+static VOS_STATUS wlan_hdd_init_channels_for_cc(hdd_context_t *pHddCtx);
 /*
  * Maximum buffer size used for returning the data back to user space
  */
@@ -266,6 +267,7 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
 #ifdef WLAN_BTAMP_FEATURE
    VOS_STATUS status;
 #endif
+   long result;
 
    //Make sure that this callback corresponds to our device.
    if ((strncmp(dev->name, "wlan", 4)) &&
@@ -315,26 +317,17 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
         break;
 
    case NETDEV_GOING_DOWN:
-        if( pHddCtx->scan_info.mScanPending != FALSE )
-        { 
-           long result;
-           INIT_COMPLETION(pHddCtx->scan_info.abortscan_event_var);
-           hdd_abort_mac_scan(pAdapter->pHddCtx, pAdapter->sessionId,
-                              eCSR_SCAN_ABORT_DEFAULT);
-           result = wait_for_completion_interruptible_timeout(
-                               &pHddCtx->scan_info.abortscan_event_var,
-                               msecs_to_jiffies(WLAN_WAIT_TIME_ABORTSCAN));
-           if (result <= 0)
-           {
-              VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                         "%s: Timeout occurred while waiting for abortscan %ld",
-                          __func__, result);
-           }
+        result = wlan_hdd_scan_abort(pAdapter);
+        if (result <= 0)
+        {
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                       "%s: Timeout occurred while waiting for abortscan %ld",
+                        __func__, result);
         }
         else
         {
            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-               "%s: Scan is not Pending from user" , __func__);
+               "%s: Scan Abort Successful" , __func__);
         }
 #ifdef WLAN_BTAMP_FEATURE
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,"%s: disabling AMP", __func__);
@@ -5671,6 +5664,9 @@ VOS_STATUS hdd_init_station_mode( hdd_adapter_t *pAdapter )
 #endif
 
    //Set the Connection State to Not Connected
+   hddLog(VOS_TRACE_LEVEL_INFO,
+            "%s: Set HDD connState to eConnectionState_NotConnected",
+                   __func__);
    pHddStaCtx->conn_info.connState = eConnectionState_NotConnected;
 
    //Set the default operation channel
@@ -6924,6 +6920,9 @@ VOS_STATUS hdd_reconnect_all_adapters( hdd_context_t *pHddCtx )
          hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
          hdd_wext_state_t *pWextState = WLAN_HDD_GET_WEXT_STATE_PTR(pAdapter);
 
+         hddLog(VOS_TRACE_LEVEL_INFO,
+            "%s: Set HDD connState to eConnectionState_NotConnected",
+                   __func__);
          pHddStaCtx->conn_info.connState = eConnectionState_NotConnected;
          init_completion(&pAdapter->disconnect_comp_var);
          sme_RoamDisconnect(pHddCtx->hHal, pAdapter->sessionId,
@@ -7529,7 +7528,7 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
 
          if (pAdapter != NULL)
          {
-            wlan_hdd_cfg80211_pre_voss_stop(pAdapter);
+            wlan_hdd_cfg80211_deregister_frames(pAdapter);
             hdd_UnregisterWext(pAdapter->dev);
          }
       }
@@ -7772,11 +7771,6 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
 
    hdd_close_all_adapters( pHddCtx );
 
-
-   //Free up dynamically allocated members inside HDD Adapter
-   kfree(pHddCtx->cfg_ini);
-   pHddCtx->cfg_ini= NULL;
-
    /* free the power on lock from platform driver */
    if (free_riva_power_on_lock("wlan"))
    {
@@ -7785,6 +7779,14 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
    }
 
 free_hdd_ctx:
+
+   //Free up dynamically allocated members inside HDD Adapter
+   if (pHddCtx->cfg_ini)
+   {
+       kfree(pHddCtx->cfg_ini);
+       pHddCtx->cfg_ini= NULL;
+   }
+
    /* FTM mode, WIPHY did not registered
       If un-register here, system crash will happen */
    if (VOS_FTM_MODE != hdd_get_conparam())
@@ -8476,28 +8478,11 @@ int hdd_wlan_startup(struct device *dev )
       goto err_vosclose;
    }
 
-#ifdef CONFIG_ENABLE_LINUX_REG
-   /* registration of wiphy dev with cfg80211 */
-   if (0 > wlan_hdd_cfg80211_register(wiphy))
-   {
-       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
-       goto err_vosclose;
-   }
-
-    status = wlan_hdd_init_channels(pHddCtx);
-   if ( !VOS_IS_STATUS_SUCCESS( status ) )
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: wlan_hdd_init_channels failed",
-             __func__);
-      goto err_wiphy_unregister;
-   }
-#endif
-
    status = vos_preStart( pHddCtx->pvosContext );
    if ( !VOS_IS_STATUS_SUCCESS( status ) )
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_preStart failed", __func__);
-      goto err_wiphy_unregister;
+      goto err_vosclose;
    }
 
    if (0 == enable_dfs_chan_scan || 1 == enable_dfs_chan_scan)
@@ -8521,7 +8506,7 @@ int hdd_wlan_startup(struct device *dev )
    if ( VOS_STATUS_SUCCESS != status )
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Failed hdd_set_sme_config", __func__);
-      goto err_wiphy_unregister;
+      goto err_vosclose;
    }
 
    //Initialize the WMM module
@@ -8530,7 +8515,7 @@ int hdd_wlan_startup(struct device *dev )
    if (!VOS_IS_STATUS_SUCCESS(status))
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __func__);
-      goto err_wiphy_unregister;
+      goto err_vosclose;
    }
 
    /* In the integrated architecture we update the configuration from
@@ -8541,7 +8526,7 @@ int hdd_wlan_startup(struct device *dev )
    if (FALSE == hdd_update_config_dat(pHddCtx))
    {
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: config update failed",__func__ );
-      goto err_wiphy_unregister;
+      goto err_vosclose;
    }
 
    // Get mac addr from platform driver
@@ -8623,7 +8608,7 @@ int hdd_wlan_startup(struct device *dev )
       {
          hddLog(VOS_TRACE_LEVEL_ERROR,"%s: Failed to set MAC Address. "
                 "HALStatus is %08d [x%08x]",__func__, halStatus, halStatus );
-         goto err_wiphy_unregister;
+         goto err_vosclose;
       }
    }
 
@@ -8633,7 +8618,7 @@ int hdd_wlan_startup(struct device *dev )
    if ( !VOS_IS_STATUS_SUCCESS( status ) )
    {
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_start failed",__func__);
-      goto err_wiphy_unregister;
+      goto err_vosclose;
    }
 
 #ifdef FEATURE_WLAN_CH_AVOID
@@ -8663,6 +8648,31 @@ int hdd_wlan_startup(struct device *dev )
    {
        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
        goto err_vosstop;
+   }
+#endif
+
+#ifdef CONFIG_ENABLE_LINUX_REG
+   status = wlan_hdd_init_channels(pHddCtx);
+   if ( !VOS_IS_STATUS_SUCCESS( status ) )
+   {
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: wlan_hdd_init_channels failed",
+             __func__);
+      goto err_vosstop;
+   }
+
+   /* registration of wiphy dev with cfg80211 */
+   if (0 > wlan_hdd_cfg80211_register(wiphy))
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: wiphy register failed", __func__);
+       goto err_vosstop;
+   }
+
+   status = wlan_hdd_init_channels_for_cc(pHddCtx);
+   if ( !VOS_IS_STATUS_SUCCESS( status ) )
+   {
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: wlan_hdd_init_channels_for_cc failed",
+             __func__);
+      goto err_unregister_wiphy;
    }
 #endif
 
@@ -8894,7 +8904,7 @@ int hdd_wlan_startup(struct device *dev )
       /* Action frame registered in one adapter which will
        * applicable to all interfaces 
        */
-      wlan_hdd_cfg80211_post_voss_start(pAdapter);
+      wlan_hdd_cfg80211_register_frames(pAdapter);
    }
 
    mutex_init(&pHddCtx->sap_lock);
@@ -8969,18 +8979,10 @@ err_bap_close:
 
 err_close_adapter:
    hdd_close_all_adapters( pHddCtx );
-
-#ifndef CONFIG_ENABLE_LINUX_REG
+err_unregister_wiphy:
    wiphy_unregister(wiphy) ;
-#endif
-
 err_vosstop:
    vos_stop(pVosContext);
-
-err_wiphy_unregister:
-#ifdef CONFIG_ENABLE_LINUX_REG
-   wiphy_unregister(wiphy);
-#endif
 
 err_vosclose:
    status = vos_sched_close( pVosContext );
@@ -9578,7 +9580,7 @@ v_BOOL_t hdd_is_apps_power_collapse_allowed(hdd_context_t* pHddCtx)
           || (WLAN_HDD_P2P_CLIENT == pAdapter->device_mode) )
         {
             if (((pConfig->fIsImpsEnabled || pConfig->fIsBmpsEnabled)
-                 && (pmcState != IMPS && pmcState != BMPS
+                 && (pmcState != IMPS && pmcState != BMPS && pmcState != UAPSD
                   &&  pmcState != STOPPED && pmcState != STANDBY)) ||
                  (eANI_BOOLEAN_TRUE == scanRspPending) ||
                  (eANI_BOOLEAN_TRUE == inMiddleOfRoaming))
@@ -9862,12 +9864,55 @@ static VOS_STATUS wlan_hdd_init_channels(hdd_context_t *pHddCtx)
    }
 }
 
+static VOS_STATUS wlan_hdd_init_channels_for_cc(hdd_context_t *pHddCtx)
+{
+   eHalStatus status;
+
+   status = sme_InitChannelsForCC(pHddCtx->hHal);
+   if (HAL_STATUS_SUCCESS(status))
+   {
+      return VOS_STATUS_SUCCESS;
+   }
+   else
+   {
+      hddLog(VOS_TRACE_LEVEL_FATAL,"%s: Issue reg hint failed(%d)",
+             __func__, status);
+      return VOS_STATUS_E_FAULT;
+   }
+}
 /*
  * API to find if there is any STA or P2P-Client is connected
  */
 VOS_STATUS hdd_issta_p2p_clientconnected(hdd_context_t *pHddCtx)
 {
     return sme_isSta_p2p_clientConnected(pHddCtx->hHal);
+}
+
+int wlan_hdd_scan_abort(hdd_adapter_t *pAdapter)
+{
+    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+    hdd_scaninfo_t *pScanInfo = NULL;
+    int status;
+
+    pScanInfo = &pHddCtx->scan_info;
+    if (pScanInfo->mScanPending)
+    {
+        INIT_COMPLETION(pScanInfo->abortscan_event_var);
+        hdd_abort_mac_scan(pHddCtx, pAdapter->sessionId,
+                                    eCSR_SCAN_ABORT_DEFAULT);
+
+        status = wait_for_completion_interruptible_timeout(
+                           &pScanInfo->abortscan_event_var,
+                           msecs_to_jiffies(5000));
+        if ((!status) || (status == -ERESTARTSYS))
+        {
+           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  "%s: Timeout occurred while waiting for abort scan",
+                  __func__);
+            return -ETIMEDOUT;
+        }
+    }
+    return status;
 }
 
 //Register the module init/exit functions

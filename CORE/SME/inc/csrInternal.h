@@ -666,6 +666,7 @@ typedef struct tagCsrConfig
     tANI_U8 isCoalesingInIBSSAllowed;
     tANI_U8 allowDFSChannelRoam;
     tANI_BOOLEAN initialScanSkipDFSCh;
+    tANI_BOOLEAN sendDeauthBeforeCon;
 }tCsrConfig;
 
 typedef struct tagCsrChannelPowerInfo
@@ -1325,6 +1326,13 @@ eHalStatus csrOpen(tpAniSirGlobal pMac);
 eHalStatus csrInitChannels(tpAniSirGlobal pMac);
 
 /* ---------------------------------------------------------------------------
+    \fn csrInitChannelsForCC
+    \brief This function must be called to issue reg hint
+    \return eHalStatus
+  -------------------------------------------------------------------------------*/
+eHalStatus csrInitChannelsForCC(tpAniSirGlobal pMac);
+
+/* ---------------------------------------------------------------------------
     \fn csrClose
     \brief To close down CSR module. There should not be any API call into CSR after calling this function.
     \return eHalStatus
@@ -1387,6 +1395,7 @@ eHalStatus csrRoamUpdateWPARSNIEs( tpAniSirGlobal pMac, tANI_U32 sessionId, tSir
 void csrSetCfgPrivacy( tpAniSirGlobal pMac, tCsrRoamProfile *pProfile, tANI_BOOLEAN fPrivacy );
 tANI_S8 csrGetInfraSessionId( tpAniSirGlobal pMac );
 tANI_U8 csrGetInfraOperationChannel( tpAniSirGlobal pMac, tANI_U8 sessionId);
+tANI_BOOLEAN csrIsSessionClientAndConnected(tpAniSirGlobal pMac, tANI_U8 sessionId);
 tANI_U8 csrGetConcurrentOperationChannel( tpAniSirGlobal pMac );
 
 eHalStatus csrRoamCopyConnectProfile(tpAniSirGlobal pMac, tANI_U32 sessionId,

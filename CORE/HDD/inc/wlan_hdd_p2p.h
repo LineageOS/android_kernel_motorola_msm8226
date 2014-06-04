@@ -52,7 +52,8 @@
 #define WLAN_HDD_80211_FRM_DA_OFFSET             4
 #define P2P_WILDCARD_SSID_LEN                    7
 #define P2P_WILDCARD_SSID                        "DIRECT-"
-
+#define ACTION_FRAME_RSP_WAIT 500
+#define ACTION_FRAME_ACK_WAIT 300
 #ifdef WLAN_FEATURE_11W
 #define WLAN_HDD_SET_WEP_FRM_FC(__fc__)     ( (__fc__) = ((__fc__) | 0x40))
 #endif //WLAN_FEATURE_11W
@@ -135,7 +136,7 @@ void hdd_indicateMgmtFrame( hdd_adapter_t *pAdapter,
 void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter );
 void hdd_sendActionCnf( hdd_adapter_t *pAdapter, tANI_BOOLEAN actionSendSuccess );
 int wlan_hdd_check_remain_on_channel(hdd_adapter_t *pAdapter);
-void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter);
+VOS_STATUS wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
 int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct wireless_dev *wdev,

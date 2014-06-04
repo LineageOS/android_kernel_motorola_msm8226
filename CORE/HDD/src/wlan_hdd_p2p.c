@@ -58,7 +58,6 @@
 #include "vos_trace.h"
 //Ms to Micro Sec
 #define MS_TO_MUS(x)   ((x)*1000);
-
 tANI_U8* hdd_getActionString( tANI_U16 MsgType )
 {
     switch (MsgType)
@@ -252,7 +251,7 @@ eHalStatus wlan_hdd_remain_on_channel_callback( tHalHandle hHal, void* pCtx,
     return eHAL_STATUS_SUCCESS;
 }
 
-void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
+VOS_STATUS wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
 {
     hdd_cfg80211_state_t *cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
     hdd_remain_on_chan_ctx_t *pRemainChanCtx = cfgState->remain_on_chan_ctx;
@@ -277,10 +276,10 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
                 hddLog( LOGE,
                         "%s:wait on cancel_rem_on_chan_var failed %d",
                          __func__, status);
+                return VOS_STATUS_E_FAILURE;
             }
-            return;
+            return VOS_STATUS_SUCCESS;
         }
-        pRemainChanCtx->hdd_remain_on_chan_cancel_in_progress = TRUE;
 
         /* Wait till remain on channel ready indication before issuing cancel
          * remain on channel request, otherwise if remain on channel not
@@ -294,9 +293,12 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
             hddLog( LOGE, 
               "%s: timeout waiting for remain on channel ready indication %d",
                     __func__, status);
+            pRemainChanCtx->is_pending_roc_cancelled = TRUE;
+            return VOS_STATUS_E_FAILURE;
         }
 
         INIT_COMPLETION(pAdapter->cancel_rem_on_chan_var);
+        pRemainChanCtx->hdd_remain_on_chan_cancel_in_progress = TRUE;
 
         /* Issue abort remain on chan request to sme.
          * The remain on channel callback will make sure the remain_on_chan
@@ -329,6 +331,7 @@ void wlan_hdd_cancel_existing_remain_on_channel(hdd_adapter_t *pAdapter)
         }
        hdd_allow_suspend();
     }
+       return VOS_STATUS_SUCCESS;
 }
 
 int wlan_hdd_check_remain_on_channel(hdd_adapter_t *pAdapter)
@@ -419,6 +422,7 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
     hdd_adapter_t *pAdapter_temp;
     VOS_STATUS status;
     v_BOOL_t isGoPresent = VOS_FALSE;
+    VOS_STATUS checkReadyInd;
     hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d",
                                  __func__,pAdapter->device_mode);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
@@ -434,7 +438,12 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
             duration, request_type, *cookie );
 #endif
     //Cancel existing remain On Channel if any
-    wlan_hdd_cancel_existing_remain_on_channel(pAdapter);
+    checkReadyInd = wlan_hdd_cancel_existing_remain_on_channel(pAdapter);
+    if (VOS_STATUS_SUCCESS != checkReadyInd)
+    {
+       hddLog( LOGE, FL("Cancel Roc in progress"));
+       return -EBUSY;
+    }
 
     /* When P2P-GO and if we are trying to unload the driver then
      * wlan driver is keep on receiving the remain on channel command
@@ -480,6 +489,7 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
     pRemainChanCtx->action_pkt_buff.frame_ptr = NULL;
     pRemainChanCtx->action_pkt_buff.frame_length = 0;
     pRemainChanCtx->hdd_remain_on_chan_cancel_in_progress = FALSE;
+    pRemainChanCtx->is_pending_roc_cancelled = FALSE;
     /* Initialize Remain on chan timer */
     vos_status = vos_timer_init(&pRemainChanCtx->hdd_remain_on_chan_timer,
                                 VOS_TIMER_TYPE_SW,
@@ -501,13 +511,6 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
         status = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
         pAdapterNode = pNext;
     }
-    /* For GO mode , set the duration to a larger value so that host can extend
-     * ROC if back to back action frames are received. Firmware will start SNOA
-     * with this duration value
-    */
-    if (VOS_TRUE == isGoPresent && OFF_CHANNEL_ACTION_TX == request_type)
-         duration = 3 * duration;
-
     hdd_prevent_suspend();
     INIT_COMPLETION(pAdapter->rem_on_chan_ready_event);
 
@@ -684,6 +687,16 @@ void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter )
         hddLog( VOS_TRACE_LEVEL_INFO, "Ready on chan ind (cookie=%llu)",
                 pRemainChanCtx->cookie);
         complete(&pAdapter->rem_on_chan_ready_event);
+        if (TRUE == pRemainChanCtx->is_pending_roc_cancelled)
+        {
+            /* since pRemainChanCtx->is_pending_roc_cancelled is
+             * set, it means Cancel Reamain on channel command is
+             * pending because remain on channel event was not
+             * ready when cancel ROC  was issued.So issue
+             * cancel ROC now.
+             */
+            wlan_hdd_cancel_existing_remain_on_channel(pAdapter);
+        }
     }
     else
     {
@@ -736,6 +749,28 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
              __func__);
         return -EINVAL;
     }
+    if (TRUE != pRemainChanCtx->is_pending_roc_cancelled)
+    {
+       /* wait until remain on channel ready event received
+        * for already issued remain on channel request */
+       status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
+            msecs_to_jiffies(WAIT_REM_CHAN_READY));
+       if (0 >= status)
+       {
+           hddLog( LOGE,
+                   "%s: timeout waiting for remain on channel ready indication %d",
+                   __func__, status);
+           pRemainChanCtx->is_pending_roc_cancelled = TRUE;
+           return 0;
+
+       }
+    }
+    else
+    {
+        hddLog( LOG1, FL("Cancel ROC event is already pending, "
+                         "waiting for ready on channel indication.") );
+        return 0;
+    }
     if (NULL != cfgState->remain_on_chan_ctx)
     {
         vos_timer_stop(&cfgState->remain_on_chan_ctx->hdd_remain_on_chan_timer);
@@ -757,23 +792,6 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
         }
         else
             pRemainChanCtx->hdd_remain_on_chan_cancel_in_progress = TRUE;
-    }
-    /* wait until remain on channel ready event received
-     * for already issued remain on channel request */
-    status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
-            msecs_to_jiffies(WAIT_REM_CHAN_READY));
-    if (0 >= status)
-    {
-        hddLog( LOGE,
-                "%s: timeout waiting for remain on channel ready indication %d",
-                __func__, status);
-
-        if (pHddCtx->isLogpInProgress)
-        {
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                      "%s: LOGP in Progress. Ignore!!!", __func__);
-            return -EAGAIN;
-        }
     }
     INIT_COMPLETION(pAdapter->cancel_rem_on_chan_var);
     /* Issue abort remain on chan request to sme.
@@ -990,6 +1008,10 @@ int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
     if( goAdapter && ( ieee80211_frequency_to_channel(chan->center_freq)
                          == goAdapter->sessionCtx.ap.operatingChannel ) )
     {
+        /*  if GO exist and is not off channel
+         *  wait time should be zero.
+         */
+        wait = 0;
         goto send_frame;
     }
 #endif
@@ -1009,6 +1031,25 @@ int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
             if ( VOS_TIMER_STATE_RUNNING == vos_timer_getCurrentState(
                       &cfgState->remain_on_chan_ctx->hdd_remain_on_chan_timer) )
             {
+               /* Some times FW is taking almost 500 msec for
+                * full 15 retries, which leads to ROC expiration
+                * by the time peer gets response from other peer.
+                * Therefore as part of temporary fix , in host
+                * ROC time is extended. For frames where we are
+                * expecting response from peer , its extended by
+                * 500 msec to make ROC wait time as 1 sec and
+                * in other cases its extended by 300 msec to make
+                * total ROC wait as 500 msec.
+                * TODO: FW needs to fix as why 15 retry is taking
+                *       such long time.
+                */
+                if ( actionFrmType == WLAN_HDD_INVITATION_REQ ||
+                     actionFrmType == WLAN_HDD_GO_NEG_REQ ||
+                     actionFrmType == WLAN_HDD_GO_NEG_RESP )
+                   wait = wait + ACTION_FRAME_RSP_WAIT;
+                else if ( actionFrmType == WLAN_HDD_GO_NEG_CNF ||
+                          actionFrmType == WLAN_HDD_INVITATION_RESP )
+                   wait = wait + ACTION_FRAME_ACK_WAIT;
                 vos_timer_stop(
                       &cfgState->remain_on_chan_ctx->hdd_remain_on_chan_timer);
                 status = vos_timer_start(

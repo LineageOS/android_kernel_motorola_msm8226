@@ -4173,7 +4173,7 @@ typedef PACKED_PRE struct PACKED_POST
     tANI_U8   bssid[6];     /* BSSID */
     tANI_U8   ssid[33];     /* SSID */
     tANI_U8   ch;           /* Channel */
-    tANI_U8   rssi;         /* RSSI or Level */
+    tANI_S8   rssi;         /* RSSI or Level */
     /* Timestamp when Network was found. Used to calculate age based on timestamp in GET_RSP msg header */
     tANI_U32  timestamp;
 } tHalBatchScanNetworkInfo, *tpHalBatchScanNetworkInfo;
@@ -6263,6 +6263,7 @@ typedef enum {
     WLAN_MCADDR_FLT        = 36,
     WLAN_CH144             = 37,
     NAN                    = 38,
+    TDLS_SCAN_COEXISTENCE  = 39,
     MAX_FEATURE_SUPPORTED  = 128,
 } placeHolderInCapBitmap;
 
@@ -6286,6 +6287,7 @@ typedef PACKED_PRE struct PACKED_POST{
 #define IS_IBSS_HEARTBEAT_OFFLOAD_SUPPORTED_BY_HOST (!!(halMsg_GetHostWlanFeatCaps(IBSS_HEARTBEAT_OFFLOAD)))
 #define IS_SCAN_OFFLOAD_SUPPORTED_BY_HOST (!!(halMsg_GetHostWlanFeatCaps(WLAN_SCAN_OFFLOAD)))
 #define IS_CH_SWITCH_V1_SUPPORTED_BY_HOST ((!!(halMsg_GetHostWlanFeatCaps(CH_SWITCH_V1))))
+#define IS_TDLS_SCAN_COEXISTENCE_SUPPORTED_BY_HOST ((!!(halMsg_GetHostWlanFeatCaps(TDLS_SCAN_COEXISTENCE))))
 
 tANI_U8 halMsg_GetHostWlanFeatCaps(tANI_U8 feat_enum_value);
 

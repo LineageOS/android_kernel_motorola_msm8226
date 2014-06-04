@@ -277,6 +277,9 @@ extern spinlock_t hdd_context_lock;
 #define SNR_CONTEXT_MAGIC   0x534E5200   //SNR
 #define BCN_MISS_RATE_CONTEXT_MAGIC 0x513F5753
 
+/* Max PMKSAIDS available in cache */
+#define MAX_PMKSAIDS_IN_CACHE 8
+
 typedef struct hdd_tx_rx_stats_s
 {
    // start_xmit stats
@@ -585,6 +588,7 @@ typedef struct hdd_remain_on_chan_ctx
   vos_timer_t hdd_remain_on_chan_timer;
   action_pkt_buffer_t action_pkt_buff;
   v_U32_t hdd_remain_on_chan_cancel_in_progress;
+  tANI_BOOLEAN is_pending_roc_cancelled;
 }hdd_remain_on_chan_ctx_t;
 
 typedef enum{
@@ -653,6 +657,10 @@ struct hdd_station_ctx
    tCsrRoamSetKey ibss_enc_key;
 
    v_BOOL_t hdd_ReassocScenario;
+
+   /* PMKID Cache */
+   tPmkidCacheInfo PMKIDCache[MAX_PMKSAIDS_IN_CACHE];
+   tANI_U32 PMKIDCacheIndex;
 };
 
 #define BSS_STOP    0 
@@ -813,7 +821,7 @@ typedef struct
     /*Channel*/
     tANI_U8  ch;
     /*RSSI or Level*/
-    tANI_U8  rssi;
+    tANI_S8  rssi;
     /*Age*/
     tANI_U32 age;
 }tHDDbatchScanRspApInfo;
@@ -845,6 +853,7 @@ typedef enum
 
 
 #define WLAN_HDD_ADAPTER_MAGIC 0x574c414e //ASCII "WLAN"
+
 struct hdd_adapter_s
 {
    void *pHddCtx;
@@ -1279,6 +1288,7 @@ struct hdd_context_s
     vos_timer_t    tx_rx_trafficTmr;
     v_U8_t         drvr_miracast;
     v_U8_t         issplitscan_enabled;
+    v_U8_t         isTdlsScanCoexistence;
 
     /* VHT80 allowed*/
     v_BOOL_t isVHT80Allowed;
@@ -1436,5 +1446,7 @@ void hdd_deinit_batch_scan(hdd_adapter_t *pAdapter);
 #endif /*End of FEATURE_WLAN_BATCH_SCAN*/
 
 boolean hdd_is_5g_supported(hdd_context_t * pHddCtx);
+
+int wlan_hdd_scan_abort(hdd_adapter_t *pAdapter);
 
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )
