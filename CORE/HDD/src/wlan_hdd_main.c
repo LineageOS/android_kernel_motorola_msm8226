@@ -1955,6 +1955,128 @@ static void getBcnMissRateCB(VOS_STATUS status, int bcnMissRate, void *data)
     return;
 }
 
+static int hdd_get_dwell_time(hdd_config_t *pCfg, tANI_U8 *command, char *extra, tANI_U8 n, tANI_U8 *len)
+{
+    int ret = 0;
+
+    if (!pCfg || !command || !extra || !len)
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+             "%s: argument passsed for GETDWELLTIME is incorrect", __func__);
+        ret = -EINVAL;
+        return ret;
+    }
+
+    if (strncmp(command, "GETDWELLTIME ACTIVE MAX", 23) == 0)
+    {
+        *len = scnprintf(extra, n, "GETDWELLTIME ACTIVE MAX %u\n",
+                (int)pCfg->nActiveMaxChnTime);
+        return ret;
+    }
+    else if (strncmp(command, "GETDWELLTIME ACTIVE MIN", 23) == 0)
+    {
+        *len = scnprintf(extra, n, "GETDWELLTIME ACTIVE MIN %u\n",
+                (int)pCfg->nActiveMinChnTime);
+        return ret;
+    }
+    else if (strncmp(command, "GETDWELLTIME PASSIVE MAX", 24) == 0)
+    {
+        *len = scnprintf(extra, n, "GETDWELLTIME PASSIVE MAX %u\n",
+                (int)pCfg->nPassiveMaxChnTime);
+        return ret;
+    }
+    else if (strncmp(command, "GETDWELLTIME PASSIVE MIN", 24) == 0)
+    {
+        *len = scnprintf(extra, n, "GETDWELLTIME PASSIVE MIN %u\n",
+                (int)pCfg->nPassiveMinChnTime);
+        return ret;
+    }
+    else
+    {
+        ret = -EINVAL;
+    }
+
+    return ret;
+}
+
+static int hdd_set_dwell_time(hdd_adapter_t *pAdapter, tANI_U8 *command)
+{
+    hdd_config_t *pCfg;
+    tANI_U8 *value = command;
+    int val = 0, ret = 0, temp = 0;
+
+    if (!pAdapter || !command || !(pCfg = (WLAN_HDD_GET_CTX(pAdapter))->cfg_ini))
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+         "%s: argument passed for SETDWELLTIME is incorrect", __func__);
+        ret = -EINVAL;
+        return ret;
+    }
+
+    if (strncmp(command, "SETDWELLTIME ACTIVE MAX", 23) == 0 )
+    {
+        value = value + 24;
+        temp = kstrtou32(value, 10, &val);
+        if (temp != 0 || val < CFG_ACTIVE_MAX_CHANNEL_TIME_MIN ||
+                         val > CFG_ACTIVE_MAX_CHANNEL_TIME_MAX )
+        {
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+             "%s: argument passed for SETDWELLTIME ACTIVE MAX is incorrect", __func__);
+            ret = -EFAULT;
+            return ret;
+        }
+        pCfg->nActiveMaxChnTime = val;
+    }
+    else if (strncmp(command, "SETDWELLTIME ACTIVE MIN", 23) == 0)
+    {
+        value = value + 24;
+        temp = kstrtou32(value, 10, &val);
+        if (temp !=0 || val < CFG_ACTIVE_MIN_CHANNEL_TIME_MIN  ||
+                        val > CFG_ACTIVE_MIN_CHANNEL_TIME_MAX )
+        {
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+             "%s: argument passsed for SETDWELLTIME ACTIVE MIN is incorrect", __func__);
+            ret = -EFAULT;
+            return ret;
+        }
+        pCfg->nActiveMinChnTime = val;
+    }
+    else if (strncmp(command, "SETDWELLTIME PASSIVE MAX", 24) == 0)
+    {
+        value = value + 25;
+        temp = kstrtou32(value, 10, &val);
+        if (temp != 0 || val < CFG_PASSIVE_MAX_CHANNEL_TIME_MIN ||
+                         val > CFG_PASSIVE_MAX_CHANNEL_TIME_MAX )
+        {
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+             "%s: argument passed for SETDWELLTIME PASSIVE MAX is incorrect", __func__);
+            ret = -EFAULT;
+            return ret;
+        }
+        pCfg->nPassiveMaxChnTime = val;
+    }
+    else if (strncmp(command, "SETDWELLTIME PASSIVE MIN", 24) == 0)
+    {
+        value = value + 25;
+        temp = kstrtou32(value, 10, &val);
+        if (temp != 0 || val < CFG_PASSIVE_MIN_CHANNEL_TIME_MIN ||
+                         val > CFG_PASSIVE_MIN_CHANNEL_TIME_MAX )
+        {
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+             "%s: argument passed for SETDWELLTIME PASSIVE MIN is incorrect", __func__);
+            ret = -EFAULT;
+            return ret;
+        }
+        pCfg->nPassiveMinChnTime = val;
+    }
+    else
+    {
+        ret = -EINVAL;
+    }
+
+    return ret;
+}
+
 static int hdd_driver_command(hdd_adapter_t *pAdapter,
                               hdd_priv_data_t *ppriv_data)
 {
@@ -3546,9 +3668,9 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
            char extra[32];
            tANI_U8 len = 0;
 
-           len = scnprintf(extra, sizeof(extra), "GETDWELLTIME %u\n",
-                  (int)pCfg->nActiveMaxChnTime);
-           if (copy_to_user(priv_data.buf, &extra, len + 1))
+           memset(extra, 0, sizeof(extra));
+           ret = hdd_get_dwell_time(pCfg, command, extra, sizeof(extra), &len);
+           if (ret != 0 || copy_to_user(priv_data.buf, &extra, len + 1))
            {
                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                   "%s: failed to copy data to user buffer", __func__);
@@ -3559,21 +3681,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
        }
        else if (strncmp(command, "SETDWELLTIME", 12) == 0)
        {
-           tANI_U8 *value = command;
-           hdd_config_t *pCfg = (WLAN_HDD_GET_CTX(pAdapter))->cfg_ini;
-           int val = 0, temp;
-
-           value = value + 13;
-           temp = kstrtou32(value, 10, &val);
-           if ( temp != 0 || val < CFG_ACTIVE_MAX_CHANNEL_TIME_MIN ||
-                             val > CFG_ACTIVE_MAX_CHANNEL_TIME_MAX )
-           {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                "%s: argument passed for SETDWELLTIME is incorrect", __func__);
-               ret = -EFAULT;
-               goto exit;
-           }
-           pCfg->nActiveMaxChnTime = val;
+           ret = hdd_set_dwell_time(pAdapter, command);
        }
        else if ( strncasecmp(command, "MIRACAST", 8) == 0 )
        {
@@ -3825,12 +3933,21 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
            tANI_U8 *value = command;
            tCsrEseBeaconReq eseBcnReq;
            eHalStatus status = eHAL_STATUS_SUCCESS;
+
            status = hdd_parse_ese_beacon_req(value, &eseBcnReq);
            if (eHAL_STATUS_SUCCESS != status)
            {
                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                   "%s: Failed to parse ese beacon req", __func__);
                ret = -EINVAL;
+               goto exit;
+           }
+           if (!hdd_connIsConnected(WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))) {
+               hddLog(VOS_TRACE_LEVEL_INFO, FL("Not associated"));
+               hdd_indicateEseBcnReportNoResults (pAdapter,
+                                      eseBcnReq.bcnReq[0].measurementToken,
+                                      0x02,  //BIT(1) set for measurement done
+                                      0);    // no BSS
                goto exit;
            }
 
@@ -5354,22 +5471,6 @@ static int hdd_set_mac_address(struct net_device *dev, void *addr)
    ENTER();
 
    memcpy(&pAdapter->macAddressCurrent, psta_mac_addr->sa_data, ETH_ALEN);
-
-#ifdef HDD_SESSIONIZE 
-   // set the MAC address though the STA ID CFG.
-   halStatus = ccmCfgSetStr( pAdapter->hHal, WNI_CFG_STA_ID,
-                             (v_U8_t *)&pAdapter->macAddressCurrent,
-                             sizeof( pAdapter->macAddressCurrent ),
-                             hdd_set_mac_addr_cb, VOS_FALSE );
-
-   if(eHAL_STATUS_SUCCESS != halStatus)
-   {
-       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                       "%s: failed to set MAC address in CFG", __func__);
-   }
-
-#endif
-
    memcpy(dev->dev_addr, psta_mac_addr->sa_data, ETH_ALEN);
 
    EXIT();
@@ -8632,6 +8733,16 @@ int hdd_wlan_startup(struct device *dev )
    /* Exchange capability info between Host and FW and also get versioning info from FW */
    hdd_exchange_version_and_caps(pHddCtx);
 
+#ifdef CONFIG_ENABLE_LINUX_REG
+   status = wlan_hdd_init_channels(pHddCtx);
+   if ( !VOS_IS_STATUS_SUCCESS( status ) )
+   {
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: wlan_hdd_init_channels failed",
+             __func__);
+      goto err_vosstop;
+   }
+#endif
+
    status = hdd_post_voss_start_config( pHddCtx );
    if ( !VOS_IS_STATUS_SUCCESS( status ) )
    {
@@ -8652,14 +8763,6 @@ int hdd_wlan_startup(struct device *dev )
 #endif
 
 #ifdef CONFIG_ENABLE_LINUX_REG
-   status = wlan_hdd_init_channels(pHddCtx);
-   if ( !VOS_IS_STATUS_SUCCESS( status ) )
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: wlan_hdd_init_channels failed",
-             __func__);
-      goto err_vosstop;
-   }
-
    /* registration of wiphy dev with cfg80211 */
    if (0 > wlan_hdd_cfg80211_register(wiphy))
    {
