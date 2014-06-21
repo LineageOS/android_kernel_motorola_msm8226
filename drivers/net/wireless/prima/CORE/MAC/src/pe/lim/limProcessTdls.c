@@ -172,6 +172,15 @@ typedef enum tdlsLinkSetupStatus
     TDLS_SETUP_STATUS_FAILURE = 37
 }etdlsLinkSetupStatus ;
 
+/* These maps to Kernel TDLS peer capability
+ * flags and should get changed as and when necessary
+ */
+enum tdls_peer_capability {
+        TDLS_PEER_HT_CAP  = 0,
+        TDLS_PEER_VHT_CAP = 1,
+        TDLS_PEER_WMM_CAP = 2
+} eTdlsPeerCapability;
+
 /* some local defines */
 #define LINK_IDEN_BSSID_OFFSET      (0)
 #define PEER_MAC_OFFSET   (12) 
@@ -210,7 +219,6 @@ typedef enum tdlsLinkSetupStatus
 
 
 #ifdef LIM_DEBUG_TDLS
-#define TDLS_CASE_RETURN_STRING(x) case (x): return( ((const tANI_U8*)#x) + 8);  /* 8 = remove redundant SIR_MAC_ */
 
 #ifdef FEATURE_WLAN_TDLS
 #define WNI_CFG_TDLS_DISCOVERY_RSP_WAIT             (100)
@@ -230,16 +238,16 @@ const tANI_U8* limTraceTdlsActionString( tANI_U8 tdlsActionCode )
 {
    switch( tdlsActionCode )
    {
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_REQ);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_RSP);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_CNF);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_TEARDOWN);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_PEER_TRAFFIC_IND);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_CH_SWITCH_REQ);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_CH_SWITCH_RSP);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_PEER_TRAFFIC_RSP);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_DIS_REQ);
-       TDLS_CASE_RETURN_STRING(SIR_MAC_TDLS_DIS_RSP);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_REQ);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_RSP);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_SETUP_CNF);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_TEARDOWN);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_PEER_TRAFFIC_IND);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_CH_SWITCH_REQ);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_CH_SWITCH_RSP);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_PEER_TRAFFIC_RSP);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_DIS_REQ);
+       CASE_RETURN_STRING(SIR_MAC_TDLS_DIS_RSP);
    }
    return (const tANI_U8*)"UNKNOWN";
 }
@@ -1272,7 +1280,6 @@ tSirRetStatus limSendTdlsLinkSetupReqFrame(tpAniSirGlobal pMac,
     tdlsSetupReq.QOSCapsStation.acvi_uapsd = ((pMac->lim.gLimTDLSUapsdMask & 0x02)>> 1);
     tdlsSetupReq.QOSCapsStation.acvo_uapsd = (pMac->lim.gLimTDLSUapsdMask & 0x01);
 
-
     /*
      * we will always try to init TDLS link with 11n capabilities
      * let TDLS setup response to come, and we will set our caps based
@@ -1824,7 +1831,7 @@ static tSirRetStatus limSendTdlsSetupRspFrame(tpAniSirGlobal pMac,
  */
 
 tSirRetStatus limSendTdlsLinkSetupCnfFrame(tpAniSirGlobal pMac, tSirMacAddr peerMac,
-                    tANI_U8 dialog, tpPESession psessionEntry, tANI_U8* addIe, tANI_U16 addIeLen)  
+                    tANI_U8 dialog, tANI_U32 peerCapability, tpPESession psessionEntry, tANI_U8* addIe, tANI_U16 addIeLen)
 {
     tDot11fTDLSSetupCnf  tdlsSetupCnf ;
     tANI_U32            status = 0 ;
@@ -1867,15 +1874,15 @@ tSirRetStatus limSendTdlsLinkSetupCnfFrame(tpAniSirGlobal pMac, tSirMacAddr peer
      * AP link and we wanted to QOS on direct link.
      */
 
-    /* Include HT Info IE */
-    /* Need to also check the Self Capability ??? TODO Sunil */
-    if ( true == psessionEntry->htCapability)
+     /* Check peer is VHT capable*/
+    if (CHECK_BIT(peerCapability, TDLS_PEER_VHT_CAP))
     {
-        PopulateDot11fHTInfo( pMac, &tdlsSetupCnf.HTInfo, psessionEntry );
+       PopulateDot11fVHTOperation( pMac, &tdlsSetupCnf.VHTOperation);
+       PopulateDot11fHTInfo( pMac, &tdlsSetupCnf.HTInfo, psessionEntry );
     }
-    if ( true == psessionEntry->vhtCapability)
+    else if (CHECK_BIT(peerCapability, TDLS_PEER_HT_CAP)) /* Check peer is HT capable */
     {
-        PopulateDot11fVHTOperation( pMac, &tdlsSetupCnf.VHTOperation);
+       PopulateDot11fHTInfo( pMac, &tdlsSetupCnf.HTInfo, psessionEntry );
     }
 
     /* 
@@ -3529,7 +3536,7 @@ static tSirRetStatus limProcessTdlsSetupRspFrame(tpAniSirGlobal pMac,
     
          
     /* send TDLS confim frame to TDLS Peer STA */           
-    limSendTdlsLinkSetupCnfFrame(pMac, peerMac, tdlsSetupRsp.DialogToken.token, psessionEntry, NULL, 0) ;
+    limSendTdlsLinkSetupCnfFrame(pMac, peerMac, tdlsSetupRsp.DialogToken.token, 0, psessionEntry, NULL, 0) ;
 
     /* 
      * set the tdls_link_state to TDLS_LINK_SETUP_RSP_WAIT_STATE, and
@@ -5059,7 +5066,7 @@ tSirRetStatus limProcessSmeTdlsMgmtSendReq(tpAniSirGlobal pMac,
             break;
         case SIR_MAC_TDLS_SETUP_CNF:
             {
-                limSendTdlsLinkSetupCnfFrame(pMac, pSendMgmtReq->peerMac, pSendMgmtReq->dialog, 
+                limSendTdlsLinkSetupCnfFrame(pMac, pSendMgmtReq->peerMac, pSendMgmtReq->dialog, pSendMgmtReq->peerCapability,
                         psessionEntry, &pSendMgmtReq->addIe[0], (pSendMgmtReq->length - sizeof(tSirTdlsSendMgmtReq)));  
                 resultCode = eSIR_SME_SUCCESS;
             }

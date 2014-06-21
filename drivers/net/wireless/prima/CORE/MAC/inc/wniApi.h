@@ -110,7 +110,7 @@
 
 
 /// Start of Sirius/Host message types
-#define WNI_HOST_MSG_START             0x1400
+#define WNI_HOST_MSG_START             0x1500
 
 enum eWniMsgTypes
 {
@@ -380,7 +380,7 @@ enum eWniMsgTypes
     eWNI_SME_HANDOFF_REQ,/*upper layer requested handoff to driver in STA mode*/
     eWNI_SME_ROAM_SCAN_OFFLOAD_RSP,/*Fwd the LFR scan offload rsp from FW to SME*/
 #ifdef FEATURE_WLAN_LPHB
-    eWNI_SME_LPHB_WAIT_TIMEOUT_IND,
+    eWNI_SME_LPHB_IND,
 #endif /* FEATURE_WLAN_LPHB */
 
     eWNI_SME_GET_TSM_STATS_REQ,
@@ -393,7 +393,7 @@ enum eWniMsgTypes
     eWNI_SME_MSG_TYPES_END
 };
 
-#define WNI_CFG_MSG_TYPES_BEGIN        0x1100
+#define WNI_CFG_MSG_TYPES_BEGIN        0x1200
 
 /*---------------------------------------------------------------------*/
 /* CFG Module Definitions                                              */

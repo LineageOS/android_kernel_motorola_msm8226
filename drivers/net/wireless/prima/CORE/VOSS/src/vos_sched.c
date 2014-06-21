@@ -80,6 +80,15 @@
  * Preprocessor Definitions and Constants
  * ------------------------------------------------------------------------*/
 #define VOS_SCHED_THREAD_HEART_BEAT    INFINITE
+/* Milli seconds to delay SSR thread when an Entry point is Active */
+#define SSR_WAIT_SLEEP_TIME 100
+/* MAX iteration count to wait for Entry point to exit before
+ * we proceed with SSR in WD Thread
+ */
+#define MAX_SSR_WAIT_ITERATIONS 20
+
+static atomic_t ssr_protect_entry_count;
+
 /*---------------------------------------------------------------------------
  * Type Declarations
  * ------------------------------------------------------------------------*/
@@ -659,13 +668,34 @@ VosWDThread
   pVosWatchdogContext pWdContext = (pVosWatchdogContext)Arg;
   int retWaitStatus              = 0;
   v_BOOL_t shutdown              = VOS_FALSE;
+  int count                      = 0;
   VOS_STATUS vosStatus = VOS_STATUS_SUCCESS;
+  hdd_context_t *pHddCtx         = NULL;
+  v_CONTEXT_t pVosContext        = NULL;
   set_user_nice(current, -3);
 
   if (Arg == NULL)
   {
      VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
         "%s: Bad Args passed", __func__);
+     return 0;
+  }
+
+  /* Get the Global VOSS Context */
+  pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+
+  if(!pVosContext)
+  {
+     hddLog(VOS_TRACE_LEVEL_FATAL,"%s: Global VOS context is Null", __func__);
+     return 0;
+  }
+
+  /* Get the HDD context */
+  pHddCtx = (hdd_context_t *)vos_get_context(VOS_MODULE_ID_HDD, pVosContext );
+
+  if(!pHddCtx)
+  {
+     hddLog(VOS_TRACE_LEVEL_FATAL,"%s: HDD context is Null",__func__);
      return 0;
   }
 
@@ -695,6 +725,33 @@ VosWDThread
     clear_bit(WD_POST_EVENT_MASK, &pWdContext->wdEventFlag);
     while(1)
     {
+      /* Check for any Active Entry Points
+       * If active, delay SSR until no entry point is active or
+       * delay until count is decremented to ZERO
+       */
+      count = MAX_SSR_WAIT_ITERATIONS;
+      while (count)
+      {
+         if (!atomic_read(&ssr_protect_entry_count))
+         {
+             /* no external threads are executing */
+             break;
+         }
+         /* at least one external thread is executing */
+         if (--count)
+         {
+             VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                       "%s: Waiting for active entry points to exit", __func__);
+             msleep(SSR_WAIT_SLEEP_TIME);
+         }
+      }
+      /* at least one external thread is executing */
+      if (!count)
+      {
+          VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                    "%s: Continuing SSR when %d Entry points are still active",
+                     __func__, atomic_read(&ssr_protect_entry_count));
+      }
       // Check if Watchdog needs to shutdown
       if(test_bit(WD_SHUTDOWN_EVENT_MASK, &pWdContext->wdEventFlag))
       {
@@ -750,6 +807,7 @@ VosWDThread
           goto err_reset;
         }
         pWdContext->resetInProgress = false;
+        complete(&pHddCtx->ssr_comp_var);
       }
       else
       {
@@ -918,9 +976,6 @@ static int VosTXThread ( void * Arg )
       if (!vos_is_mq_empty(&pSchedContext->wdiTxMq))
       {
         wpt_msg *pWdiMsg;
-        VOS_TRACE(VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_INFO,
-                  "%s: Servicing the VOS TX WDI Message queue",__func__);
-
         pMsgWrapper = vos_mq_get(&pSchedContext->wdiTxMq);
 
         if (pMsgWrapper == NULL)
@@ -1096,9 +1151,6 @@ static int VosRXThread ( void * Arg )
       if (!vos_is_mq_empty(&pSchedContext->wdiRxMq))
       {
         wpt_msg *pWdiMsg;
-        VOS_TRACE(VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_INFO,
-                  "%s: Servicing the VOS RX WDI Message queue",__func__);
-
         pMsgWrapper = vos_mq_get(&pSchedContext->wdiRxMq);
         if ((NULL == pMsgWrapper) || (NULL == pMsgWrapper->pVosMsg))
         {
@@ -1782,7 +1834,7 @@ VOS_STATUS vos_watchdog_wlan_shutdown(void)
     /* Release the lock here */
     spin_unlock(&gpVosWatchdogContext->wdLock);
 
-    if (pHddCtx->isLoadUnloadInProgress)
+    if (WLAN_HDD_IS_LOAD_UNLOAD_IN_PROGRESS(pHddCtx))
     {
         VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
                 "%s: Load/unload in Progress. Ignoring signaling Watchdog",
@@ -1829,4 +1881,38 @@ VOS_STATUS vos_watchdog_wlan_re_init(void)
     wake_up_interruptible(&gpVosWatchdogContext->wdWaitQueue);
 
     return VOS_STATUS_SUCCESS;
+}
+
+/**
+  @brief vos_ssr_protect()
+
+  This function is called to keep track of active driver entry points
+
+  @param
+         caller_func - Name of calling function.
+  @return
+         void
+*/
+void vos_ssr_protect(const char *caller_func)
+{
+     int count;
+     count = atomic_inc_return(&ssr_protect_entry_count);
+     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+               "%s: ENTRY ACTIVE %d", caller_func, count);
+}
+
+/**
+  @brief vos_ssr_unprotect()
+
+  @param
+         caller_func - Name of calling function.
+  @return
+         void
+*/
+void vos_ssr_unprotect(const char *caller_func)
+{
+   int count;
+   count = atomic_dec_return(&ssr_protect_entry_count);
+   VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+               "%s: ENTRY INACTIVE %d", caller_func, count);
 }

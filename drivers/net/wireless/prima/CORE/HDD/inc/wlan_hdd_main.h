@@ -114,7 +114,7 @@
 #define TDLS_INIT_DONE         (6)
 
 /** Maximum time(ms)to wait for disconnect to complete **/
-#define WLAN_WAIT_TIME_DISCONNECT  500
+#define WLAN_WAIT_TIME_DISCONNECT  2000
 #define WLAN_WAIT_TIME_STATS       800
 #define WLAN_WAIT_TIME_POWER       800
 #define WLAN_WAIT_TIME_COUNTRY     1000
@@ -185,6 +185,7 @@
 #define WLAN_HDD_WFA_P2P_OUI_TYPE 0x09
 #define WLAN_HDD_P2P_SOCIAL_CHANNELS 3
 #define WLAN_HDD_P2P_SINGLE_CHANNEL_SCAN 1
+#define WLAN_HDD_PUBLIC_ACTION_FRAME_SUB_TYPE_OFFSET 6
 
 #define WLAN_HDD_IS_SOCIAL_CHANNEL(center_freq) \
 (((center_freq) == 2412) || ((center_freq) == 2437) || ((center_freq) == 2462))
@@ -218,6 +219,7 @@
 #define HDD_PNO_SCAN_TIMERS_SET_ONE      1
 /* value should not be greater than PNO_MAX_SCAN_TIMERS */
 #define HDD_PNO_SCAN_TIMERS_SET_MULTIPLE 6
+#define WLAN_WAIT_TIME_PNO  500
 #endif
 
 #define MAX_USER_COMMAND_SIZE 4096
@@ -541,6 +543,13 @@ typedef enum
    WLAN_HDD_TM_LEVEL_MAX
 } WLAN_TmLevelEnumType;
 
+typedef enum
+{
+   WLAN_HDD_NO_LOAD_UNLOAD_IN_PROGRESS = 0 ,
+   WLAN_HDD_LOAD_IN_PROGRESS           = 1<<0,
+   WLAN_HDD_UNLOAD_IN_PROGRESS         = 1<<1,
+}load_unload_sequence;
+
 /* Driver Action based on thermal mitigation level structure */
 typedef struct
 {
@@ -565,6 +574,12 @@ typedef struct
    struct netdev_queue *blockedQueue;
    v_BOOL_t             qBlocked;
 } hdd_thermal_mitigation_info_t;
+typedef struct action_pkt_buffer
+{
+   tANI_U8* frame_ptr;
+   tANI_U32 frame_length;
+   tANI_U16 freq;
+}action_pkt_buffer_t;
 
 typedef struct hdd_remain_on_chan_ctx
 {
@@ -574,7 +589,9 @@ typedef struct hdd_remain_on_chan_ctx
   unsigned int duration;
   u64 cookie;
   rem_on_channel_request_type_t rem_on_chan_request;
-  v_U32_t p2pRemOnChanTimeStamp;
+  vos_timer_t hdd_remain_on_chan_timer;
+  action_pkt_buffer_t action_pkt_buff;
+  v_U32_t hdd_remain_on_chan_cancel_in_progress;
 }hdd_remain_on_chan_ctx_t;
 
 typedef enum{
@@ -770,7 +787,9 @@ typedef struct hdd_scaninfo_s
 
 }hdd_scaninfo_t;
 
-#define WLAN_HDD_MAX_MC_ADDR_LIST 10
+/* Changing value from 10 to 240, as later is
+   supported by wcnss */
+#define WLAN_HDD_MAX_MC_ADDR_LIST 240
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 typedef struct multicast_addr_list
@@ -793,7 +812,7 @@ typedef struct
     /*BSSID*/
     tANI_U8  bssid[SIR_MAC_ADDR_LEN];
     /*SSID*/
-    tANI_U8  ssid[SIR_MAX_SSID_SIZE];
+    tANI_U8  ssid[SIR_MAX_SSID_SIZE + 1];
     /*Channel*/
     tANI_U8  ch;
     /*RSSI or Level*/
@@ -894,6 +913,10 @@ struct hdd_adapter_s
 
    /* completion variable for cancel remain on channel Event */
    struct completion cancel_rem_on_chan_var;
+
+   /** completion variable for PNO req callback */
+   struct completion pno_comp_var;
+   int pno_req_status;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
    /* completion variable for off channel  remain on channel Event */
@@ -1018,7 +1041,7 @@ struct hdd_adapter_s
    v_U8_t psbChanged;
    /* UAPSD psb value configured through framework */
    v_U8_t configuredPsb;
-   v_BOOL_t internalCancelRemainOnChReq;
+   v_BOOL_t is_roc_inprogress;
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) (&(pAdapter)->sessionCtx.station)
@@ -1058,15 +1081,6 @@ typedef struct
    vos_lock_t  trafficLock;
    v_TIME_t    lastFrameTs;
 }hdd_traffic_monitor_t;
-
-#ifdef FEATURE_WLAN_LPHB
-typedef struct
-{
-   v_U8_t enable;
-   v_U8_t item;
-   v_U8_t session;
-} lphbEnableStruct;
-#endif /* FEATURE_WLAN_LPHB */
 
 /** Adapter stucture definition */
 
@@ -1147,7 +1161,9 @@ struct hdd_context_s
 
    volatile v_BOOL_t isLogpInProgress;
 
-   v_BOOL_t isLoadUnloadInProgress;
+   struct completion ssr_comp_var;
+
+   v_U8_t isLoadUnloadInProgress;
    
    /**Track whether driver has been suspended.*/
    hdd_ps_state_t hdd_ps_state;
@@ -1240,9 +1256,6 @@ struct hdd_context_s
     v_U8_t configuredMcastBcastFilter;
 
     v_U8_t sus_res_mcastbcast_filter;
-#ifdef FEATURE_WLAN_LPHB
-    lphbEnableStruct  lphbEnableReq;
-#endif /* FEATURE_WLAN_LPHB */
 
     v_BOOL_t sus_res_mcastbcast_filter_valid;
 
@@ -1279,7 +1292,15 @@ struct hdd_context_s
 };
 
 
+#define WLAN_HDD_IS_LOAD_IN_PROGRESS(pHddCtx)  \
+            (pHddCtx->isLoadUnloadInProgress & WLAN_HDD_LOAD_IN_PROGRESS)
 
+#define WLAN_HDD_IS_UNLOAD_IN_PROGRESS(pHddCtx)  \
+            (pHddCtx->isLoadUnloadInProgress & WLAN_HDD_UNLOAD_IN_PROGRESS)
+
+#define WLAN_HDD_IS_LOAD_UNLOAD_IN_PROGRESS(pHddCtx)  \
+            (pHddCtx->isLoadUnloadInProgress &    \
+              (WLAN_HDD_LOAD_IN_PROGRESS | WLAN_HDD_UNLOAD_IN_PROGRESS))
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
   -------------------------------------------------------------------------*/ 
@@ -1408,5 +1429,7 @@ int hdd_handle_batch_scan_ioctl
 void hdd_deinit_batch_scan(hdd_adapter_t *pAdapter);
 
 #endif /*End of FEATURE_WLAN_BATCH_SCAN*/
+
+boolean hdd_is_5g_supported(hdd_context_t * pHddCtx);
 
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )

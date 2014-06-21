@@ -229,6 +229,7 @@ static eHalStatus sme_RrmSendBeaconReportXmitInd( tpAniSirGlobal pMac,
        pBeaconRep->messageType = eWNI_SME_BEACON_REPORT_RESP_XMIT_IND;
        pBeaconRep->length = length;
        pBeaconRep->uDialogToken = pSmeRrmContext->token;
+       pBeaconRep->duration = pSmeRrmContext->duration[0];
        pBeaconRep->regClass = pSmeRrmContext->regClass;
        vos_mem_copy( pBeaconRep->bssId, pSmeRrmContext->sessionBssId, sizeof(tSirMacAddr) );
 
@@ -701,7 +702,6 @@ eHalStatus sme_RrmIssueScanReq( tpAniSirGlobal pMac )
        vos_mem_zero( &scanRequest, sizeof(scanRequest));
 
        /* set scanType, active or passive */
-       scanRequest.bcnRptReqScan = TRUE;
        scanRequest.scanType = scanType;
 
        vos_mem_copy(scanRequest.bssid,
