@@ -318,7 +318,7 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
 
    case NETDEV_GOING_DOWN:
         result = wlan_hdd_scan_abort(pAdapter);
-        if (result <= 0)
+        if (result < 0)
         {
             VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                        "%s: Timeout occurred while waiting for abortscan %ld",
@@ -9348,6 +9348,7 @@ static void hdd_driver_exit(void)
 {
    hdd_context_t *pHddCtx = NULL;
    v_CONTEXT_t pVosContext = NULL;
+   v_REGDOMAIN_t regId;
    unsigned long rc = 0;
 
    pr_info("%s: unloading driver v%s\n", WLAN_MODULE_NAME, QWLAN_VERSIONSTR);
@@ -9388,6 +9389,12 @@ static void hdd_driver_exit(void)
 
       pHddCtx->isLoadUnloadInProgress = WLAN_HDD_UNLOAD_IN_PROGRESS;
       vos_set_load_unload_in_progress(VOS_MODULE_ID_VOSS, TRUE);
+
+      if (eANI_BOOLEAN_TRUE == sme_Is11dCountrycode(pHddCtx->hHal) &&
+              pHddCtx->cfg_ini->fSupplicantCountryCodeHasPriority )
+      {
+          vos_nv_getRegDomainFromCountryCode(&regId , "00", COUNTRY_USER);
+      }
 
       //Do all the cleanup before deregistering the driver
       hdd_wlan_exit(pHddCtx);
@@ -9995,7 +10002,7 @@ int wlan_hdd_scan_abort(hdd_adapter_t *pAdapter)
 {
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     hdd_scaninfo_t *pScanInfo = NULL;
-    int status;
+    long status = 0;
 
     pScanInfo = &pHddCtx->scan_info;
     if (pScanInfo->mScanPending)
@@ -10007,15 +10014,15 @@ int wlan_hdd_scan_abort(hdd_adapter_t *pAdapter)
         status = wait_for_completion_interruptible_timeout(
                            &pScanInfo->abortscan_event_var,
                            msecs_to_jiffies(5000));
-        if ((!status) || (status == -ERESTARTSYS))
+        if (0 >= status)
         {
            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: Timeout occurred while waiting for abort scan",
-                  __func__);
+                  "%s: Timeout or Interrupt occurred while waiting for abort"
+                  "scan, status- %ld", __func__, status);
             return -ETIMEDOUT;
         }
     }
-    return status;
+    return 0;
 }
 
 //Register the module init/exit functions
