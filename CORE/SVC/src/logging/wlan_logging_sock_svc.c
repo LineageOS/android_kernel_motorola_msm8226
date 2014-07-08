@@ -37,8 +37,8 @@
 #include <wlan_nlink_common.h>
 #include <wlan_logging_sock_svc.h>
 #include <vos_types.h>
-#include <vos_trace.h>
 #include <kthread.h>
+#include "vos_memory.h"
 
 #define LOGGING_TRACE(level, args...) \
 		VOS_TRACE(VOS_MODULE_ID_HDD, level, ## args)
@@ -139,7 +139,7 @@ static int wlan_send_sock_msg_to_app(tAniHdr *wmsg, int radio,
 
 	wnl = (tAniNlHdr *) nlh;
 	wnl->radio = radio;
-	memcpy(&wnl->wmsg, wmsg, wmsg_length);
+	vos_mem_copy(&wnl->wmsg, wmsg, wmsg_length);
 	LOGGING_TRACE(VOS_TRACE_LEVEL_INFO,
 			"%s: Sending Msg Type [0x%X] to pid[%d]\n",
 			__func__, be16_to_cpu(wmsg->type), pid);
@@ -208,9 +208,10 @@ static int wlan_queue_logmsg_for_app(void)
 		 */
 		gwlan_logging.pcur_node =
 			(struct log_msg *)(gwlan_logging.filled_list.next);
+		++gwlan_logging.drop_count;
 		if (gapp_pid != INVALID_PID && !gwlan_logging.is_buffer_free) {
 			pr_err("%s: drop_count = %u index = %d filled_length = %d\n",
-				__func__, ++gwlan_logging.drop_count,
+				__func__, gwlan_logging.drop_count,
 				gwlan_logging.pcur_node->index,
 				gwlan_logging.pcur_node->filled_length);
 				/* print above logs only 1st time. */
@@ -292,8 +293,8 @@ int wlan_log_to_user(VOS_TRACE_LEVEL log_level, char *to_be_sent, int length)
 		total_log_len = MAX_LOGMSG_LENGTH - sizeof(tAniNlHdr) - 2;
 	}
 
-	memcpy(&ptr[*pfilled_length], tbuf, tlen);
-	memcpy(&ptr[*pfilled_length + tlen], to_be_sent,
+	vos_mem_copy(&ptr[*pfilled_length], tbuf, tlen);
+	vos_mem_copy(&ptr[*pfilled_length + tlen], to_be_sent,
 			min(length, (total_log_len - tlen)));
 	*pfilled_length += tlen + min(length, total_log_len - tlen);
 	ptr[*pfilled_length] = '\n';
@@ -326,17 +327,23 @@ static int send_filled_buffers_to_user(void)
 	struct nlmsghdr *nlh;
 	static int nlmsg_seq;
 	unsigned long flags;
+	static int rate_limit;
 
 	while (!list_empty(&gwlan_logging.filled_list)
 		&& !gwlan_logging.exit) {
 
 		skb = dev_alloc_skb(MAX_LOGMSG_LENGTH);
 		if (skb == NULL) {
-			pr_err("%s: dev_alloc_skb() failed for msg size[%d]\n",
-				__func__, MAX_LOGMSG_LENGTH);
+			if (!rate_limit) {
+				pr_err("%s: dev_alloc_skb() failed for msg size[%d] drop count = %u\n",
+					__func__, MAX_LOGMSG_LENGTH,
+					gwlan_logging.drop_count);
+			}
+			rate_limit = 1;
 			ret = -ENOMEM;
 			break;
 		}
+		rate_limit = 0;
 
 		spin_lock_irqsave(&gwlan_logging.spin_lock, flags);
 
@@ -370,7 +377,7 @@ static int send_filled_buffers_to_user(void)
 
 		wnl = (tAniNlHdr *) nlh;
 		wnl->radio = plog_msg->radio;
-		memcpy(&wnl->wmsg, plog_msg->logbuf,
+		vos_mem_copy(&wnl->wmsg, plog_msg->logbuf,
 				plog_msg->filled_length +
 				sizeof(tAniHdr));
 
@@ -404,6 +411,7 @@ static int send_filled_buffers_to_user(void)
 static int wlan_logging_thread(void *Arg)
 {
 	int ret_wait_status = 0;
+	int ret = 0;
 
 	set_user_nice(current, -2);
 
@@ -433,7 +441,10 @@ static int wlan_logging_thread(void *Arg)
 			continue;
 		}
 
-		send_filled_buffers_to_user();
+		ret = send_filled_buffers_to_user();
+		if (-ENOMEM == ret) {
+			msleep(200);
+		}
 	}
 
 	complete_and_exit(&gwlan_logging.shutdown_comp, 0);

@@ -55,6 +55,8 @@ typedef enum
 #define LIM_AID_MASK                              0xC000
 #define LIM_SPECTRUM_MANAGEMENT_BIT_MASK          0x0100
 #define LIM_RRM_BIT_MASK                          0x1000
+#define LIM_SHORT_PREAMBLE_BIT_MASK               0x0020
+#define LIM_IMMEDIATE_BLOCK_ACK_MASK              0x8000
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_ESE) || defined(FEATURE_WLAN_LFR)
 #define LIM_MAX_REASSOC_RETRY_LIMIT            2
 #endif
@@ -387,9 +389,6 @@ tANI_U8 limUnmapChannel(tANI_U8 mapChannel);
 #define limGetP2pIEPtr(pMac, ie, ie_len) \
     limGetVendorIEOuiPtr(pMac, SIR_MAC_P2P_OUI, SIR_MAC_P2P_OUI_SIZE, ie, ie_len)
 
-#define limGetWmeIEPtr(pMac, ie, ie_len) \
-    limGetVendorIEOuiPtr(pMac, SIR_MAC_WME_OUI, SIR_MAC_WME_OUI_SIZE, ie, ie_len)
-
 v_U8_t limGetNoaAttrStreamInMultP2pIes(tpAniSirGlobal pMac,v_U8_t* noaStream,v_U8_t noaLen,v_U8_t overFlowLen);
 v_U8_t limGetNoaAttrStream(tpAniSirGlobal pMac, v_U8_t*pNoaStream,tpPESession psessionEntry);
 
@@ -524,6 +523,10 @@ void limUpdateOBSSScanParams(tpPESession psessionEntry ,
 
 #ifdef WLAN_FEATURE_11W
 void limPmfSaQueryTimerHandler(void *pMacGlobal, tANI_U32 param);
-#endif
 
+void limSetProtectedBit(tpAniSirGlobal  pMac,
+                           tpPESession     psessionEntry,
+                           tSirMacAddr     peer,
+                           tpSirMacMgmtHdr pMacHdr);
+#endif
 #endif /* __LIM_UTILS_H */
