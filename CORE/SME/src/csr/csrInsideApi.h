@@ -284,6 +284,9 @@ void csrRemoveCmdWithSessionIdFromPendingList(tpAniSirGlobal pMac,
 eHalStatus csrScanAbortMacScanNotForConnect(tpAniSirGlobal pMac,
                                             tANI_U8 sessionId);
 eHalStatus csrScanGetScanChannelInfo(tpAniSirGlobal pMac, tANI_U8 sessionId);
+eHalStatus csrScanAbortScanForSSID(tpAniSirGlobal pMac, tANI_U32 sessionId);
+void csrRemoveScanForSSIDFromPendingList(tpAniSirGlobal pMac, tDblLinkList *pList, tANI_U32 sessionId);
+
 //To age out scan results base. tSmeGetScanChnRsp is a pointer returned by LIM that
 //has the information regarding scanned channels.
 //The logic is that whenever CSR add a BSS to scan result, it set the age count to
@@ -293,7 +296,8 @@ eHalStatus csrScanAgeResults(tpAniSirGlobal pMac, tSmeGetScanChnRsp *pScanChnInf
 
 //If fForce is TRUE we will save the new String that is learn't.
 //Typically it will be true in case of Join or user initiated ioctl
-tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForce );
+tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription *pSirBssDesc,
+                                         tDot11fBeaconIEs *pIes, tANI_BOOLEAN fForce );
 void csrApplyCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForce );
 void csrSetCfgScanControlList( tpAniSirGlobal pMac, tANI_U8 *countryCode, tCsrChannel *pChannelList  );
 void csrReinitScanCmd(tpAniSirGlobal pMac, tSmeCmd *pCommand);

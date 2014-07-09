@@ -266,48 +266,6 @@ tSirRetStatus limPopulateMacHeader( tpAniSirGlobal pMac,
     return statusCode;
 } /*** end limPopulateMacHeader() ***/
 
-#ifdef WLAN_FEATURE_11W
-/**
- *
- * \brief This function is called by various LIM modules to correctly set
- * the Protected bit in the Frame Control Field of the 802.11 frame MAC header
- *
- *
- * \param  pMac Pointer to Global MAC structure
- *
- * \param psessionEntry Pointer to session corresponding to the connection
- *
- * \param peer Peer address of the STA to which the frame is to be sent
- *
- * \param pMacHdr Pointer to the frame MAC header
- *
- * \return nothing
- *
- *
- */
-void
-limSetProtectedBit(tpAniSirGlobal  pMac,
-                   tpPESession     psessionEntry,
-                   tSirMacAddr     peer,
-                   tpSirMacMgmtHdr pMacHdr)
-{
-    tANI_U16 aid;
-    tpDphHashNode pStaDs;
-
-    if( (psessionEntry->limSystemRole == eLIM_AP_ROLE) ||
-         (psessionEntry->limSystemRole == eLIM_BT_AMP_AP_ROLE) )
-    {
-
-        pStaDs = dphLookupHashEntry( pMac, peer, &aid, &psessionEntry->dph.dphHashTable );
-        if( pStaDs != NULL )
-            if( pStaDs->rmfEnabled )
-                pMacHdr->fc.wep = 1;
-    }
-    else if ( psessionEntry->limRmfEnabled )
-        pMacHdr->fc.wep = 1;
-} /*** end limSetProtectedBit() ***/
-#endif
-
 /**
  * \brief limSendProbeReqMgmtFrame
  *
@@ -2597,6 +2555,10 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
     MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
            psessionEntry->peSessionId,
            pMacHdr->fc.subType));
+
+    // enable caching
+    WLANTL_EnableCaching(psessionEntry->staId);
+
     halstatus = halTxFrame( pMac, pPacket, ( tANI_U16 ) (sizeof(tSirMacMgmtHdr) + nPayload),
             HAL_TXRX_FRM_802_11_MGMT,
             ANI_TXDIR_TODS,
@@ -3407,6 +3369,10 @@ limSendReassocReqMgmtFrame(tpAniSirGlobal     pMac,
     MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
            psessionEntry->peSessionId,
            pMacHdr->fc.subType));
+
+    // enable caching
+    WLANTL_EnableCaching(psessionEntry->staId);
+
     halstatus = halTxFrame( pMac, pPacket, ( tANI_U16 ) (sizeof(tSirMacMgmtHdr) + nPayload),
                             HAL_TXRX_FRM_802_11_MGMT,
                             ANI_TXDIR_TODS,

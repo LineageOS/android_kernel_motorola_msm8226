@@ -1610,20 +1610,6 @@ static iw_softap_getparam(struct net_device *dev,
         *value = 0;
         break;
         
-    case QCSAP_PARAM_MODULE_DOWN_IND:
-        {
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                "%s: sending WLAN_MODULE_DOWN_IND", __func__);
-            send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
-#ifdef WLAN_BTAMP_FEATURE 
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                "%s: Take down AMP PAL", __func__);
-            BSL_Deinit(vos_get_global_context(VOS_MODULE_ID_HDD, NULL));
-#endif            
-            *value = 0;
-            break;
-        }
-
     case QCSAP_PARAM_GET_WLAN_DBG:
         {
             vos_trace_display();
@@ -1981,8 +1967,7 @@ static iw_softap_ap_stats(struct net_device *dev,
     hdd_adapter_t *pHostapdAdapter = (netdev_priv(dev));
     WLANTL_TRANSFER_STA_TYPE  statBuffer;
     char *pstatbuf;
-    int len = wrqu->data.length;
-    pstatbuf = wrqu->data.pointer;
+    int len;
 
     memset(&statBuffer, 0, sizeof(statBuffer));
     WLANSAP_GetStatistics((WLAN_HDD_GET_CTX(pHostapdAdapter))->pvosContext,
@@ -2015,44 +2000,6 @@ static iw_softap_ap_stats(struct net_device *dev,
     strlcpy(extra, pstatbuf, len);
     wrqu->data.length = len;
     kfree(pstatbuf);
-    return 0;
-}
-
-static 
-int iw_softap_setmlme(struct net_device *dev,
-                        struct iw_request_info *info,
-                        union iwreq_data *wrqu, char *extra)
-{
-    struct sQcSapreq_mlme *pmlme;
-    hdd_adapter_t *pHostapdAdapter = (hdd_adapter_t*)(netdev_priv(dev));
-    v_MACADDR_t destAddress;
-    pmlme = (struct sQcSapreq_mlme *)(wrqu->name);
-    /* NOTE: this address is not valid incase of TKIP failure, since not filled */
-    vos_mem_copy(&destAddress.bytes, pmlme->im_macaddr, sizeof(v_MACADDR_t));
-    switch(pmlme->im_op)
-    {
-        case QCSAP_MLME_AUTHORIZE:
-                    hdd_softap_change_STA_state( pHostapdAdapter, &destAddress, WLANTL_STA_AUTHENTICATED);
-        break;
-        case QCSAP_MLME_ASSOC:
-        //TODO:inform to TL after associating (not needed  as we do in sapCallback)
-        break;
-        case QCSAP_MLME_UNAUTHORIZE:
-        //TODO: send the disassoc to station
-        //hdd_softap_change_STA_state( pHostapdAdapter, pmlme->im_macaddr, WLANTL_STA_AUTHENTICATED);
-        break;
-        case QCSAP_MLME_DISASSOC:
-            hdd_softap_sta_disassoc(pHostapdAdapter,pmlme->im_macaddr);
-        break;
-        case QCSAP_MLME_DEAUTH:
-            hdd_softap_sta_deauth(pHostapdAdapter,pmlme->im_macaddr);
-        break;
-        case QCSAP_MLME_MICFAILURE:
-            hdd_softap_tkip_mic_fail_counter_measure(pHostapdAdapter,pmlme->im_reason);
-        break;
-        default:
-        break;
-    }
     return 0;
 }
 
@@ -2098,6 +2045,7 @@ int iw_softap_get_channel_list(struct net_device *dev,
     v_REGDOMAIN_t domainIdCurrentSoftap;
     tpChannelListInfo channel_list = (tpChannelListInfo) extra;
     eCsrBand curBand = eCSR_BAND_ALL;
+    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pHostapdAdapter);
 
     if (eHAL_STATUS_SUCCESS != sme_GetFreqBand(hHal, &curBand))
     {
@@ -2141,7 +2089,8 @@ int iw_softap_get_channel_list(struct net_device *dev,
         return -EIO;
     }
 
-    if(REGDOMAIN_FCC == domainIdCurrentSoftap)
+    if(REGDOMAIN_FCC == domainIdCurrentSoftap &&
+             pHddCtx->cfg_ini->gEnableStrictRegulatoryForFCC )
     {
         for(i = 0; i < temp_num_channels; i++)
         {
@@ -2625,25 +2574,31 @@ static int iw_softap_setwpsie(struct net_device *dev,
    tpSap_WPSIE pSap_WPSIe;
    u_int8_t WPSIeType;
    u_int16_t length;   
+   struct iw_point s_priv_data;
    ENTER();
 
-   if(!wrqu->data.length || wrqu->data.length <= QCSAP_MAX_WSC_IE)
-      return 0;
-
-   wps_genie = kmalloc(wrqu->data.length, GFP_KERNEL);
-
-   if(NULL == wps_genie) {
-       hddLog(LOG1, "unable to allocate memory");
-       return -ENOMEM;
-   }
-   fwps_genie = wps_genie;
-   if (copy_from_user((void *)wps_genie,
-       wrqu->data.pointer, wrqu->data.length))
+   /* helper function to get iwreq_data with compat handling. */
+   if (hdd_priv_get_data(&s_priv_data, wrqu))
    {
-       hddLog(LOG1, "%s: failed to copy data to user buffer", __func__);
-       kfree(fwps_genie);
+      return -EINVAL;
+   }
+
+   if ((NULL == s_priv_data.pointer) || (s_priv_data.length < QCSAP_MAX_WSC_IE))
+   {
+      return -EINVAL;
+   }
+
+   wps_genie = mem_alloc_copy_from_user_helper(s_priv_data.pointer,
+                                               s_priv_data.length);
+
+   if(NULL == wps_genie)
+   {
+       hddLog(LOG1, "%s: failed to alloc memory "
+                    "and copy data from user buffer", __func__);
        return -EFAULT;
    }
+
+   fwps_genie = wps_genie;
 
    pSap_WPSIe = vos_mem_malloc(sizeof(tSap_WPSIE));
    if (NULL == pSap_WPSIe) 
@@ -3331,14 +3286,10 @@ static const struct iw_priv_args hostapd_private_args[] = {
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,    "getAutoChannel" },
   { QCSAP_PARAM_SET_AUTO_CHANNEL,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0, "setAutoChannel" },
-  { QCSAP_PARAM_MODULE_DOWN_IND, 0,
-      IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,    "moduleDownInd" },
   { QCSAP_PARAM_CLR_ACL, 0,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, "setClearAcl" },
   { QCSAP_PARAM_ACL_MODE,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0, "setAclMode" },
-  { QCSAP_IOCTL_SETMLME,
-      IW_PRIV_TYPE_BYTE | sizeof(struct sQcSapreq_mlme)| IW_PRIV_SIZE_FIXED, 0, "setmlme" },
   { QCSAP_IOCTL_GET_STAWPAIE,
       IW_PRIV_TYPE_BYTE | IW_PRIV_SIZE_FIXED | 1, 0, "get_staWPAIE" },
   { QCSAP_IOCTL_SETWPAIE,
@@ -3355,8 +3306,8 @@ static const struct iw_priv_args hostapd_private_args[] = {
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, "getchannel" },
   { QCSAP_IOCTL_DISASSOC_STA,
         IW_PRIV_TYPE_BYTE | IW_PRIV_SIZE_FIXED | 6 , 0, "disassoc_sta" },
-  { QCSAP_IOCTL_AP_STATS,
-        IW_PRIV_TYPE_BYTE | QCSAP_MAX_WSC_IE, 0, "ap_stats" },
+  { QCSAP_IOCTL_AP_STATS, 0,
+        IW_PRIV_TYPE_CHAR | QCSAP_MAX_WSC_IE, "ap_stats" },
   { QCSAP_IOCTL_PRIV_GET_SOFTAP_LINK_SPEED,
         IW_PRIV_TYPE_CHAR | 18,
         IW_PRIV_TYPE_CHAR | 5, "getLinkSpeed" },
@@ -3437,7 +3388,6 @@ static const struct iw_priv_args hostapd_private_args[] = {
 static const iw_handler hostapd_private[] = {
    [QCSAP_IOCTL_SETPARAM - SIOCIWFIRSTPRIV] = iw_softap_setparam,  //set priv ioctl
    [QCSAP_IOCTL_GETPARAM - SIOCIWFIRSTPRIV] = iw_softap_getparam,  //get priv ioctl   
-   [QCSAP_IOCTL_SETMLME  - SIOCIWFIRSTPRIV] = iw_softap_setmlme,
    [QCSAP_IOCTL_GET_STAWPAIE - SIOCIWFIRSTPRIV] = iw_get_genie, //get station genIE
    [QCSAP_IOCTL_SETWPAIE - SIOCIWFIRSTPRIV] = iw_softap_setwpsie,
    [QCSAP_IOCTL_STOPBSS - SIOCIWFIRSTPRIV] = iw_softap_stopbss,       // stop bss

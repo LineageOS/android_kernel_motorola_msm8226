@@ -48,6 +48,7 @@
 #include "vos_diag_core_event.h"
 
 #include "vos_nvitem.h"
+#include "vos_memory.h"
 #include "wlan_qct_wda.h"
 #include "vos_utils.h"
 
@@ -2129,8 +2130,23 @@ eHalStatus csrScanGetResult(tpAniSirGlobal pMac, tCsrScanResultFilter *pFilter, 
                     }
                     else
                     {
-                        fMatch = csrIsSecurityMatch( pMac, &pFilter->authType, &pFilter->EncryptionType, &pFilter->mcEncryptionType,
-                                 &pBssDesc->Result.BssDescriptor, pIes, NULL, NULL, NULL );
+#ifdef WLAN_FEATURE_11W
+                        fMatch = csrIsSecurityMatch(pMac, &pFilter->authType,
+                                                &pFilter->EncryptionType,
+                                                &pFilter->mcEncryptionType,
+                                                &pFilter->MFPEnabled,
+                                                &pFilter->MFPRequired,
+                                                &pFilter->MFPCapable,
+                                                &pBssDesc->Result.BssDescriptor,
+                                                pIes, NULL, NULL, NULL );
+#else
+                        fMatch = csrIsSecurityMatch(pMac, &pFilter->authType,
+                                                &pFilter->EncryptionType,
+                                                &pFilter->mcEncryptionType,
+                                                NULL, NULL, NULL,
+                                                &pBssDesc->Result.BssDescriptor,
+                                                pIes, NULL, NULL, NULL );
+#endif
                     }
                     if ((pBssDesc->Result.pvIes == NULL) && pIes)
                          vos_mem_free(pIes);
@@ -3112,7 +3128,7 @@ static void csrMoveTempScanResultsToMainList( tpAniSirGlobal pMac, tANI_U8 reaso
             }
         }
         csrElectedCountryInfo(pMac);
-        csrLearnCountryInformation( pMac, eANI_BOOLEAN_TRUE );
+        csrLearnCountryInformation( pMac, NULL, NULL, eANI_BOOLEAN_TRUE );
     }
 
 end:
@@ -3614,9 +3630,9 @@ tANI_BOOLEAN csrElectedCountryInfo(tpAniSirGlobal pMac)
     }
     if (fRet)
     {
-        memcpy(pMac->scan.countryCodeElected,
+        vos_mem_copy(pMac->scan.countryCodeElected,
             pMac->scan.votes11d[j].countryCode, WNI_CFG_COUNTRY_CODE_LEN);
-        memcpy(pMac->scan.countryCode11d,
+        vos_mem_copy(pMac->scan.countryCode11d,
             pMac->scan.votes11d[j].countryCode, WNI_CFG_COUNTRY_CODE_LEN);
         VOS_TRACE( VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
                  "Selected Country is %c%c With count %d\n",
@@ -4046,22 +4062,58 @@ void csrConstructCurrentValidChannelList( tpAniSirGlobal pMac, tDblLinkList *pCh
 /*
   * 802.11D only: Gather 11d IE via beacon or Probe response and store them in pAdapter->channels11d
 */
-tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForce)
+tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tSirBssDescription *pSirBssDesc,
+                                         tDot11fBeaconIEs *pIes, tANI_BOOLEAN fForce)
 {
     eHalStatus status;
+    tANI_U8 *pCountryCodeSelected;
     tANI_BOOLEAN fRet = eANI_BOOLEAN_FALSE;
     v_REGDOMAIN_t domainId;
+    tDot11fBeaconIEs *pIesLocal = pIes;
+    tANI_BOOLEAN useVoting = eANI_BOOLEAN_FALSE;
 
     if (VOS_STA_SAP_MODE == vos_get_conparam ())
         return eHAL_STATUS_SUCCESS;
+
+    if ((NULL == pSirBssDesc) && (NULL == pIes))
+        useVoting = eANI_BOOLEAN_TRUE;
 
     do
     {
         // check if .11d support is enabled
         if( !csrIs11dSupported( pMac ) ) break;
 
+        if (eANI_BOOLEAN_FALSE == useVoting)
+        {
+            if( !pIesLocal &&
+                (!HAL_STATUS_SUCCESS(csrGetParsedBssDescriptionIEs(pMac,
+                                     pSirBssDesc, &pIesLocal))))
+            {
+                break;
+            }
+            // check if country information element is present
+            if(!pIesLocal->Country.present)
+            {
+                //No country info
+                break;
+            }
+
+            if( HAL_STATUS_SUCCESS(csrGetRegulatoryDomainForCountry
+                (pMac, pIesLocal->Country.country, &domainId,
+                COUNTRY_QUERY)) &&
+                ( domainId == REGDOMAIN_WORLD))
+            {
+                break;
+            }
+        } //useVoting == eANI_BOOLEAN_FALSE
+
+        if (eANI_BOOLEAN_FALSE == useVoting)
+            pCountryCodeSelected = pIesLocal->Country.country;
+        else
+            pCountryCodeSelected = pMac->scan.countryCodeElected;
+
         status = csrGetRegulatoryDomainForCountry(pMac,
-                       pMac->scan.countryCodeElected, &domainId, COUNTRY_IE);
+                       pCountryCodeSelected, &domainId, COUNTRY_IE);
         if ( status != eHAL_STATUS_SUCCESS )
         {
             smsLog( pMac, LOGE, FL("  fail to get regId %d"), domainId );
@@ -4073,7 +4125,7 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForc
         if ( domainId != pMac->scan.domainIdCurrent )
         {
             vos_mem_copy(pMac->scan.countryCode11d,
-                                  pMac->scan.countryCodeElected,
+                                  pCountryCodeSelected,
                                   sizeof( pMac->scan.countryCode11d ) );
             /* Set Current Country code and Current Regulatory domain */
             status = csrSetRegulatoryDomain(pMac, domainId, NULL);
@@ -4085,9 +4137,9 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForc
             }
             //csrSetRegulatoryDomain will fail if the country doesn't fit our domain criteria.
             vos_mem_copy(pMac->scan.countryCodeCurrent,
-                            pMac->scan.countryCodeElected, WNI_CFG_COUNTRY_CODE_LEN);
+                            pCountryCodeSelected, WNI_CFG_COUNTRY_CODE_LEN);
             //Simply set it to cfg.
-            csrSetCfgCountryCode(pMac, pMac->scan.countryCodeElected);
+            csrSetCfgCountryCode(pMac, pCountryCodeSelected);
 
             /* overwrite the defualt country code */
             vos_mem_copy(pMac->scan.countryCodeDefault,
@@ -4125,7 +4177,12 @@ tANI_BOOLEAN csrLearnCountryInformation( tpAniSirGlobal pMac, tANI_BOOLEAN fForc
         fRet = eANI_BOOLEAN_TRUE;
 
     } while( 0 );
-    
+
+    if( !pIes && pIesLocal )
+    {
+        //locally allocated
+        vos_mem_free(pIesLocal);
+    }
 
     return( fRet );
 }
@@ -7953,6 +8010,112 @@ void csrRemoveCmdFromPendingList(tpAniSirGlobal pMac, tDblLinkList *pList,
 
 }
 
+eHalStatus csrScanAbortScanForSSID(tpAniSirGlobal pMac, tANI_U32 sessionId)
+{
+    eHalStatus status = eHAL_STATUS_SUCCESS;
+    tSirSmeScanAbortReq *pMsg;
+    tANI_U16 msgLen;
+    tListElem *pEntry;
+    tSmeCmd *pCommand;
+
+    if (!pMac->fScanOffload)
+    {
+        pMac->scan.fDropScanCmd = eANI_BOOLEAN_TRUE;
+#ifdef WLAN_AP_STA_CONCURRENCY
+        csrRemoveScanForSSIDFromPendingList( pMac, &pMac->scan.scanCmdPendingList, sessionId);
+#endif
+        csrRemoveScanForSSIDFromPendingList( pMac, &pMac->roam.roamCmdPendingList, sessionId);
+        csrRemoveScanForSSIDFromPendingList( pMac, &pMac->sme.smeCmdPendingList, sessionId);
+        pMac->scan.fDropScanCmd = eANI_BOOLEAN_FALSE;
+        pEntry = csrLLPeekHead(&pMac->sme.smeCmdActiveList, LL_ACCESS_LOCK);
+    }
+    else
+    {
+        pMac->scan.fDropScanCmd = eANI_BOOLEAN_TRUE;
+        csrRemoveScanForSSIDFromPendingList( pMac, &pMac->sme.smeScanCmdPendingList, sessionId);
+        pMac->scan.fDropScanCmd = eANI_BOOLEAN_FALSE;
+        pEntry = csrLLPeekHead(&pMac->sme.smeScanCmdActiveList, LL_ACCESS_LOCK);
+    }
+
+    if(NULL != pEntry)
+    {
+       pCommand = GET_BASE_ADDR( pEntry, tSmeCmd, Link );
+
+       if ( (eSmeCommandScan == pCommand->command ) &&
+                        (sessionId == pCommand->sessionId))
+       {
+          if ( eCsrScanForSsid == pCommand->u.scanCmd.reason)
+          {
+             msgLen = (tANI_U16)(sizeof( tSirSmeScanAbortReq ));
+             pMsg = vos_mem_malloc(msgLen);
+             if ( NULL == pMsg )
+             {
+                status = eHAL_STATUS_FAILURE;
+                smsLog(pMac, LOGE, FL("Failed to allocate memory for SmeScanAbortReq"));
+             }
+             else
+             {
+                vos_mem_zero((void *)pMsg, msgLen);
+                pMsg->type = pal_cpu_to_be16((tANI_U16)eWNI_SME_SCAN_ABORT_IND);
+                pMsg->msgLen = pal_cpu_to_be16(msgLen);
+                pMsg->sessionId = sessionId;
+                status = palSendMBMessage(pMac->hHdd, pMsg);
+             }
+          }
+       }
+    }
+    return( status );
+}
+
+void csrRemoveScanForSSIDFromPendingList(tpAniSirGlobal pMac, tDblLinkList *pList, tANI_U32 sessionId)
+{
+    tDblLinkList localList;
+    tListElem *pEntry;
+    tSmeCmd   *pCommand;
+    tListElem  *pEntryToRemove;
+
+    vos_mem_zero(&localList, sizeof(tDblLinkList));
+    if(!HAL_STATUS_SUCCESS(csrLLOpen(pMac->hHdd, &localList)))
+    {
+        smsLog(pMac, LOGE, FL(" failed to open list"));
+        return;
+    }
+
+    csrLLLock(pList);
+    if( !csrLLIsListEmpty( pList, LL_ACCESS_NOLOCK ) )
+    {
+        pEntry = csrLLPeekHead( pList, LL_ACCESS_NOLOCK);
+
+        // Have to make sure we don't loop back to the head of the list, which will
+        // happen if the entry is NOT on the list...
+        while( pEntry )
+        {
+            pEntryToRemove = pEntry;
+            pEntry = csrLLNext(pList, pEntry, LL_ACCESS_NOLOCK);
+            pCommand = GET_BASE_ADDR( pEntryToRemove, tSmeCmd, Link );
+            if ( (eSmeCommandScan == pCommand->command ) &&
+                             (sessionId == pCommand->sessionId) )
+            {
+               if ( eCsrScanForSsid == pCommand->u.scanCmd.reason)
+               {
+                 // Remove that entry only
+                 if ( csrLLRemoveEntry( pList, pEntryToRemove, LL_ACCESS_NOLOCK))
+                 {
+                    csrLLInsertTail(&localList, pEntryToRemove, LL_ACCESS_NOLOCK);
+                 }
+               }
+            }
+        }
+    }
+    csrLLUnlock(pList);
+
+    while( (pEntry = csrLLRemoveHead(&localList, LL_ACCESS_NOLOCK)) )
+    {
+        pCommand = GET_BASE_ADDR( pEntry, tSmeCmd, Link );
+        csrAbortCommand( pMac, pCommand, eANI_BOOLEAN_FALSE);
+    }
+    csrLLClose(&localList);
+}
 
 eHalStatus csrScanAbortMacScanNotForConnect(tpAniSirGlobal pMac,
                                             tANI_U8 sessionId)
