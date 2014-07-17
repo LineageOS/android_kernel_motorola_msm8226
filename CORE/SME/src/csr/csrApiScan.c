@@ -5263,6 +5263,7 @@ tANI_BOOLEAN csrScanAgeOutBss(tpAniSirGlobal pMac, tCsrScanResult *pResult)
     tANI_BOOLEAN fRet = eANI_BOOLEAN_FALSE;
     tANI_U32 i;
     tCsrRoamSession *pSession;
+    tANI_BOOLEAN isConnBssfound = eANI_BOOLEAN_FALSE;
 
     for( i = 0; i < CSR_ROAM_SESSION_MAX; i++ )
     {
@@ -5270,39 +5271,44 @@ tANI_BOOLEAN csrScanAgeOutBss(tpAniSirGlobal pMac, tCsrScanResult *pResult)
         {
             pSession = CSR_GET_SESSION( pMac, i );
             //Not to remove the BSS we are connected to.
-            if(csrIsConnStateDisconnected(pMac, i) || (NULL == pSession->pConnectBssDesc) ||
-              (!csrIsDuplicateBssDescription(pMac, &pResult->Result.BssDescriptor, 
+            if(csrIsConnStateConnectedInfra(pMac, i) && (NULL != pSession->pConnectBssDesc) &&
+              (csrIsDuplicateBssDescription(pMac, &pResult->Result.BssDescriptor,
                                              pSession->pConnectBssDesc, NULL, FALSE))
               )
-            {
-                smsLog(pMac, LOGW, "Aging out BSS "MAC_ADDRESS_STR" Channel %d",
-                       MAC_ADDR_ARRAY(pResult->Result.BssDescriptor.bssId),
-                       pResult->Result.BssDescriptor.channelId);
-
-                //No need to hold the spin lock because caller should hold the lock for pMac->scan.scanResultList
-                if( csrLLRemoveEntry(&pMac->scan.scanResultList, &pResult->Link, LL_ACCESS_NOLOCK) )
-                {
-                    if (csrIsMacAddressEqual(pMac,
-                                        (tCsrBssid *) pResult->Result.BssDescriptor.bssId,
-                                        (tCsrBssid *) pMac->scan.currentCountryBssid))
-                    {
-                        smsLog(pMac, LOGW, "Aging out 11d BSS "MAC_ADDRESS_STR,
-                               MAC_ADDR_ARRAY(pResult->Result.BssDescriptor.bssId));
-                        pMac->scan.currentCountryRSSI = -128;
-                    }
-
-                    csrFreeScanResultEntry(pMac, pResult);
-                    fRet = eANI_BOOLEAN_TRUE;
-                }
+              {
+                isConnBssfound = eANI_BOOLEAN_TRUE;
                 break;
-            }
-        } //valid session
-    } //for
-    if( CSR_ROAM_SESSION_MAX == i && fRet != eANI_BOOLEAN_TRUE )
+              }
+        }
+    }
+
+    if( isConnBssfound )
     {
-        //reset the counter so this won't hapeen too soon
+        //Reset the counter so that aging out of connected BSS won't hapeen too soon
         pResult->AgingCount = (tANI_S32)pMac->roam.configParam.agingCount;
         pResult->Result.BssDescriptor.nReceivedTime = (tANI_TIMESTAMP)palGetTickCount(pMac->hHdd);
+
+        return (fRet);
+    }
+    else
+    {
+        smsLog(pMac, LOGW, "Aging out BSS "MAC_ADDRESS_STR" Channel %d",
+               MAC_ADDR_ARRAY(pResult->Result.BssDescriptor.bssId),
+               pResult->Result.BssDescriptor.channelId);
+        //No need to hold the spin lock because caller should hold the lock for pMac->scan.scanResultList
+        if( csrLLRemoveEntry(&pMac->scan.scanResultList, &pResult->Link, LL_ACCESS_NOLOCK) )
+        {
+            if (csrIsMacAddressEqual(pMac,
+                       (tCsrBssid *) pResult->Result.BssDescriptor.bssId,
+                       (tCsrBssid *) pMac->scan.currentCountryBssid))
+            {
+                smsLog(pMac, LOGW, "Aging out 11d BSS "MAC_ADDRESS_STR,
+                       MAC_ADDR_ARRAY(pResult->Result.BssDescriptor.bssId));
+                pMac->scan.currentCountryRSSI = -128;
+            }
+            csrFreeScanResultEntry(pMac, pResult);
+            fRet = eANI_BOOLEAN_TRUE;
+        }
     }
 
     return (fRet);
@@ -6715,7 +6721,8 @@ eHalStatus csrScanTriggerIdleScan(tpAniSirGlobal pMac, tANI_U32 *pTimeInterval)
     eHalStatus status = eHAL_STATUS_CSR_WRONG_STATE;
 
     //Do not trigger IMPS in case of concurrency
-    if (vos_concurrent_sessions_running() && csrIsAnySessionInConnectState(pMac))
+    if (vos_concurrent_open_sessions_running() &&
+        csrIsAnySessionInConnectState(pMac))
     {
         smsLog( pMac, LOG1, FL("Cannot request IMPS because Concurrent Sessions Running") );
         return (status);
@@ -6850,7 +6857,7 @@ void csrScanCancelIdleScan(tpAniSirGlobal pMac)
 {
     if(eANI_BOOLEAN_FALSE == pMac->scan.fCancelIdleScan)
     {
-        if (vos_concurrent_sessions_running()) {
+        if (vos_concurrent_open_sessions_running()) {
             return;
         }
         smsLog(pMac, LOG1, "  csrScanCancelIdleScan");
