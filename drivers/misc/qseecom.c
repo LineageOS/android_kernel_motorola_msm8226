@@ -1902,7 +1902,6 @@ static int __qseecom_load_fw(struct qseecom_dev_handle *data, char *appname)
 	ret = scm_call(SCM_SVC_TZSCHEDULER, 1,	&load_req,
 			sizeof(struct qseecom_load_app_ireq),
 			&resp, sizeof(resp));
-	kzfree(img_data);
 	if (ret) {
 		pr_err("scm_call to load failed : ret %d\n", ret);
 		ret = -EIO;
@@ -1930,6 +1929,7 @@ static int __qseecom_load_fw(struct qseecom_dev_handle *data, char *appname)
 	}
 
 loadfw_err:
+	kzfree(img_data);
 	__qseecom_disable_clk_scale_down(data);
 	if (qseecom.support_bus_scaling) {
 		mutex_lock(&qsee_bw_mutex);
