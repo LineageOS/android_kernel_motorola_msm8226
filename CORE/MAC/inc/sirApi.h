@@ -1086,6 +1086,7 @@ typedef struct sSirSmeJoinReq
 #ifdef WLAN_FEATURE_11AC
     tANI_U8             txBFIniFeatureEnabled;
     tANI_U8             txBFCsnValue;
+    tANI_U8             txMuBformee;
 #endif
     tANI_U8             isAmsduSupportInAMPDU;
     tAniBool            isWMEenabled;
@@ -4768,7 +4769,7 @@ typedef PACKED_PRE struct PACKED_POST
 typedef struct
 {
   u32 reqId;
-  u8  staId;
+  tSirMacAddr  macAddr;
   u32 mpduSizeThreshold;
   u32 aggressiveStatisticsGathering;
 }tSirLLStatsSetReq, *tpSirLLStatsSetReq;
@@ -4776,14 +4777,14 @@ typedef struct
 typedef struct
 {
   u32 reqId;
-  u8  staId;
+  tSirMacAddr  macAddr;
   u32 paramIdMask;
 }tSirLLStatsGetReq, *tpSirLLStatsGetReq;
 
 typedef struct
 {
   u32  reqId;
-  u8   staId;
+  tSirMacAddr  macAddr;
   u32  statsClearReqMask;
   u8   stopReq;
 }tSirLLStatsClearReq, *tpSirLLStatsClearReq;

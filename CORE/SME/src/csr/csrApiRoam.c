@@ -392,6 +392,8 @@ eHalStatus csrInitChannels(tpAniSirGlobal pMac)
                  WNI_CFG_COUNTRY_CODE_LEN);
     vos_mem_copy(pMac->scan.countryCodeElected, pMac->scan.countryCodeDefault,
                  WNI_CFG_COUNTRY_CODE_LEN);
+    vos_mem_copy(pMac->scan.countryCode11d, pMac->scan.countryCodeDefault,
+                 WNI_CFG_COUNTRY_CODE_LEN);
     status = csrInitGetChannels( pMac );
     csrClearVotesForCountryInfo(pMac);
 
@@ -1829,6 +1831,11 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         pMac->roam.configParam.txBFEnable= pParam->enableTxBF;
         pMac->roam.configParam.txBFCsnValue = pParam->txBFCsnValue;
         pMac->roam.configParam.enableVhtFor24GHz = pParam->enableVhtFor24GHz;
+        /* Consider Mu-beamformee only if SU-beamformee is enabled */
+        if ( pParam->enableTxBF )
+            pMac->roam.configParam.txMuBformee= pParam->enableMuBformee;
+        else
+            pMac->roam.configParam.txMuBformee= 0;
 #endif
         pMac->roam.configParam.txLdpcEnable = pParam->enableTxLdpc;
 
@@ -1924,6 +1931,11 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
         pParam->enableTxBF = pMac->roam.configParam.txBFEnable;
         pParam->txBFCsnValue = pMac->roam.configParam.txBFCsnValue;
         pParam->enableVhtFor24GHz = pMac->roam.configParam.enableVhtFor24GHz;
+        /* Consider Mu-beamformee only if SU-beamformee is enabled */
+        if ( pParam->enableTxBF )
+            pParam->enableMuBformee = pMac->roam.configParam.txMuBformee;
+        else
+            pParam->enableMuBformee = 0;
 #endif
 #ifdef WLAN_FEATURE_VOWIFI_11R
         vos_mem_copy(&pMac->roam.configParam.csr11rConfig,
@@ -4682,6 +4694,8 @@ eHalStatus csrRoamProcessCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand )
                 pIes = NULL;
             }
         }
+        else
+            status = eHAL_STATUS_FAILURE;
         break;
     }
     case eCsrCapsChange:
@@ -13187,6 +13201,20 @@ eHalStatus csrSendJoinReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, tSirBssDe
         // txBFCsnValue
         *pBuf = (tANI_U8)pMac->roam.configParam.txBFCsnValue;
         pBuf++;
+
+        /* Only enable MuBf if no other MuBF session exist
+         * and FW and HOST is MuBF capable.
+         */
+        if ( IS_MUMIMO_BFORMEE_CAPABLE && (FALSE == pMac->isMuBfsessionexist) )
+        {
+           *pBuf = (tANI_U8)pMac->roam.configParam.txMuBformee;
+           pBuf++;
+        }
+        else
+        {
+           *pBuf = 0;
+           pBuf++;
+        }
 #endif
         *pBuf = (tANI_U8)pMac->roam.configParam.isAmsduSupportInAMPDU;
         pBuf++;

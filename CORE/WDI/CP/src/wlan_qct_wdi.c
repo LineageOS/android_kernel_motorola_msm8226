@@ -180,7 +180,7 @@ static placeHolderInCapBitmap supportEnabledFeatures[] =
 #else
     ,FEATURE_NOT_SUPPORTED          //40
 #endif
-    ,FEATURE_NOT_SUPPORTED          //41
+    ,MU_MIMO                        //41
 #ifdef WLAN_FEATURE_EXTSCAN
     ,EXTENDED_SCAN                  //42
 #else
@@ -1363,6 +1363,9 @@ void WDI_TraceHostFWCapabilities(tANI_U32 *capabilityBitmap)
                           pCapStr += strlen("EXTENDED_SCAN");
                           break;
 #endif
+                     case MU_MIMO: snprintf(pCapStr, sizeof("MU_MIMO"), "%s", "MU_MIMO");
+                          pCapStr += strlen("MU_MIMO");
+                          break;
 
                  }
                  *pCapStr++ = ',';
@@ -8315,6 +8318,7 @@ WDI_ProcessConfigBSSReq
      return WDI_STATUS_E_FAILURE;
   }
 
+  wpalMemoryZero(&halConfigBssReqMsg, sizeof(tConfigBssReqMsg));
   pwdiConfigBSSParams = (WDI_ConfigBSSReqParamsType*)pEventData->pEventData;
   wdiConfigBSSRspCb   = (WDI_ConfigBSSRspCb)pEventData->pCBfnc;
   /*-------------------------------------------------------------------------
@@ -11784,6 +11788,7 @@ WDI_ProcessConfigStaReq
      return WDI_STATUS_E_FAILURE;
   }
 
+  wpalMemoryZero(&halConfigStaReqMsg, sizeof(tConfigStaReqMsg));
   pwdiConfigSTAParams = (WDI_ConfigSTAReqParamsType*)pEventData->pEventData;
   wdiConfigSTARspCb   = (WDI_ConfigSTARspCb)pEventData->pCBfnc;
   /*-------------------------------------------------------------------------
@@ -22086,7 +22091,8 @@ WDI_ResponseTimerCB
     wpalWcnssResetIntr();
     if(wpalIsWDresetInProgress())
     {
-        wpalDevicePanic();
+      if(wpalIsSsrPanicOnFailure())
+          wpalDevicePanic();
     }
     /* if this timer fires, it means Riva did not receive the FIQ */
     wpalTimerStart(&pWDICtx->ssrTimer, WDI_SSR_TIMEOUT);
@@ -24398,6 +24404,7 @@ WDI_CopyWDIStaCtxToHALStaCtx
      phalConfigSta_V1->vhtCapable = pwdiConfigSta->ucVhtCapableSta;
      phalConfigSta_V1->vhtTxChannelWidthSet = pwdiConfigSta->ucVhtTxChannelWidthSet;
      phalConfigSta_V1->vhtTxBFEnabled = pwdiConfigSta->ucVhtTxBFEnabled;
+     phalConfigSta_V1->vhtTxMUBformeeCapable = pwdiConfigSta->vhtTxMUBformeeCapable;
      phalConfigSta_V1->htLdpcEnabled = pwdiConfigSta->ucHtLdpcEnabled;
      phalConfigSta_V1->vhtLdpcEnabled = pwdiConfigSta->ucVhtLdpcEnabled;
 
@@ -29925,6 +29932,8 @@ WDI_ProcessLinkLayerStatsResultsInd
 )
 {
     void *pLinkLayerStatsInd;
+    WDI_LLstatsResultsType *halLLStatsResults;
+    wpt_macAddr  macAddr;
     WDI_LowLevelIndType wdiInd;
     /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -29947,7 +29956,30 @@ WDI_ProcessLinkLayerStatsResultsInd
     /* Fill in the indication parameters */
     wdiInd.wdiIndicationType = WDI_LL_STATS_RESULTS_IND;
 
-    wdiInd.wdiIndicationData.pLinkLayerStatsResults = pLinkLayerStatsInd;
+    wdiInd.wdiIndicationData.wdiLinkLayerStatsResults.pLinkLayerStatsResults
+           = pLinkLayerStatsInd;
+
+    halLLStatsResults = (WDI_LLstatsResultsType *) pLinkLayerStatsInd;
+
+
+   /* Need to fill in the MAC address */
+   if ( WDI_STATUS_SUCCESS !=
+         WDI_STATableGetStaMacAddr(pWDICtx,
+                                halLLStatsResults->iface_id,
+                                &macAddr))
+   {
+     VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_ERROR,
+                 " ifaceId: %u does not exist in the WDI Station Table",
+                 halLLStatsResults->iface_id);
+
+     return WDI_STATUS_E_FAILURE;
+   }
+   wpalMemoryCopy(wdiInd.wdiIndicationData.wdiLinkLayerStatsResults.macAddr,
+                    macAddr, WDI_MAC_ADDR_LEN);
+
+   VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_INFO,
+      "ifaceId: %u, macAddr: %pM \n", halLLStatsResults->iface_id,
+           wdiInd.wdiIndicationData.wdiLinkLayerStatsResults.macAddr);
 
     /* Notify UMAC */
     if (pWDICtx->wdiLowLevelIndCB)
@@ -30827,9 +30859,22 @@ WDI_ProcessLLStatsSetReq
   }
 
 
+  /* Need to fill in the self STA Index */
+  if ( WDI_STATUS_SUCCESS !=
+  WDI_STATableFindStaidByAddr(pWDICtx,
+                              pwdiLLStatsSetReqParams->macAddr,
+                              &halLLStatsSetParams.sta_id))
+  {
+    VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_ERROR,
+                MAC_ADDRESS_STR
+                ": This station does not exist in the WDI Station Table",
+                MAC_ADDR_ARRAY(pwdiLLStatsSetReqParams->macAddr));
+
+    wpalMemoryFree(pSendBuffer);
+    return WDI_STATUS_E_FAILURE;
+  }
 
   halLLStatsSetParams.req_id = pwdiLLStatsSetReqParams->reqId;
-  halLLStatsSetParams.sta_id = pwdiLLStatsSetReqParams->staId;
   halLLStatsSetParams.mpdu_size_threshold =
       pwdiLLStatsSetReqParams->mpduSizeThreshold;
   halLLStatsSetParams.aggressive_statistics_gathering =
@@ -30953,9 +30998,22 @@ WDI_ProcessLLStatsGetReq
      WDI_ASSERT(0);
      return WDI_STATUS_E_FAILURE;
   }
+  /* Need to fill in the self STA Index */
+  if ( WDI_STATUS_SUCCESS !=
+  WDI_STATableFindStaidByAddr(pWDICtx,
+                              pwdiLLStatsGetReqParams->macAddr,
+                &halLLStatsGetParams.sta_id))
+  {
+    VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_ERROR,
+                MAC_ADDRESS_STR
+                ": This station does not exist in the WDI Station Table",
+                MAC_ADDR_ARRAY(pwdiLLStatsGetReqParams->macAddr));
+
+    wpalMemoryFree(pSendBuffer);
+    return WDI_STATUS_E_FAILURE;
+  }
 
   halLLStatsGetParams.req_id = pwdiLLStatsGetReqParams->reqId;
-  halLLStatsGetParams.sta_id = pwdiLLStatsGetReqParams->staId;
   halLLStatsGetParams.param_id_mask = pwdiLLStatsGetReqParams->paramIdMask;
 
   VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_INFO,
@@ -31076,9 +31134,22 @@ WDI_ProcessLLStatsClearReq
      WDI_ASSERT(0);
      return WDI_STATUS_E_FAILURE;
   }
+  /* Need to fill in the self STA Index */
+  if ( WDI_STATUS_SUCCESS !=
+  WDI_STATableFindStaidByAddr(pWDICtx,
+                              pwdiLLStatsClearReqParams->macAddr,
+                &halLLStatsClearParams.sta_id))
+  {
+    VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_ERROR,
+                MAC_ADDRESS_STR
+                ": This station does not exist in the WDI Station Table",
+                MAC_ADDR_ARRAY(pwdiLLStatsClearReqParams->macAddr));
+
+    wpalMemoryFree(pSendBuffer);
+    return WDI_STATUS_E_FAILURE;
+  }
 
   halLLStatsClearParams.req_id = pwdiLLStatsClearReqParams->reqId;
-  halLLStatsClearParams.sta_id = pwdiLLStatsClearReqParams->staId;
   halLLStatsClearParams.stats_clear_req_mask =
                     pwdiLLStatsClearReqParams->statsClearReqMask;
   halLLStatsClearParams.stop_req = pwdiLLStatsClearReqParams->stopReq;
@@ -31155,7 +31226,7 @@ WDI_ProcessEXTScanProgressInd
     }
     else
     {
-        VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_INFO,
+        VOS_TRACE( VOS_MODULE_ID_WDI, VOS_TRACE_LEVEL_ERROR,
                  "%s: WDILowLevelIndCb is null", __func__);
         WDI_ASSERT(0);
         return WDI_STATUS_E_FAILURE;
