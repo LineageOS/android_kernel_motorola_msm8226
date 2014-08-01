@@ -389,6 +389,13 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_ENABLE_IMPS_MIN,
                  CFG_ENABLE_IMPS_MAX ),
 
+   REG_VARIABLE( CFG_SSR_PANIC_ON_FAILURE_NAME, WLAN_PARAM_Integer,
+                 hdd_config_t, fIsSsrPanicOnFailure,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_SSR_PANIC_ON_FAILURE_DEFAULT,
+                 CFG_SSR_PANIC_ON_FAILURE_MIN,
+                 CFG_SSR_PANIC_ON_FAILURE_MAX),
+
    REG_VARIABLE( CFG_ENABLE_LOGP_NAME, WLAN_PARAM_Integer,
                  hdd_config_t, fIsLogpEnabled,
                  VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -2638,6 +2645,12 @@ REG_VARIABLE( CFG_EXTSCAN_ENABLE, WLAN_PARAM_Integer,
              CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_DEFAULT,
              CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_MIN,
              CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_MAX ),
+   REG_VARIABLE( CFG_VHT_ENABLE_MU_BFORMEE_CAP_FEATURE, WLAN_PARAM_Integer,
+             hdd_config_t, enableMuBformee,
+             VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+             CFG_VHT_ENABLE_MU_BFORMEE_CAP_FEATURE_DEFAULT,
+             CFG_VHT_ENABLE_MU_BFORMEE_CAP_FEATURE_MIN,
+             CFG_VHT_ENABLE_MU_BFORMEE_CAP_FEATURE_MAX ),
 
 #endif
 
@@ -4976,6 +4989,11 @@ VOS_STATUS hdd_set_sme_config( hdd_context_t *pHddCtx )
     smeConfig.csrConfig.enableTxBF = pConfig->enableTxBF;
     smeConfig.csrConfig.txBFCsnValue = pConfig->txBFCsnValue;
     smeConfig.csrConfig.enableVhtFor24GHz = pConfig->enableVhtFor24GHzBand;
+    /* Consider Mu-beamformee only if SU-beamformee is enabled */
+    if ( pConfig->enableTxBF )
+        smeConfig.csrConfig.enableMuBformee = pConfig->enableMuBformee;
+    else
+        smeConfig.csrConfig.enableMuBformee = 0;
 #endif
    smeConfig.csrConfig.AdHocChannel5G            = pConfig->AdHocChannel5G;
    smeConfig.csrConfig.AdHocChannel24            = pConfig->AdHocChannel24G;

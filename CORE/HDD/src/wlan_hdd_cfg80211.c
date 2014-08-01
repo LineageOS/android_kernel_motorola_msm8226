@@ -520,6 +520,14 @@ typedef enum
    DATA_RATE_11AC_MAX_MCS_NA
 } eDataRate11ACMaxMcs;
 
+/* SSID broadcast  type */
+typedef enum eSSIDBcastType
+{
+  eBCAST_UNKNOWN      = 0,
+  eBCAST_NORMAL       = 1,
+  eBCAST_HIDDEN       = 2,
+} tSSIDBcastType;
+
 /* MCS Based VHT rate table */
 static struct index_vht_data_rate_type supported_vht_mcs_rate[] =
 {
@@ -536,6 +544,15 @@ static struct index_vht_data_rate_type supported_vht_mcs_rate[] =
    {9,  {3900, 4333}, {1800, 2000}, {780,  867}}
 };
 #endif /* WLAN_FEATURE_11AC */
+
+/*array index points to MCS and array value points respective rssi*/
+static int rssiMcsTbl[][10] =
+{
+/*MCS 0   1     2   3    4    5    6    7    8    9*/
+   {-82, -79, -77, -74, -70, -66, -65, -64, -59, -57}, //20
+   {-79, -76, -74, -71, -67, -63, -62, -61, -56, -54}, //40
+   {-76, -73, -71, -68, -64, -60, -59, -58, -53, -51}  //80
+};
 
 extern struct net_device_ops net_ops_struct;
 
@@ -1406,10 +1423,11 @@ static v_VOID_t hdd_link_layer_process_radio_stats(hdd_adapter_t *pAdapter,
  */
 static void hdd_link_layer_stats_ind_callback ( void *pCtx,
                                                 int indType,
-                                                void *pRsp )
+                                                void *pRsp, u8  *macAddr)
 {
-    hdd_adapter_t *pAdapter = (hdd_adapter_t *)pCtx;
-    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+    hdd_context_t *pHddCtx = (hdd_context_t *)pCtx;
+    hdd_adapter_t *pAdapter = NULL;
+    tpSirLLStatsResults linkLayerStatsResults = (tpSirLLStatsResults)pRsp;
     int status;
 
     status = wlan_hdd_validate_context(pHddCtx);
@@ -1421,24 +1439,33 @@ static void hdd_link_layer_stats_ind_callback ( void *pCtx,
         return;
     }
 
+
+
+    pAdapter = hdd_get_adapter_by_macaddr(pHddCtx, macAddr);
+    if (NULL == pAdapter)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR,
+                FL(" MAC address %pM does not exist with host"),
+                macAddr);
+        return;
+    }
+
     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-            "%s: Link Layer Indication indType: %d", __func__, indType);
+            "%s: Interface: %s LLStats indType: %d", __func__,
+            pAdapter->dev->name, indType);
+
     switch (indType)
     {
     case SIR_HAL_LL_STATS_RESULTS_RSP:
         {
-            tpSirLLStatsResults linkLayerStatsResults =
-                (tpSirLLStatsResults)pRsp;
-
-
             hddLog(VOS_TRACE_LEVEL_INFO,
                     FL("RESPONSE SIR_HAL_LL_STATS_RESULTS_RSP") );
             hddLog(VOS_TRACE_LEVEL_INFO,
                     "LL_STATS RESULTS RESPONSE paramID = 0x%x",
                     linkLayerStatsResults->paramId);
             hddLog(VOS_TRACE_LEVEL_INFO,
-                    "LL_STATS RESULTS RESPONSE ifaceId = %u",
-                    linkLayerStatsResults->ifaceId);
+               "LL_STATS RESULTS RESPONSE ifaceId = %u MAC: %pM",
+               linkLayerStatsResults->ifaceId, macAddr);
             hddLog(VOS_TRACE_LEVEL_INFO,
                     "LL_STATS RESULTS RESPONSE respId = %u",
                     linkLayerStatsResults->respId);
@@ -1554,18 +1581,14 @@ static int wlan_hdd_cfg80211_ll_stats_set(struct wiphy *wiphy,
         nla_get_u32(
             tb_vendor[QCA_WLAN_VENDOR_ATTR_LL_STATS_SET_CONFIG_AGGRESSIVE_STATS_GATHERING]);
 
-    /* staId 0 in Firmware is reserved for Broadcast/Multicast data.
-     * Hence the interface staId start from 1. Hence the staId matching the
-     * interface in the firmware is sessionId + 1.
-     */
-    linkLayerStatsSetReq.staId = pAdapter->sessionId + 1;
+    vos_mem_copy(linkLayerStatsSetReq.macAddr,
+               pAdapter->macAddressCurrent.bytes, sizeof(v_MACADDR_t));
 
 
     hddLog(VOS_TRACE_LEVEL_INFO,
-           "LL_STATS_SET reqId = %d",
-           linkLayerStatsSetReq.reqId);
+           "LL_STATS_SET reqId = %d", linkLayerStatsSetReq.reqId);
     hddLog(VOS_TRACE_LEVEL_INFO,
-            "LL_STATS_SET staId = %d", linkLayerStatsSetReq.staId);
+            "LL_STATS_SET MAC = %pM", linkLayerStatsSetReq.macAddr);
     hddLog(VOS_TRACE_LEVEL_INFO,
             "LL_STATS_SET mpduSizeThreshold = %d",
             linkLayerStatsSetReq.mpduSizeThreshold);
@@ -1575,9 +1598,7 @@ static int wlan_hdd_cfg80211_ll_stats_set(struct wiphy *wiphy,
 
     if (eHAL_STATUS_SUCCESS != sme_SetLinkLayerStatsIndCB(
                                pHddCtx->hHal,
-                               pAdapter->sessionId,
-                               hdd_link_layer_stats_ind_callback,
-                               pAdapter))
+                               hdd_link_layer_stats_ind_callback))
     {
         hddLog(VOS_TRACE_LEVEL_ERROR, "%s:"
            "sme_SetLinkLayerStatsIndCB Failed", __func__);
@@ -1688,16 +1709,13 @@ static int wlan_hdd_cfg80211_ll_stats_get(struct wiphy *wiphy,
         nla_get_u32( tb_vendor[
             QCA_WLAN_VENDOR_ATTR_LL_STATS_GET_CONFIG_REQ_MASK]);
 
-    /* staId 0 in Firmware is reserved for Broadcast/Multicast data.
-     * Hence the interface staId start from 1. Hence the staId matching the
-     * interface in the firmware is sessionId + 1.
-     */
-    linkLayerStatsGetReq.staId = pAdapter->sessionId + 1;
+    vos_mem_copy(linkLayerStatsGetReq.macAddr,
+               pAdapter->macAddressCurrent.bytes, sizeof(v_MACADDR_t));
 
     hddLog(VOS_TRACE_LEVEL_INFO,
            "LL_STATS_GET reqId = %d", linkLayerStatsGetReq.reqId);
     hddLog(VOS_TRACE_LEVEL_INFO,
-           "LL_STATS_GET staId = %d", linkLayerStatsGetReq.staId);
+           "LL_STATS_GET MAC = %pM", linkLayerStatsGetReq.macAddr);
     hddLog(VOS_TRACE_LEVEL_INFO,
            "LL_STATS_GET paramIdMask = %d",
            linkLayerStatsGetReq.paramIdMask);
@@ -1796,16 +1814,13 @@ static int wlan_hdd_cfg80211_ll_stats_clear(struct wiphy *wiphy,
     // Shall take the request Id if the Upper layers pass. 1 For now.
     linkLayerStatsClearReq.reqId = 1;
 
-    /* staId 0 in Firmware is reserved for Broadcast/Multicast data.
-     * Hence the interface staId start from 1. Hence the staId matching the
-     * interface in the firmware is sessionId + 1.
-     */
-    linkLayerStatsClearReq.staId = pAdapter->sessionId + 1;
+    vos_mem_copy(linkLayerStatsClearReq.macAddr,
+               pAdapter->macAddressCurrent.bytes, sizeof(v_MACADDR_t));
 
     hddLog(VOS_TRACE_LEVEL_INFO,
             "LL_STATS_CLEAR reqId = %d", linkLayerStatsClearReq.reqId);
     hddLog(VOS_TRACE_LEVEL_INFO,
-            "LL_STATS_CLEAR staId = %d", linkLayerStatsClearReq.staId);
+            "LL_STATS_CLEAR MAC = %pM", linkLayerStatsClearReq.macAddr);
     hddLog(VOS_TRACE_LEVEL_INFO,
             "LL_STATS_CLEAR statsClearReqMask = 0x%X",
             linkLayerStatsClearReq.statsClearReqMask);
@@ -11133,7 +11148,7 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
     tANI_U8  maxSpeedMCS = 0;
     tANI_U8  maxMCSIdx = 0;
     tANI_U8  rateFlag = 1;
-    tANI_U8  i, j, rssidx;
+    tANI_U8  i, j, rssidx, mode=0;
     tANI_U16 temp;
     int status;
 
@@ -11179,7 +11194,7 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
     /*overwrite rate_flags if MAX link-speed need to be reported*/
     if ((eHDD_LINK_SPEED_REPORT_MAX == pCfg->reportMaxLinkSpeed) ||
         (eHDD_LINK_SPEED_REPORT_MAX_SCALED == pCfg->reportMaxLinkSpeed &&
-         sinfo->signal >= pCfg->linkSpeedRssiHigh))
+         sinfo->signal >= pCfg->linkSpeedRssiLow))
     {
         rate_flags = pAdapter->maxRateFlags;
     }
@@ -11288,12 +11303,19 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
             /* Update MAX rate */
             maxRate = (currentRate > maxRate)?currentRate:maxRate;
         }
+
         /* Get MCS Rate Set --
            Only if we are always reporting max speed  (or)
            if we have good rssi */
-         if ((0 == rssidx) ||
-              (eHDD_LINK_SPEED_REPORT_MAX == pCfg->reportMaxLinkSpeed))
+        if ((3 != rssidx) && !(rate_flags & eHAL_TX_RATE_LEGACY))
         {
+            if (rate_flags & eHAL_TX_RATE_VHT80)
+                mode = 2;
+            else if (rate_flags & (eHAL_TX_RATE_VHT40 | eHAL_TX_RATE_HT40))
+                mode = 1;
+            else
+                mode = 0;
+
             if (0 != ccmCfgGetStr(WLAN_HDD_GET_HAL_CTX(pAdapter), WNI_CFG_CURRENT_MCS_SET,
                                  MCSRates, &MCSLeng))
             {
@@ -11327,6 +11349,19 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
                         maxMCSIdx = 8;
                     else
                         maxMCSIdx = 9;
+                }
+
+                if (0 != rssidx)/*check for scaled */
+                {
+                    //get middle rate MCS index if rssi=1/2
+                    for (i=0; i <= maxMCSIdx; i++)
+                    {
+                        if (sinfo->signal <= rssiMcsTbl[mode][i])
+                        {
+                            maxMCSIdx = i;
+                            break;
+                        }
+                    }
                 }
 
                 if (rate_flags & eHAL_TX_RATE_VHT80)
@@ -11364,9 +11399,25 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
                     rateFlag |= 2;
                 }
 
-                for (i = 0; i < MCSLeng; i++)
+                if (rssidx == 1 || rssidx == 2)
+                {
+                    //get middle rate MCS index if rssi=1/2
+                    for (i=0; i <= 7; i++)
+                    {
+                        if (sinfo->signal <= rssiMcsTbl[mode][i])
+                        {
+                            temp = i+1;
+                            break;
+                         }
+                     }
+                }
+                else
                 {
                     temp = sizeof(supported_mcs_rate) / sizeof(supported_mcs_rate[0]);
+                }
+
+                for (i = 0; i < MCSLeng; i++)
+                {
                     for (j = 0; j < temp; j++)
                     {
                         if (supported_mcs_rate[j].beacon_rate_index == MCSRates[i])
@@ -11391,10 +11442,8 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy, struct net_devic
             maxSpeedMCS = 1;
             maxMCSIdx = pAdapter->hdd_stats.ClassA_stat.mcs_index;
         }
-
         // make sure we report a value at least as big as our current rate
-        if (((maxRate < myRate) && (0 == rssidx)) ||
-             (0 == maxRate))
+        if ((maxRate < myRate) || (0 == maxRate))
         {
            maxRate = myRate;
            if (rate_flags & eHAL_TX_RATE_LEGACY)
@@ -11600,25 +11649,6 @@ static int __wlan_hdd_cfg80211_set_power_mgmt(struct wiphy *wiphy,
      *we are oppositely mapped w.r.t mode in the driver
      **/
     vos_status =  wlan_hdd_enter_bmps(pAdapter, !mode);
-
-    if (!mode)
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_DEBUG,
-                  "%s: DHCP start indicated through power save", __func__);
-
-        pHddCtx->btCoexModeSet = TRUE;
-        sme_DHCPStartInd(pHddCtx->hHal, pAdapter->device_mode,
-                         pAdapter->sessionId);
-    }
-    else
-    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_DEBUG,
-                  "%s: DHCP stop indicated through power save", __func__);
-
-        pHddCtx->btCoexModeSet = FALSE;
-        sme_DHCPStopInd(pHddCtx->hHal, pAdapter->device_mode,
-                        pAdapter->sessionId);
-    }
 
     EXIT();
     if (VOS_STATUS_E_FAILURE == vos_status)
@@ -12296,7 +12326,7 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
     tpSirPNOScanReq pPnoRequest = NULL;
     hdd_context_t *pHddCtx;
     tHalHandle hHal;
-    v_U32_t i, indx, num_ch, tempInterval;
+    v_U32_t i, indx, num_ch, tempInterval, j;
     u8 valid_ch[WNI_CFG_VALID_CHANNEL_LIST_LEN] = {0};
     u8 channels_allowed[WNI_CFG_VALID_CHANNEL_LIST_LEN] = {0};
     v_U32_t num_channels_allowed = WNI_CFG_VALID_CHANNEL_LIST_LEN;
@@ -12449,6 +12479,26 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
         pPnoRequest->aNetworks[i].rssiThreshold = 0; //Default value
     }
 
+    for (i = 0; i < request->n_ssids; i++)
+    {
+        j = 0;
+        while (j < pPnoRequest->ucNetworksCount)
+        {
+            if ((pPnoRequest->aNetworks[j].ssId.length ==
+                 request->ssids[i].ssid_len) &&
+                 (0 == memcmp(pPnoRequest->aNetworks[j].ssId.ssId,
+                            request->ssids[i].ssid,
+                            pPnoRequest->aNetworks[j].ssId.length)))
+            {
+                pPnoRequest->aNetworks[j].bcastNetwType = eBCAST_HIDDEN;
+                break;
+            }
+            j++;
+        }
+    }
+    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+              "Number of hidden networks being Configured = %d",
+              request->n_ssids);
     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
               "request->ie_len = %zu", request->ie_len);
     if ((0 < request->ie_len) && (NULL != request->ie))

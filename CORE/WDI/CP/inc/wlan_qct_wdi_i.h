@@ -775,14 +775,14 @@ typedef enum
 #endif
 
 #ifdef WLAN_FEATURE_EXTSCAN
-  WDI_EXTSCAN_START_RSP                          = 95,
-  WDI_EXTSCAN_STOP_RSP                           = 96,
-  WDI_EXTSCAN_GET_CACHED_RESULTS_RSP             = 97,
-  WDI_EXTSCAN_GET_CAPABILITIES_RSP               = 98,
-  WDI_EXTSCAN_SET_HOTLIST_BSSID_RSP              = 99,
-  WDI_EXTSCAN_RESET_HOTLIST_BSSID_RSP            = 100,
-  WDI_EXTSCAN_SET_SIGNF_RSSI_CHANGE_RSP          = 101,
-  WDI_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_RSP        = 102,
+  WDI_EXTSCAN_START_RSP                          = 93,
+  WDI_EXTSCAN_STOP_RSP                           = 94,
+  WDI_EXTSCAN_GET_CACHED_RESULTS_RSP             = 95,
+  WDI_EXTSCAN_GET_CAPABILITIES_RSP               = 96,
+  WDI_EXTSCAN_SET_HOTLIST_BSSID_RSP              = 97,
+  WDI_EXTSCAN_RESET_HOTLIST_BSSID_RSP            = 98,
+  WDI_EXTSCAN_SET_SIGNF_RSSI_CHANGE_RSP          = 99,
+  WDI_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_RSP        = 100,
 #endif
   /*-------------------------------------------------------------------------
     Indications
@@ -854,11 +854,11 @@ typedef enum
   WDI_HAL_LL_STATS_RESULTS_IND         = WDI_HAL_IND_MIN + 20,
 #endif
 #ifdef WLAN_FEATURE_EXTSCAN
-  WDI_HAL_EXTSCAN_PROGRESS_IND       = WDI_HAL_IND_MIN + 23,
-  WDI_HAL_EXTSCAN_SCAN_AVAILABLE_IND = WDI_HAL_IND_MIN + 24,
-  WDI_HAL_EXTSCAN_RESULT_IND         = WDI_HAL_IND_MIN + 25,
-  WDI_HAL_EXTSCAN_BSSID_HOTLIST_RESULT_IND    = WDI_HAL_IND_MIN + 26,
-  WDI_HAL_EXTSCAN_SIG_RSSI_RESULT_IND         = WDI_HAL_IND_MIN + 27,
+  WDI_HAL_EXTSCAN_PROGRESS_IND       = WDI_HAL_IND_MIN + 21,
+  WDI_HAL_EXTSCAN_SCAN_AVAILABLE_IND = WDI_HAL_IND_MIN + 22,
+  WDI_HAL_EXTSCAN_RESULT_IND         = WDI_HAL_IND_MIN + 23,
+  WDI_HAL_EXTSCAN_BSSID_HOTLIST_RESULT_IND    = WDI_HAL_IND_MIN + 24,
+  WDI_HAL_EXTSCAN_SIG_RSSI_RESULT_IND         = WDI_HAL_IND_MIN + 25,
 #endif
   WDI_MAX_RESP
 }WDI_ResponseEnumType; 
@@ -955,6 +955,21 @@ typedef WPT_PACK_PRE struct
   /*HAL Status */
   eHalStatus   halStatus;
 }WPT_PACK_POST WDI_PostAssocRspInfoType;
+
+#ifdef WLAN_FEATURE_LINK_LAYER_STATS
+/*---------------------------------------------------------------------------
+  WDI_LLStatsResultsType
+---------------------------------------------------------------------------*/
+typedef WPT_PACK_PRE struct
+{
+   wpt_uint32 param_id;
+   wpt_uint8  iface_id;
+   wpt_uint32 resp_id;
+   wpt_uint32 more_result_to_follow;
+   wpt_uint8  result[1];
+}WPT_PACK_POST WDI_LLstatsResultsType;
+
+#endif
 
 /*--------------------------------------------------------------------------- 
    WLAN DAL FSM Event Info Type 

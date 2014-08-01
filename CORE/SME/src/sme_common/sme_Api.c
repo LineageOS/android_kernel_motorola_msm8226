@@ -7583,6 +7583,7 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
     if (!is11dCountry && pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
     {
         pMac->roam.configParam.Is11dSupportEnabled = eANI_BOOLEAN_FALSE;
+        smsLog( pMac, LOG1, FL(" 11d is being  disabled"));
     }
 
     vos_mem_copy(pMac->scan.countryCodeCurrent, pMsg->countryCode,
@@ -10747,15 +10748,6 @@ eHalStatus sme_LLStatsClearReq(tHalHandle hHal,
     tSirLLStatsClearReq *pClearStatsReq;
 
 
-    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-                  "reqId = %u", pLinkLayerStatsClear->reqId);
-    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-              "staId = %u", pLinkLayerStatsClear->staId);
-    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-              "statsClearReqMask = 0x%X",
-              pLinkLayerStatsClear->statsClearReqMask);
-    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-              "stopReq = %u", pLinkLayerStatsClear->stopReq);
 
     pClearStatsReq = vos_mem_malloc(sizeof(*pClearStatsReq));
     if ( !pClearStatsReq)
@@ -10804,9 +10796,9 @@ eHalStatus sme_LLStatsClearReq(tHalHandle hHal,
   ---------------------------------------------------------------------------*/
 eHalStatus sme_SetLinkLayerStatsIndCB
 (
-    tHalHandle hHal, tANI_U8 sessionId,
-    void (*callbackRoutine) (void *callbackCtx, int indType, void *pRsp),
-    void *callbackContext
+    tHalHandle hHal,
+    void (*callbackRoutine) (void *callbackCtx, int indType, void *pRsp,
+     tANI_U8  *macAddr)
 )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -10817,7 +10809,6 @@ eHalStatus sme_SetLinkLayerStatsIndCB
         if (NULL != callbackRoutine)
         {
            pMac->sme.pLinkLayerStatsIndCallback = callbackRoutine;
-           pMac->sme.pLinkLayerStatsCallbackContext = callbackContext;
         }
         sme_ReleaseGlobalLock( &pMac->sme );
     }
