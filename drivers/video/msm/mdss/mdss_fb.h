@@ -110,7 +110,7 @@ struct msm_mdp_interface {
 	int (*on_fnc)(struct msm_fb_data_type *mfd);
 	int (*off_fnc)(struct msm_fb_data_type *mfd);
 	/* called to release resources associated to the process */
-	int (*release_fnc)(struct msm_fb_data_type *mfd, int pid);
+	int (*release_fnc)(struct msm_fb_data_type *mfd);
 	int (*kickoff_fnc)(struct msm_fb_data_type *mfd,
 					struct mdp_display_commit *data);
 	int (*ioctl_handler)(struct msm_fb_data_type *mfd, u32 cmd, void *arg);
@@ -136,7 +136,6 @@ struct msm_mdp_interface {
 
 struct mdss_fb_proc_info {
 	int pid;
-	struct file *file;
 	u32 ref_cnt;
 	struct list_head list;
 };
