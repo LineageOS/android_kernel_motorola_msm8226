@@ -2682,6 +2682,15 @@ int mmc_hw_reset_check(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_hw_reset_check);
 
+int mmc_throttle_back(struct mmc_host *host)
+{
+	if (host->bus_ops->throttle_back)
+		return host->bus_ops->throttle_back(host);
+
+	return -ENOSYS;
+}
+EXPORT_SYMBOL(mmc_throttle_back);
+
 /**
  * mmc_reset_clk_scale_stats() - reset clock scaling statistics
  * @host: pointer to mmc host structure
@@ -3168,9 +3177,12 @@ void mmc_rescan(struct work_struct *work)
 
 	host->detect_change = 0;
 
-	/* If the card was removed the bus will be marked as dead.  Stay awake
-	 * so that user space can respond. */
-	if (host->bus_dead)
+	/*
+	 * If the card was just removed, the bus will be marked as dead but
+	 * will not have been freed yet.  Stay awake so that user space can
+	 * respond to the event.
+	 */
+	if (host->bus_dead && host->bus_ops)
 		stay_awake = true;
 
 	/*
@@ -3183,6 +3195,7 @@ void mmc_rescan(struct work_struct *work)
 	/* Don't redetect if the card has failed too many times */
 	if (host->card_bad) {
 		pr_err("%s: ignoring bad card\n", mmc_hostname(host));
+		mmc_rpm_release(host, &host->class_dev);
 		mmc_bus_put(host);
 		goto out;
 	}
