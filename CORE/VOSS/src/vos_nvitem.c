@@ -1777,6 +1777,12 @@ VOS_STATUS vos_nv_readMultiMacAddress( v_U8_t *pMacAddress,
                 mac_idx += strlen(WIFI_MAC_BOOTARG);
                 memcpy(macStr1,mac_idx,MACSTRLEN);
                 mac_idx += MACSTRLEN;
+                //IKVPREL1L-627:Handle inter MAC separator if any
+                if ( *mac_idx == ',' || *mac_idx == '-')
+                    mac_idx ++;
+                else
+                    VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR," No inter MAC separator used");
+
                 memcpy(macStr2,mac_idx,MACSTRLEN);
                 VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
                     "%s: MAC1 from bootparams=%s\n", __func__,macStr1);
