@@ -15,6 +15,7 @@
 #include <linux/sysctl.h>
 #include <linux/sysfs.h>
 #include <linux/earlysuspend.h>
+#include <linux/fb.h>
 #include "internal.h"
 
 #ifdef CONFIG_COMPACTION
@@ -1078,9 +1079,9 @@ unsigned long try_to_compact_pages(struct zonelist *zonelist,
 	return rc;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_FB) || defined(CONFIG_HAS_EARLYSUSPEND)
 static struct work_struct compactnodes_w;
-static int compact_nodes(void);
+static void compact_nodes(void);
 static void compactnodes_work(struct work_struct *w)
 {
 	/* No point in being gun shy here since compact_zone()
@@ -1093,8 +1094,9 @@ static void compactnodes_work(struct work_struct *w)
 	compact_nodes();
 
 }
+#endif
 
-
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void compact_nodes_suspend(struct early_suspend *s)
 {
 	schedule_work(&compactnodes_w);
@@ -1105,6 +1107,31 @@ static struct early_suspend early_suspend_compaction_desc = {
 	.suspend = compact_nodes_suspend,
 	.resume = NULL,
 };
+#endif
+
+#if defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND)
+static int fb_prev_status = FB_BLANK_NORMAL;
+static int fb_notifier_callback(struct notifier_block *p,
+		unsigned long event, void *data) {
+	struct fb_event *evdata = data;
+	int new_status;
+
+	if (event == FB_EVENT_BLANK) {
+		new_status = (*(int *)evdata->data) ?
+				FB_BLANK_NORMAL : FB_BLANK_UNBLANK;
+		if (new_status == fb_prev_status)
+			return 0;
+
+		if (new_status == FB_BLANK_NORMAL) {
+			schedule_work(&compactnodes_w);
+		} else {
+			/* Do nothing  for unblank */
+		}
+		fb_prev_status = new_status;
+	}
+
+	return 0;
+}
 #endif
 
 /* Compact all zones within a node */
@@ -1236,4 +1263,19 @@ static int  __init mem_compaction_init(void)
 }
 late_initcall(mem_compaction_init);
 #endif /* CONFIG_HAS_EARLYSUSPEND */
+#if defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND)
+static struct notifier_block fb_notif = {0};
+static int __init mem_compaction_init(void)
+{
+	int ret;
+
+	INIT_WORK(&compactnodes_w, compactnodes_work);
+
+	fb_notif.notifier_call = fb_notifier_callback;
+	ret = fb_register_client(&fb_notif);
+
+	return 0;
+}
+late_initcall(mem_compaction_init);
+#endif /* CONFIG_FB && !CONFIG_HAS_EARLYSUSPEND */
 #endif /* CONFIG_COMPACTION */
