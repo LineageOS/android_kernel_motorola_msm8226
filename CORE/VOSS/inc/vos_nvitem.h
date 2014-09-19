@@ -755,4 +755,20 @@ eNvVersionType vos_nv_getNvVersion
   \sa
   -------------------------------------------------------------------------*/
 v_U16_t vos_chan_to_freq(v_U8_t chanNum);
+
+/**------------------------------------------------------------------------
+  \brief vos_is_nv_country_non_zero -
+  \param   NONE
+  \return Success if default Country is Non-Zero
+  \sa
+  -------------------------------------------------------------------------*/
+
+v_BOOL_t vos_is_nv_country_non_zero
+(
+   void
+);
+
+int vos_update_nv_table_from_wiphy_band(void *hdd_ctx,
+                                         void *wiphy,v_U8_t nBandCapability);
+
 #endif // __VOS_NVITEM_H

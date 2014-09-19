@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 #if !defined( WLAN_HDD_MAIN_H )
@@ -279,6 +280,13 @@ extern spinlock_t hdd_context_lock;
 
 /* Max PMKSAIDS available in cache */
 #define MAX_PMKSAIDS_IN_CACHE 8
+
+/*
+ * Driver miracast parameters 0-Disabled
+ * 1-Source, 2-Sink
+ */
+#define WLAN_HDD_DRIVER_MIRACAST_CFG_MIN_VAL 0
+#define WLAN_HDD_DRIVER_MIRACAST_CFG_MAX_VAL 2
 
 typedef struct hdd_tx_rx_stats_s
 {
@@ -1060,6 +1068,8 @@ struct hdd_adapter_s
 #endif
    /* DSCP to UP QoS Mapping */
    sme_QosWmmUpType hddWmmDscpToUpMap[WLAN_HDD_MAX_DSCP+1];
+   /* Lock for active sessions while processing deauth/Disassoc */
+   spinlock_t lock_for_active_session;
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) (&(pAdapter)->sessionCtx.station)
@@ -1409,7 +1419,7 @@ int wlan_hdd_validate_context(hdd_context_t *pHddCtx);
 v_BOOL_t hdd_is_valid_mac_address(const tANI_U8* pMacAddr);
 VOS_STATUS hdd_issta_p2p_clientconnected(hdd_context_t *pHddCtx);
 void hdd_ipv4_notifier_work_queue(struct work_struct *work);
-v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx );
+v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx, v_BOOL_t isRoC );
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType, tANI_U8 sessionId);
 #endif
@@ -1462,6 +1472,7 @@ int hdd_handle_batch_scan_ioctl
 void hdd_deinit_batch_scan(hdd_adapter_t *pAdapter);
 
 #endif /*End of FEATURE_WLAN_BATCH_SCAN*/
+void wlan_hdd_send_svc_nlink_msg(int type, void *data, int len);
 
 boolean hdd_is_5g_supported(hdd_context_t * pHddCtx);
 

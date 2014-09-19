@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -1070,6 +1071,8 @@ typedef struct sAniSirGlobal
     v_BOOL_t isMuBfsessionexist;
 #endif
 
+    v_BOOL_t isCoexScoIndSet;
+    v_U8_t miracast_mode;
 } tAniSirGlobal;
 
 #ifdef FEATURE_WLAN_TDLS

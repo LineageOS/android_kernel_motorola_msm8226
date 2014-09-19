@@ -5125,6 +5125,26 @@ void limUpdateStaRunTimeHTSwitchChnlParams( tpAniSirGlobal   pMac,
     }
 #endif
 
+    if (pMac->ft.ftPEContext.pFTPreAuthReq)
+    {
+        limLog( pMac, LOGE, FL( "FT PREAUTH channel change is in progress"));
+        return;
+    }
+
+    /*
+     * Do not try to switch channel if RoC is in progress. RoC code path uses
+     * pMac->lim.gpLimRemainOnChanReq to notify the upper layers that the device
+     * has started listening on the channel requested as part of RoC, if we set
+     * pMac->lim.gpLimRemainOnChanReq to NULL as we do below then the
+     * upper layers will think that the channel change is not successful and the
+     * RoC from the upper layer perspective will never end...
+     */
+    if (pMac->lim.gpLimRemainOnChanReq)
+    {
+        limLog( pMac, LOGE, FL( "RoC is in progress"));
+        return;
+    }
+
     if ( psessionEntry->htSecondaryChannelOffset != ( tANI_U8 ) pHTInfo->secondaryChannelOffset ||
          psessionEntry->htRecommendedTxWidthSet  != ( tANI_U8 ) pHTInfo->recommendedTxWidthSet )
     {
@@ -5305,6 +5325,7 @@ tSirRetStatus limProcessHalIndMessages(tpAniSirGlobal pMac, tANI_U32 msgId, void
     case SIR_LIM_DEL_BA_ALL_IND:
     case SIR_LIM_DELETE_STA_CONTEXT_IND:        
     case SIR_LIM_BEACON_GEN_IND:
+    case SIR_LIM_DEL_BA_IND:
       msg.type = (tANI_U16) msgId;
       msg.bodyptr = msgParam;
       msg.bodyval = 0;
@@ -5728,7 +5749,7 @@ void limDelPerBssBASessionsBtc(tpAniSirGlobal pMac)
     {
         PELOGW(limLog(pMac, LOGW,
         "Deleting the BA for session %d as host got BTC event", sessionId);)
-        limDeleteBASessions(pMac, pSessionEntry, BA_RECIPIENT,
+        limDeleteBASessions(pMac, pSessionEntry, BA_BOTH_DIRECTIONS,
                             eSIR_MAC_PEER_TIMEDOUT_REASON);
     }
 }
@@ -6235,7 +6256,12 @@ tSirMsgQ msgQ;
   msgQ.bodyval = 0;
 
   limLog( pMac, LOGW,
-      FL( "Sending WDA_ADDBA_REQ..." ));
+      FL( "Sending WDA_ADDBA_REQ... Buff size = %d , staId = %d , timeout = %d "
+          "Tid = %d, Direction = %d , Policy = %d, sessionId = %d , baSSN = %d " ),
+           pAddBAParams->baBufferSize, pAddBAParams->staIdx,
+           pAddBAParams->baTimeout, pAddBAParams->baTID,
+           pAddBAParams->baDirection, pAddBAParams->baPolicy,
+           pAddBAParams->sessionId, pAddBAParams->baSSN);
 
   //defer any other message until we get response back.
   SET_LIM_PROCESS_DEFD_MESGS(pMac, false);

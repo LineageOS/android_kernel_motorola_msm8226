@@ -807,6 +807,19 @@ static eHalStatus hdd_DisConnectHandler( hdd_adapter_t *pAdapter, tCsrRoamInfo *
     /* HDD has initiated disconnect, do not send disconnect indication
      * to kernel as it will be handled by __cfg80211_disconnect.
      */
+    /* If only STA mode is on */
+    if((pHddCtx->concurrency_mode <= 1) &&
+       (pHddCtx->no_of_open_sessions[WLAN_HDD_INFRA_STATION] <= 1))
+    {
+        pHddCtx->isAmpAllowed = VOS_TRUE;
+    }
+
+    /* Need to apply spin lock before decreasing active sessions
+     * as there can be chance for double decrement if context switch
+     * Calls wlan_hdd_disconnect.
+     */
+
+    spin_lock_bh(&pAdapter->lock_for_active_session);
     if ( eConnectionState_Disconnecting == pHddStaCtx->conn_info.connState )
     {
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
@@ -814,20 +827,19 @@ static eHalStatus hdd_DisConnectHandler( hdd_adapter_t *pAdapter, tCsrRoamInfo *
                    " disconnect indication to kernel"));
        sendDisconInd = FALSE;
     }
-    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                   "%s: Set HDD connState to eConnectionState_Disconnecting",
-                   __func__);
-    hdd_connSetConnectionState( pHddStaCtx, eConnectionState_Disconnecting );
-    /* If only STA mode is on */
-    if((pHddCtx->concurrency_mode <= 1) &&
-       (pHddCtx->no_of_open_sessions[WLAN_HDD_INFRA_STATION] <= 1))
+    else if (eConnectionState_Associated == pHddStaCtx->conn_info.connState)
     {
-        pHddCtx->isAmpAllowed = VOS_TRUE;
+       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+               FL(" Set HDD connState to eConnectionState_Disconnecting from %d "),
+                       pHddStaCtx->conn_info.connState);
+       hdd_connSetConnectionState( pHddStaCtx, eConnectionState_Disconnecting );
+       wlan_hdd_decr_active_session(pHddCtx, pAdapter->device_mode);
     }
+    spin_unlock_bh(&pAdapter->lock_for_active_session);
+
     hdd_clearRoamProfileIe( pAdapter );
 
     hdd_wmm_init( pAdapter );
-    wlan_hdd_decr_active_session(pHddCtx, pAdapter->device_mode);
 
     // indicate 'disconnect' status to wpa_supplicant...
     hdd_SendAssociationEvent(dev,pRoamInfo);
@@ -1131,7 +1143,6 @@ static void hdd_SendReAssocEvent(struct net_device *dev, hdd_adapter_t *pAdapter
 {
     unsigned int len = 0;
     u8 *pFTAssocRsp = NULL;
-    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     v_U8_t *rspRsnIe = kmalloc(IW_GENERIC_IE_MAX, GFP_KERNEL);
     tANI_U32 rspRsnLength = 0;
     struct ieee80211_channel *chan;
@@ -1161,16 +1172,6 @@ static void hdd_SendReAssocEvent(struct net_device *dev, hdd_adapter_t *pAdapter
     hddLog(LOG1, "%s: AssocRsp is now at %02x%02x", __func__,
                     (unsigned int)pFTAssocRsp[0],
                     (unsigned int)pFTAssocRsp[1]);
-
-    /* Active session count is decremented upon disconnection, but during
-     * roaming, there is no disconnect indication and hence active session
-     * count is not decremented.
-     * After roaming is completed, active session count is incremented
-     * as a part of connect indication but effectively after roaming the
-     * active session count should still be the same and hence upon
-     * successful reassoc decrement the active session count here */
-
-    wlan_hdd_decr_active_session(pHddCtx, pAdapter->device_mode);
 
     // Send the Assoc Resp, the supplicant needs this for initial Auth.
     len = pCsrRoamInfo->nAssocRspLength - FT_ASSOC_RSP_IES_OFFSET;
@@ -1220,7 +1221,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
     hdd_adapter_t *pHostapdAdapter = NULL;
-    VOS_STATUS vosStatus;
+    VOS_STATUS vosStatus = VOS_STATUS_SUCCESS;
     v_U8_t reqRsnIe[DOT11F_IE_RSN_MAX_LEN];
     tANI_U32 reqRsnLength = DOT11F_IE_RSN_MAX_LEN;
 #if  defined (FEATURE_WLAN_ESE) || defined(FEATURE_WLAN_LFR) || defined (WLAN_FEATURE_VOWIFI_11R)
@@ -1339,6 +1340,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
             if (NULL == bss)
             {
                 pr_err("wlan: Not able to create BSS entry\n");
+                netif_carrier_off(dev);
                 return eHAL_STATUS_FAILURE;
             }
 #ifdef WLAN_FEATURE_VOWIFI_11R
@@ -1670,14 +1672,22 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
 
     }
 
-    if (eCSR_ROAM_ASSOCIATION_FAILURE == roamStatus ||
-        eCSR_ROAM_RESULT_ASSOCIATED == roamResult)
+    if (eCSR_ROAM_RESULT_ASSOCIATED == roamResult)
     {
         pHostapdAdapter = hdd_get_adapter(pHddCtx, WLAN_HDD_SOFTAP);
         if (pHostapdAdapter != NULL)
         {
-             hddLog(VOS_TRACE_LEVEL_INFO,"Restart Sap");
-             hdd_restart_softap(pHddCtx, pHostapdAdapter);
+             /* Restart SAP if its operating channel is different
+              * from AP channel.
+              */
+             if (pHostapdAdapter->sessionCtx.ap.operatingChannel !=
+                (int)pRoamInfo->pBssDesc->channelId)
+             {
+                hddLog(VOS_TRACE_LEVEL_INFO,"Restart Sap as SAP channel is %d "
+                       "and STA channel is %d", pHostapdAdapter->sessionCtx.ap.operatingChannel,
+                       (int)pRoamInfo->pBssDesc->channelId);
+                hdd_restart_softap(pHddCtx, pHostapdAdapter);
+             }
         }
     }
     return eHAL_STATUS_SUCCESS;
@@ -2692,6 +2702,7 @@ eHalStatus hdd_smeRoamCallback( void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U3
         case eCSR_ROAM_FT_REASSOC_FAILED:
             hddLog(LOGE, FL("Reassoc Failed with roamStatus: %d roamResult: %d SessionID: %d"),
                           roamStatus, roamResult, pAdapter->sessionId);
+            sme_resetCoexEevent(WLAN_HDD_GET_HAL_CTX(pAdapter));
             halStatus = hdd_DisConnectHandler( pAdapter, pRoamInfo, roamId, roamStatus, roamResult );
             /* Check if Mcast/Bcast Filters are set, if yes clear the filters here */
             if ((WLAN_HDD_GET_CTX(pAdapter))->hdd_mcastbcast_filter_set == TRUE) {
@@ -2776,6 +2787,7 @@ eHalStatus hdd_smeRoamCallback( void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U3
             {
                 VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                         "****eCSR_ROAM_DISASSOCIATED****");
+                sme_resetCoexEevent(WLAN_HDD_GET_HAL_CTX(pAdapter));
                 halStatus = hdd_DisConnectHandler( pAdapter, pRoamInfo, roamId, roamStatus, roamResult );
                 /* Check if Mcast/Bcast Filters are set, if yes clear the filters here */
                 pHddCtx = WLAN_HDD_GET_CTX(pAdapter);

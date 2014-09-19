@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 #if !defined( __SME_API_H )
@@ -467,6 +468,21 @@ eHalStatus sme_UpdateConfig(tHalHandle hHal, tpSmeConfigParams pSmeConfigParams)
 eHalStatus sme_UpdateChannelConfig(tHalHandle hHal);
 
 #endif // FEATURE_WLAN_SCAN_PNLO
+/*--------------------------------------------------------------------------
+
+  \brief sme_UpdateChannelList() - Update channel List in FW.
+
+
+  \param hHal - The handle returned by macOpen.
+
+  \return eHAL_STATUS_SUCCESS - SME update the channel config successfully.
+
+          Other status means SME is failed to update the channel config.
+  \sa
+
+  --------------------------------------------------------------------------*/
+eHalStatus sme_UpdateChannelList(tHalHandle hHal);
+
 /*--------------------------------------------------------------------------
   
   \brief sme_set11dinfo() - Set the 11d information about valid channels
@@ -1483,7 +1499,7 @@ extern eHalStatus sme_EnterWowl (
                                   not even completed.
             eHAL_STATUS_SUCCESS  Request accepted to exit WoWLAN mode. 
   ---------------------------------------------------------------------------*/
-extern eHalStatus sme_ExitWowl (tHalHandle hHal);
+extern eHalStatus sme_ExitWowl (tHalHandle hHal, tWowlExitSource wowlExitSrc);
 
 /* ---------------------------------------------------------------------------
 
@@ -3412,4 +3428,17 @@ const char * sme_PmcStatetoString(const v_U8_t pmcState);
 eHalStatus sme_getBcnMissRate(tHalHandle, tANI_U8, void *, void *);
 
 tANI_BOOLEAN  sme_Is11dCountrycode(tHalHandle hHal);
+
+// tdlsoffchan
+VOS_STATUS sme_SendTdlsChanSwitchReq(tHalHandle hHal,
+                                     tANI_U8 sessionId,
+                                     tSirMacAddr peerMac,
+                                     tANI_S32 tdlsOffCh,
+                                     tANI_S32 tdlsOffChBwOffset,
+                                     tANI_U8 tdlsSwMode);
+
+void sme_SetMiracastMode (tHalHandle hHal,tANI_U8 mode);
+
+void sme_resetCoexEevent(tHalHandle hHal);
+
 #endif //#if !defined( __SME_API_H )

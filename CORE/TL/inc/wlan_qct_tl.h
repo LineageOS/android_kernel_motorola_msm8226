@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 #ifndef WLAN_QCT_WLANTL_H
@@ -2948,6 +2949,31 @@ v_VOID_t
 WLANTL_TLDebugMessage
 (
   v_BOOL_t displaySnapshot
+);
+
+/*==========================================================================
+  FUNCTION   WLANTL_FatalError
+
+  DESCRIPTION
+    Fatal error reported in TX path, post an event to TX Thread for further
+    handling
+
+  DEPENDENCIES
+    The TL must be initialized before this gets called.
+
+  PARAMETERS
+
+    VOID
+
+  RETURN VALUE      None
+
+  SIDE EFFECTS
+
+============================================================================*/
+v_VOID_t
+WLANTL_FatalError
+(
+ v_VOID_t
 );
 
 #endif /* #ifndef WLAN_QCT_WLANTL_H */

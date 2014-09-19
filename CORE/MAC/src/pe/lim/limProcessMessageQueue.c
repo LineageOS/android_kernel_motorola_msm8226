@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2013 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -532,7 +533,7 @@ limProcessEXTScanRealTimeData(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
     vos_mem_set((tANI_U8 *) &tEXTScanFullScanResult,
                 sizeof(tSirWifiFullScanResultEvent), 0);
 
-    tEXTScanFullScanResult.ap.ts = WDA_GET_RX_TIMESTAMP(pRxPacketInfo);
+    tEXTScanFullScanResult.ap.ts = vos_get_monotonic_boottime();
 
     vos_mem_copy(&tEXTScanFullScanResult.ap.bssid,
                  pHdr->bssId, sizeof(tSirMacAddr));
@@ -1467,6 +1468,8 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
         case eWNI_SME_TDLS_ADD_STA_REQ:
         case eWNI_SME_TDLS_DEL_STA_REQ:
         case eWNI_SME_TDLS_LINK_ESTABLISH_REQ:
+// tdlsoffchan
+        case eWNI_SME_TDLS_CHANNEL_SWITCH_REQ:
 #endif
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
         case eWNI_SME_TDLS_DISCOVERY_START_REQ:
@@ -2244,6 +2247,40 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
                                                   NULL,
                                                   NULL,
                                                   pTdlsLinkEstablishParams->status) ;
+            }
+            vos_mem_free((v_VOID_t *)(limMsg->bodyptr));
+            limMsg->bodyptr = NULL;
+            break;
+        }
+
+        case WDA_SET_TDLS_CHAN_SWITCH_REQ_RSP:
+        {
+            tpPESession     psessionEntry;
+            tANI_U8         sessionId;
+            tTdlsChanSwitchParams *pTdlsChanSwitchParams;
+            pTdlsChanSwitchParams = (tTdlsChanSwitchParams*) limMsg->bodyptr;
+
+            if((psessionEntry = peFindSessionByStaId(pMac,
+                                                     pTdlsChanSwitchParams->staIdx,
+                                                     &sessionId))== NULL)
+            {
+                limLog(pMac, LOGE, FL("session %u  does not exist.\n"), sessionId);
+                /* Still send the eWNI_SME_TDLS_LINK_ESTABLISH_RSP message to SME
+                   with session id as zero and status as FAILURE so, that message
+                   queued in SME queue can be freed to prevent the SME cmd buffer leak */
+                limSendSmeTdlsChanSwitchReqRsp(pMac,
+                                                  0,
+                                                  NULL,
+                                                  NULL,
+                                                  eSIR_FAILURE);
+            }
+            else
+            {
+                limSendSmeTdlsChanSwitchReqRsp(pMac,
+                                                  psessionEntry->smeSessionId,
+                                                  NULL,
+                                                  NULL,
+                                                  pTdlsChanSwitchParams->status) ;
             }
             vos_mem_free((v_VOID_t *)(limMsg->bodyptr));
             limMsg->bodyptr = NULL;

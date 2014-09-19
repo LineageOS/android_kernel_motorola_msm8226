@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*============================================================================
@@ -1124,7 +1125,7 @@ VOS_STATUS vos_nv_open(void)
        return VOS_STATUS_E_RESOURCES;
     }
 
-    memcpy(&magicNumber, &pnvEncodedBuf[sizeof(v_U32_t)], sizeof(v_U32_t));
+    vos_mem_copy(&magicNumber, &pnvEncodedBuf[sizeof(v_U32_t)], sizeof(v_U32_t));
 
     /// Allocate buffer with maximum length..
     pEncodedBuf = (v_U8_t *)vos_mem_malloc(nvReadBufSize);
@@ -1222,9 +1223,9 @@ VOS_STATUS vos_nv_open(void)
         {
             pnvEFSTable->nvValidityBitmap = DEFAULT_NV_VALIDITY_BITMAP;
             VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
-                      "!!!WARNING: INVALID NV FILE, DRIVER IS USING DEFAULT CAL VALUES %d %d!!!",
+                      "Size  mismatch INVALID NV FILE %d %d!!!",
                       nvReadBufSize, bufSize);
-            return VOS_STATUS_SUCCESS;
+            return VOS_STATUS_E_FAILURE;
         }
 
         VOS_TRACE(VOS_MODULE_ID_VOSS,  VOS_TRACE_LEVEL_INFO,
@@ -1557,7 +1558,7 @@ VOS_STATUS vos_nv_getSupportedCountryCode( v_BYTE_t *pBuffer, v_SIZE_t *pBufferS
    }
    for (i = 0; i < countryInfoTable.countryCount; i++)
    {
-      memcpy( pBuffer, countryInfoTable.countryInfo[i].countryCode, VOS_COUNTRY_CODE_LEN );
+      vos_mem_copy( pBuffer, countryInfoTable.countryInfo[i].countryCode, VOS_COUNTRY_CODE_LEN );
       pBuffer += (VOS_COUNTRY_CODE_LEN + paddingSize );
    }
    return VOS_STATUS_SUCCESS;
@@ -1613,13 +1614,13 @@ VOS_STATUS vos_nv_readMacAddress( v_MAC_ADDRESS_t pMacAddress )
          sizeof(fieldImage) );
    if (VOS_STATUS_SUCCESS == status)
    {
-      memcpy( pMacAddress, fieldImage.macAddr, VOS_MAC_ADDRESS_LEN );
+      vos_mem_copy( pMacAddress, fieldImage.macAddr, VOS_MAC_ADDRESS_LEN );
    }
    else
    {
       //This part of the code can be removed when NV is programmed
       const v_U8_t macAddr[VOS_MAC_ADDRESS_LEN] = VOS_HARD_CODED_MAC;
-      memcpy( pMacAddress, macAddr, VOS_MAC_ADDRESS_LEN );
+      vos_mem_copy( pMacAddress, macAddr, VOS_MAC_ADDRESS_LEN );
       VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_WARN,
                 "fail to get MAC address from NV, hardcoded to "MAC_ADDRESS_STR,
                 MAC_ADDR_ARRAY(macAddr));
@@ -1823,7 +1824,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.fields,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.fields,bufferSize);
            }
            break;
        case VNV_RATE_TO_POWER_TABLE:
@@ -1835,7 +1836,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.pwrOptimum[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.pwrOptimum[0],bufferSize);
            }
            break;
        case VNV_REGULARTORY_DOMAIN_TABLE:
@@ -1847,7 +1848,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.regDomains[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.regDomains[0],bufferSize);
            }
            break;
        case VNV_DEFAULT_LOCATION:
@@ -1859,7 +1860,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.defaultCountryTable,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.defaultCountryTable,bufferSize);
            }
            break;
        case VNV_TPC_POWER_TABLE:
@@ -1871,7 +1872,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.plutCharacterized[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.plutCharacterized[0],bufferSize);
            }
            break;
        case VNV_TPC_PDADC_OFFSETS:
@@ -1883,7 +1884,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.plutPdadcOffset[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.plutPdadcOffset[0],bufferSize);
            }
            break;
        case VNV_RSSI_CHANNEL_OFFSETS:
@@ -1898,7 +1899,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.rssiChanOffsets[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.rssiChanOffsets[0],bufferSize);
            }
            break;
        case VNV_HW_CAL_VALUES:
@@ -1913,7 +1914,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.hwCalValues,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.hwCalValues,bufferSize);
            }
            break;
        case VNV_FW_CONFIG:
@@ -1928,7 +1929,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.fwConfig,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.fwConfig,bufferSize);
            }
            break;
        case VNV_ANTENNA_PATH_LOSS:
@@ -1940,7 +1941,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.antennaPathLoss[0],bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.antennaPathLoss[0],bufferSize);
            }
            break;
        case VNV_PACKET_TYPE_POWER_LIMITS:
@@ -1952,7 +1953,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,gnvEFSTable->halnv.tables.pktTypePwrLimits,bufferSize);
+               vos_mem_copy(outputVoidBuffer,gnvEFSTable->halnv.tables.pktTypePwrLimits,bufferSize);
            }
            break;
        case VNV_OFDM_CMD_PWR_OFFSET:
@@ -1964,7 +1965,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.ofdmCmdPwrOffset,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.ofdmCmdPwrOffset,bufferSize);
            }
            break;
        case VNV_TX_BB_FILTER_MODE:
@@ -1976,7 +1977,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.txbbFilterMode,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.txbbFilterMode,bufferSize);
            }
            break;
 
@@ -1990,7 +1991,7 @@ VOS_STATUS vos_nv_read( VNV_TYPE type, v_VOID_t *outputVoidBuffer,
                status = VOS_STATUS_E_INVAL;
            }
            else {
-               memcpy(outputVoidBuffer,&gnvEFSTable->halnv.tables.pwrOptimum_virtualRate,bufferSize);
+               vos_mem_copy(outputVoidBuffer,&gnvEFSTable->halnv.tables.pwrOptimum_virtualRate,bufferSize);
            }
            break;
 
@@ -2054,7 +2055,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.fields,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.fields,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2071,7 +2072,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.pwrOptimum[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.pwrOptimum[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2088,7 +2089,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.regDomains[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.regDomains[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2105,7 +2106,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.defaultCountryTable,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.defaultCountryTable,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2122,7 +2123,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.plutCharacterized[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.plutCharacterized[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2139,7 +2140,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.plutPdadcOffset[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.plutPdadcOffset[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2156,7 +2157,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.rssiChanOffsets[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.rssiChanOffsets[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2173,7 +2174,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.hwCalValues,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.hwCalValues,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2190,7 +2191,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
            }
            else
            {
-               memcpy(&gnvEFSTableV2->halnvV2.tables.fwConfig,
+               vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.fwConfig,
                       inputVoidBuffer,
                       bufferSize);
            }
@@ -2207,7 +2208,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.antennaPathLoss[0],
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.antennaPathLoss[0],
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2224,7 +2225,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(gnvEFSTableV2->halnvV2.tables.pktTypePwrLimits,
+                vos_mem_copy(gnvEFSTableV2->halnvV2.tables.pktTypePwrLimits,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2241,7 +2242,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.ofdmCmdPwrOffset,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.ofdmCmdPwrOffset,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2258,7 +2259,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.txbbFilterMode,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.txbbFilterMode,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2275,7 +2276,7 @@ VOS_STATUS vos_nv_write(VNV_TYPE type, v_VOID_t *inputVoidBuffer,
             }
             else
             {
-                memcpy(&gnvEFSTableV2->halnvV2.tables.pwrOptimum_virtualRate,
+                vos_mem_copy(&gnvEFSTableV2->halnvV2.tables.pwrOptimum_virtualRate,
                        inputVoidBuffer,
                        bufferSize);
             }
@@ -2439,7 +2440,7 @@ VOS_STATUS vos_nv_readDefaultCountryTable( uNvTables *tableData )
 {
 
    VOS_STATUS status = VOS_STATUS_SUCCESS;
-   memcpy(&tableData->defaultCountryTable, &pnvEFSTable->halnv.tables.defaultCountryTable, sizeof(sDefaultCountry));
+   vos_mem_copy(&tableData->defaultCountryTable, &pnvEFSTable->halnv.tables.defaultCountryTable, sizeof(sDefaultCountry));
    pr_info("DefaultCountry is %c%c\n",
             tableData->defaultCountryTable.countryCode[0],
             tableData->defaultCountryTable.countryCode[1]);
@@ -3341,62 +3342,27 @@ VOS_STATUS vos_nv_getRegDomainFromCountryCode( v_REGDOMAIN_t *pRegDomain,
    return VOS_STATUS_SUCCESS;
 }
 
-/* create_linux_regulatory_entry to populate internal structures from wiphy */
-static int create_linux_regulatory_entry(struct wiphy *wiphy,
-                struct regulatory_request *request,
-                v_U8_t nBandCapability)
+int vos_update_nv_table_from_wiphy_band(void *hdd_ctx,
+                      void *pwiphy,v_U8_t nBandCapability)
 {
-    int i, j, m;
-    int k = 0, n = 0;
+   int i, j, m;
+   int k = 0, n = 0;
+   const struct ieee80211_reg_rule *reg_rule;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0))
-    int err;
+   int err;
 #endif
-    const struct ieee80211_reg_rule *reg_rule;
-    v_CONTEXT_t pVosContext = NULL;
-    hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx = (hdd_context_t *)hdd_ctx;
+   struct wiphy *wiphy = (struct wiphy *)pwiphy;
 
-    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
-
-    if (NULL != pVosContext)
-    {
-        pHddCtx = vos_get_context(VOS_MODULE_ID_HDD, pVosContext);
-        if (NULL == pHddCtx)
-        {
-           VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                       ("Invalid pHddCtx pointer") );
-        }
-        else
-        {
-           pHddCtx->isVHT80Allowed = 0;
-        }
-    }
-    else
-    {
-       VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                  ("Invalid pVosContext pointer") );
-    }
-
-    /* 20MHz channels */
-    if (nBandCapability == eCSR_BAND_24)
-        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
-                  "BandCapability is set to 2G only");
-
-    for (i = 0, m = 0; i<IEEE80211_NUM_BANDS; i++)
-    {
-        /* 5G only */
-        if (i == IEEE80211_BAND_2GHZ && nBandCapability == eCSR_BAND_5G)
-            continue;
-
-        /* 2G only */
-        else if (i == IEEE80211_BAND_5GHZ && nBandCapability == eCSR_BAND_24)
-            continue;
+   for (i = 0, m = 0; i<IEEE80211_NUM_BANDS; i++)
+   {
 
         if (wiphy->bands[i] == NULL)
         {
 
             VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
                       "error: wiphy->bands is NULL, i = %d", i);
-            return -1;
+            continue;
         }
 
         /* internal channels[] is one continous array for both 2G and 5G bands
@@ -3409,6 +3375,11 @@ static int create_linux_regulatory_entry(struct wiphy *wiphy,
 
         for (j = 0; j < wiphy->bands[i]->n_channels; j++)
         {
+             if (IEEE80211_BAND_2GHZ == i && eCSR_BAND_5G == nBandCapability)
+                  wiphy->bands[i]->channels[j].flags |= IEEE80211_CHAN_DISABLED;
+             else if (IEEE80211_BAND_5GHZ == i && eCSR_BAND_24 == nBandCapability)
+                  wiphy->bands[i]->channels[j].flags |= IEEE80211_CHAN_DISABLED;
+
             /* k = (m + j) is internal current channel index for 20MHz channel
               n is internal channel index for corresponding 40MHz channel */
 
@@ -3437,8 +3408,14 @@ static int create_linux_regulatory_entry(struct wiphy *wiphy,
             if (0 == err)
 #endif
             {
-                if  (wiphy->flags & WIPHY_FLAG_CUSTOM_REGULATORY) {
+                /* When Country code in nv.bin file is Non Zero  and Reg Domain
+                 * is world; it's neither CUSTOM nor STRICT. In this Case
+                 * if country code is Non-Zero and domain is world; driver
+                 * will not change channel to active.
+                 */
 
+                if  (!(wiphy->flags & WIPHY_FLAG_STRICT_REGULATORY ))
+                {
                     if (!(reg_rule->flags & NL80211_RRF_PASSIVE_SCAN))
                     {
                         VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
@@ -3584,6 +3561,59 @@ static int create_linux_regulatory_entry(struct wiphy *wiphy,
     return 0;
 }
 
+/* create_linux_regulatory_entry to populate internal structures from wiphy */
+static int create_linux_regulatory_entry(struct wiphy *wiphy,
+                struct regulatory_request *request,
+                v_U8_t nBandCapability)
+{
+    v_CONTEXT_t pVosContext = NULL;
+    hdd_context_t *pHddCtx = NULL;
+
+    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+
+    if (NULL != pVosContext)
+    {
+        pHddCtx = vos_get_context(VOS_MODULE_ID_HDD, pVosContext);
+        if (NULL == pHddCtx)
+        {
+           VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                       ("Invalid pHddCtx pointer") );
+        }
+        else
+        {
+           pHddCtx->isVHT80Allowed = 0;
+        }
+    }
+    else
+    {
+       VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                  ("Invalid pVosContext pointer") );
+    }
+
+    /* 20MHz channels */
+    if (nBandCapability == eCSR_BAND_24)
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+                  "BandCapability is set to 2G only");
+    return vos_update_nv_table_from_wiphy_band(pHddCtx, wiphy, nBandCapability);
+
+
+}
+
+/* function to tell about if Default country is Non-Zero */
+v_BOOL_t vos_is_nv_country_non_zero()
+{
+    v_BOOL_t  status = VOS_FALSE;
+    if (!(pnvEFSTable->halnv.tables.defaultCountryTable.countryCode[0] == '0' &&
+        pnvEFSTable->halnv.tables.defaultCountryTable.countryCode[1] == '0'))
+    {
+        VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+               "Default Country is Non-Zero\n");
+        return VOS_TRUE;
+    }
+
+    return status ;
+}
+
 
 /*
  * Function: wlan_hdd_linux_reg_notifier
@@ -3663,6 +3693,8 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
         {
            hdd_checkandupdate_phymode( pHddCtx);
         }
+        linux_reg_cc[0] =  request->alpha2[0];
+        linux_reg_cc[1] =  request->alpha2[1];
 
         complete(&pHddCtx->linux_reg_req);
     }
@@ -3672,6 +3704,20 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
     {
 
         /* first lookup the country in the local database */
+
+        if (!(pnvEFSTable->halnv.tables.defaultCountryTable.countryCode[0] == '0' &&
+             pnvEFSTable->halnv.tables.defaultCountryTable.countryCode[1] == '0') &&
+            (vos_is_load_unload_in_progress( VOS_MODULE_ID_VOSS, NULL)))
+        {
+           VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+                      (" Default Country in nv is non Zero  and Driver load/unload"
+                       "is in progress; avoid updating country from kernel\n"));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
+           return;
+#else
+           return 0;
+#endif
+        }
 
         country_code[0] = request->alpha2[0];
         country_code[1] = request->alpha2[1];
@@ -3714,7 +3760,7 @@ int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
         if (request->alpha2[0] == '0' && request->alpha2[1] == '0')
         {
            sme_GenericChangeCountryCode(pHddCtx->hHal, country_code,
-                                        REGDOMAIN_COUNT);
+                                           REGDOMAIN_COUNT);
         }
         else
         {
@@ -4097,7 +4143,7 @@ int wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
        int status;
        wiphy_dbg(wiphy, "info: set by user\n");
        memset(ccode, 0, WNI_CFG_COUNTRY_CODE_LEN);
-       memcpy(ccode, request->alpha2, 2);
+       vos_mem_copy(ccode, request->alpha2, 2);
        init_completion(&change_country_code);
        /* We will process hints by user from nl80211 in driver.
        * sme_ChangeCountryCode will set the country to driver

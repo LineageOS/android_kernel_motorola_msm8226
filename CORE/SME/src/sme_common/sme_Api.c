@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /**=========================================================================
@@ -1013,6 +1014,7 @@ sme_process_cmd:
                         case eSmeCommandTdlsAddPeer:
                         case eSmeCommandTdlsDelPeer:
                         case eSmeCommandTdlsLinkEstablish:
+                        case eSmeCommandTdlsChannelSwitch: // tdlsoffchan
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
                         case eSmeCommandTdlsDiscovery:
                         case eSmeCommandTdlsLinkSetup:
@@ -1343,6 +1345,21 @@ eHalStatus sme_UpdateChannelConfig(tHalHandle hHal)
   return eHAL_STATUS_SUCCESS;
 }
 #endif // FEATURE_WLAN_SCAN_PNLO
+
+eHalStatus sme_UpdateChannelList(tHalHandle hHal)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+    eHalStatus status = eHAL_STATUS_SUCCESS;
+
+    status = csrUpdateChannelList(pMac);
+
+    if (eHAL_STATUS_SUCCESS != status)
+    {
+        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
+                "failed to update the supported channel list");
+    }
+    return status;
+}
 
 /*--------------------------------------------------------------------------
 
@@ -2082,6 +2099,21 @@ eHalStatus sme_ProcessMsg(tHalHandle hHal, vos_msg_t* pMsg)
           case eWNI_SME_COEX_IND:
                 if(pMsg->bodyptr)
                 {
+                   tSirSmeCoexInd *pSmeCoexInd = (tSirSmeCoexInd *)pMsg->bodyptr;
+
+                   if (pSmeCoexInd->coexIndType == SIR_COEX_IND_TYPE_DISABLE_AGGREGATION_IN_2p4)
+                   {
+                       smsLog( pMac, LOG1, FL("SIR_COEX_IND_TYPE_DISABLE_AGGREGATION_IN_2p4"));
+                       sme_RequestFullPower(hHal, NULL, NULL, eSME_REASON_OTHER);
+                       pMac->isCoexScoIndSet = 1;
+                   }
+                   else if (pSmeCoexInd->coexIndType == SIR_COEX_IND_TYPE_ENABLE_AGGREGATION_IN_2p4)
+                   {
+                       smsLog( pMac, LOG1, FL("SIR_COEX_IND_TYPE_ENABLE_AGGREGATION_IN_2p4"));
+                       pMac->isCoexScoIndSet = 0;
+                       sme_RequestBmps(hHal, NULL, NULL);
+                   }
+
                    status = btcHandleCoexInd((void *)pMac, pMsg->bodyptr);
                    vos_mem_free(pMsg->bodyptr);
                 }
@@ -2188,6 +2220,7 @@ eHalStatus sme_ProcessMsg(tHalHandle hHal, vos_msg_t* pMsg)
           case eWNI_SME_TDLS_DEL_ALL_PEER_IND:
           case eWNI_SME_MGMT_FRM_TX_COMPLETION_IND:
           case eWNI_SME_TDLS_LINK_ESTABLISH_RSP:
+          case eWNI_SME_TDLS_CHANNEL_SWITCH_RSP:
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
           case eWNI_SME_TDLS_DISCOVERY_START_RSP:
           case eWNI_SME_TDLS_DISCOVERY_START_IND:
@@ -2561,7 +2594,7 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
     smsLog(pMac, LOG2, FL("enter"));
     do
     {
-        if(pMac->scan.fScanEnable)
+        if(pMac->scan.fScanEnable && (0 == pMac->isCoexScoIndSet))
         {
             status = sme_AcquireGlobalLock( &pMac->sme );
             if ( HAL_STATUS_SUCCESS( status ) )
@@ -2603,7 +2636,8 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
         } //if(pMac->scan.fScanEnable)
         else
         {
-            smsLog(pMac, LOGE, FL("fScanEnable FALSE"));
+            smsLog(pMac, LOGE, FL("fScanEnable %d isCoexScoIndSet: %d "),
+                     pMac->scan.fScanEnable, pMac->isCoexScoIndSet);
         }
     } while( 0 );
 
@@ -4450,7 +4484,7 @@ eHalStatus sme_EnterWowl (
             eHAL_STATUS_FAILURE  Device cannot exit WoWLAN mode.
             eHAL_STATUS_SUCCESS  Request accepted to exit WoWLAN mode.
   ---------------------------------------------------------------------------*/
-eHalStatus sme_ExitWowl (tHalHandle hHal)
+eHalStatus sme_ExitWowl (tHalHandle hHal, tWowlExitSource wowlExitSrc)
 {
     eHalStatus status = eHAL_STATUS_FAILURE;
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -4459,7 +4493,7 @@ eHalStatus sme_ExitWowl (tHalHandle hHal)
     status = sme_AcquireGlobalLock( &pMac->sme );
     if ( HAL_STATUS_SUCCESS( status ) )
     {
-       status = pmcExitWowl (hHal);
+       status = pmcExitWowl (hHal, wowlExitSrc);
        sme_ReleaseGlobalLock( &pMac->sme );
     }
 
@@ -5180,6 +5214,9 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
         pMsg->msgType = pal_cpu_to_be16((tANI_U16)eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE);
         pMsg->msgLen = (tANI_U16)sizeof(tAniGenericChangeCountryCodeReq);
         vos_mem_copy(pMsg->countryCode, pCountry, 2);
+
+        pMsg->countryCode[2] = ' '; /* For ASCII space */
+
         pMsg->domain_index = reg_domain;
 
         msg.type = eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE;
@@ -7566,7 +7603,8 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
      */
     if (pMac->roam.configParam.Is11dSupportEnabledOriginal == true)
     {
-        if ((!is11dCountry) && (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority))
+        if ((!is11dCountry) && (!pMac->roam.configParam.fSupplicantCountryCodeHasPriority)&&
+                           (!pMac->roam.configParam.fEnforceCountryCode) )
         {
 
             smsLog( pMac, LOGW, FL(" incorrect country being set, nullify this request"));
@@ -7579,6 +7617,7 @@ eHalStatus sme_HandleChangeCountryCodeByUser(tpAniSirGlobal pMac,
             return eHAL_STATUS_FAILURE;
         }
     }
+    pMac->roam.configParam.fEnforceCountryCode = eANI_BOOLEAN_FALSE;
     /* if Supplicant country code has priority, disable 11d */
     if (!is11dCountry && pMac->roam.configParam.fSupplicantCountryCodeHasPriority)
     {
@@ -8204,9 +8243,6 @@ eHalStatus sme_WakeReasonIndCallback (tHalHandle hHal, void* pMsg)
       /* Call Wake Reason Indication callback routine. */
       if (pMac->pmc.wakeReasonIndCB != NULL)
           pMac->pmc.wakeReasonIndCB(pMac->pmc.wakeReasonIndCBContext, pWakeReasonInd);
-
-      pMac->pmc.wakeReasonIndCB = NULL;
-      pMac->pmc.wakeReasonIndCBContext = NULL;
 
       smsLog(pMac, LOG1, "Wake Reason Indication in %s(), reason=%d", __func__, pWakeReasonInd->ulReason);
    }
@@ -9795,6 +9831,38 @@ VOS_STATUS sme_SendTdlsLinkEstablishParams(tHalHandle hHal,
         sme_ReleaseGlobalLock( &pMac->sme );
     }
    return status ;
+}
+
+// tdlsoffchan
+
+/* ---------------------------------------------------------------------------
+    \fn sme_SendTdlsChanSwitchReq
+    \brief  API to send TDLS management frames.
+
+    \param  peerMac - peer's Mac Adress.
+    \param  tdlsLinkEstablishParams - TDLS Peer Link Establishment Parameters
+    \- return VOS_STATUS_SUCCES
+    -------------------------------------------------------------------------*/
+VOS_STATUS sme_SendTdlsChanSwitchReq(tHalHandle hHal,
+                                     tANI_U8 sessionId,
+                                     tSirMacAddr peerMac,
+                                     tANI_S32 tdlsOffCh,
+                                     tANI_S32 tdlsOffChBwOffset,
+                                     tANI_U8 tdlsSwMode)
+{
+    eHalStatus          status    = eHAL_STATUS_SUCCESS;
+    tpAniSirGlobal      pMac      = PMAC_STRUCT(hHal);
+
+    status = sme_AcquireGlobalLock( &pMac->sme );
+
+    if ( HAL_STATUS_SUCCESS( status ) )
+    {
+        status = csrTdlsSendChanSwitchReq(hHal, sessionId, peerMac,
+                                          tdlsOffCh, tdlsOffChBwOffset,
+                                          tdlsSwMode);
+    }
+    sme_ReleaseGlobalLock( &pMac->sme );
+    return status ;
 }
 
 /* ---------------------------------------------------------------------------
@@ -11411,4 +11479,33 @@ eHalStatus sme_EXTScanRegisterCallback (tHalHandle hHal,
     return(status);
 }
 
+void sme_SetMiracastMode (tHalHandle hHal,tANI_U8 mode)
+{
+    tpAniSirGlobal pMac  = PMAC_STRUCT(hHal);
+
+    pMac->miracast_mode = mode;
+}
 #endif /* WLAN_FEATURE_EXTSCAN */
+
+void sme_resetCoexEevent(tHalHandle hHal)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
+
+    if (pMac == NULL)
+    {
+        printk("btc: %s pMac is NULL \n",__func__);
+        return;
+    }
+
+    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
+              FL("isCoexScoIndSet: %d"), pMac->isCoexScoIndSet);
+
+    if (pMac->isCoexScoIndSet)
+    {
+        pMac->isCoexScoIndSet = 0;
+        ccmCfgSetInt(pMac, WNI_CFG_DEL_ALL_RX_TX_BA_SESSIONS_2_4_G_BTC, 0,
+                             NULL, eANI_BOOLEAN_FALSE);
+    }
+
+    return;
+}

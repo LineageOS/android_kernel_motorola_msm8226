@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2013 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -1428,8 +1429,17 @@ __limProcessSmeScanReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 
           pMlmScanReq->scanType = pScanReq->scanType;
           pMlmScanReq->backgroundScanMode = pScanReq->backgroundScanMode;
-          pMlmScanReq->minChannelTime = pScanReq->minChannelTime;
-          pMlmScanReq->maxChannelTime = pScanReq->maxChannelTime;
+          if (pMac->miracast_mode)
+          {
+              pMlmScanReq->minChannelTime = DEFAULT_MIN_CHAN_TIME_DURING_MIRACAST;
+              pMlmScanReq->maxChannelTime = DEFAULT_MAX_CHAN_TIME_DURING_MIRACAST;
+          }
+          else
+          {
+              pMlmScanReq->minChannelTime = pScanReq->minChannelTime;
+              pMlmScanReq->maxChannelTime = pScanReq->maxChannelTime;
+          }
+
           pMlmScanReq->minChannelTimeBtc = pScanReq->minChannelTimeBtc;
           pMlmScanReq->maxChannelTimeBtc = pScanReq->maxChannelTimeBtc;
           pMlmScanReq->dot11mode = pScanReq->dot11mode;
@@ -1951,6 +1961,7 @@ __limProcessSmeJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
            psessionEntry->pLimJoinReq->bssDescription.capabilityInfo;
 
         regMax = cfgGetRegulatoryMaxTransmitPower( pMac, psessionEntry->currentOperChannel ); 
+        localPowerConstraint = regMax;
         limExtractApCapability( pMac,
            (tANI_U8 *) psessionEntry->pLimJoinReq->bssDescription.ieFields,
            limGetIElenFromBssDescription(&psessionEntry->pLimJoinReq->bssDescription),
@@ -1960,12 +1971,7 @@ __limProcessSmeJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
            , &localPowerConstraint,
            psessionEntry
            );
-        /* If power constraint is zero then update it with Region max.
-                 MaxTxpower will be the MIN of regmax and power constraint */
-        if( localPowerConstraint == 0 )
-        {
-          localPowerConstraint = regMax;
-        }
+
 #ifdef FEATURE_WLAN_ESE
             psessionEntry->maxTxPower = limGetMaxTxPower(regMax, localPowerConstraint, pMac->roam.configParam.nTxPowerCap);
 #else
@@ -3336,7 +3342,7 @@ void limProcessSmeGetAssocSTAsInfo(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     {
         limLog(pMac, LOGE,
                         FL("received invalid eWNI_SME_GET_ASSOC_STAS_REQ message"));
-        goto limAssocStaEnd;
+        return;
     }
 
     switch (getAssocSTAsReq.modId)
@@ -3456,7 +3462,7 @@ void limProcessSmeGetWPSPBCSessions(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     {
         limLog(pMac, LOGE,
                         FL("received invalid eWNI_SME_GET_ASSOC_STAS_REQ message"));
-        goto limGetWPSPBCSessionsEnd;
+        return;
     }
 
     // Get Associated stations from PE
@@ -5013,7 +5019,8 @@ static void __limDeregisterDeferredSmeReqAfterNOAStart(tpAniSirGlobal pMac)
 }
 
 static
-tANI_U32 limCalculateNOADuration(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 *pMsgBuf)
+tANI_U32 limCalculateNOADuration(tpAniSirGlobal pMac, tANI_U16 msgType,
+                                 tANI_U32 *pMsgBuf, tANI_BOOLEAN isPassiveScan)
 {
     tANI_U32 noaDuration = 0;
 
@@ -5039,14 +5046,17 @@ tANI_U32 limCalculateNOADuration(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32
             for (i = 0; i < pScanReq->channelList.numChannels; i++) {
                 tANI_U8 channelNum = pScanReq->channelList.channelNumber[i];
 
-                if (limActiveScanAllowed(pMac, channelNum)) {
-                    /* Use min + max channel time to calculate the total duration of scan */
-                    noaDuration += pScanReq->minChannelTime + pScanReq->maxChannelTime;
-                } else {
+                if (pMac->miracast_mode) {
+                    noaDuration += DEFAULT_MIN_CHAN_TIME_DURING_MIRACAST +
+                        DEFAULT_MAX_CHAN_TIME_DURING_MIRACAST;
+                } else if (isPassiveScan || !limActiveScanAllowed(pMac, channelNum)) {
                     /* using the value from WNI_CFG_PASSIVE_MINIMUM_CHANNEL_TIME as is done in
                      * void limContinuePostChannelScan(tpAniSirGlobal pMac)
                      */
                     noaDuration += val;
+                } else {
+                    /* Use min + max channel time to calculate the total duration of scan */
+                    noaDuration += pScanReq->minChannelTime + pScanReq->maxChannelTime;
                 }
             }
 
@@ -5473,6 +5483,8 @@ limProcessSmeReqMessages(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     tANI_BOOLEAN bufConsumed = TRUE; //Set this flag to false within case block of any following message, that doesnt want pMsgBuf to be freed.
     tANI_U32 *pMsgBuf = pMsg->bodyptr;
     tpSirSmeScanReq     pScanReq;
+    tANI_BOOLEAN isPassiveScan = FALSE;
+
     PELOG1(limLog(pMac, LOG1, FL("LIM Received SME Message %s(%d) Global LimSmeState:%s(%d) Global LimMlmState: %s(%d)"),
          limMsgStr(pMsg->type), pMsg->type,
          limSmeStateStr(pMac->lim.gLimSmeState), pMac->lim.gLimSmeState,
@@ -5486,6 +5498,8 @@ limProcessSmeReqMessages(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     switch (pMsg->type)
     {
         case eWNI_SME_SCAN_REQ:
+        pScanReq = (tpSirSmeScanReq) pMsgBuf;
+        isPassiveScan = (pScanReq->scanType == eSIR_PASSIVE_SCAN) ? TRUE : FALSE;
         case eWNI_SME_REMAIN_ON_CHANNEL_REQ:
 
             /* If scan is disabled return from here
@@ -5532,7 +5546,7 @@ limProcessSmeReqMessages(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
             {
                 tANI_U32 noaDuration;
                 __limRegisterDeferredSmeReqForNOAStart(pMac, pMsg->type, pMsgBuf);
-                noaDuration = limCalculateNOADuration(pMac, pMsg->type, pMsgBuf);
+                noaDuration = limCalculateNOADuration(pMac, pMsg->type, pMsgBuf, isPassiveScan);
                 bufConsumed = __limInsertSingleShotNOAForScan(pMac, noaDuration);
                 return bufConsumed;
             }
@@ -5752,6 +5766,10 @@ limProcessSmeReqMessages(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
             break;
         case eWNI_SME_TDLS_LINK_ESTABLISH_REQ:
             limProcesSmeTdlsLinkEstablishReq(pMac, pMsgBuf);
+            break;
+// tdlsoffchan
+        case eWNI_SME_TDLS_CHANNEL_SWITCH_REQ:
+            limProcesSmeTdlsChanSwitchReq(pMac, pMsgBuf);
             break;
 #endif
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
