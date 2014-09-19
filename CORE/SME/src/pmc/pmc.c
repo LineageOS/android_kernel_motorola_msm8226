@@ -523,6 +523,12 @@ eHalStatus pmcEnterRequestBmpsState (tHalHandle hHal)
 
     pmcLog(pMac, LOG2, FL("Entering pmcEnterRequestBmpsState"));
 
+    if (pMac->isCoexScoIndSet)
+    {
+        pmcLog(pMac, LOGE, FL("block entering into BMPS mode in SCO case %d\n"),
+                               pMac->isCoexScoIndSet);
+        return eHAL_STATUS_FAILURE;
+    }
     /* Can enter Request BMPS State only from Full Power State. */
     if (pMac->pmc.pmcState != FULL_POWER)
     {
@@ -1808,9 +1814,6 @@ void pmcDoEnterWowlCallbacks (tHalHandle hHal, eHalStatus callbackStatus)
    /* Call Wowl callback routine. */
    if (pMac->pmc.enterWowlCallbackRoutine != NULL)
       pMac->pmc.enterWowlCallbackRoutine(pMac->pmc.enterWowlCallbackContext, callbackStatus);
-
-   pMac->pmc.enterWowlCallbackRoutine = NULL;
-   pMac->pmc.enterWowlCallbackContext = NULL;
 }
 
 

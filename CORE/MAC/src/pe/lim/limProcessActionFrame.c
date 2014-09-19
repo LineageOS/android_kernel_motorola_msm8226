@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -1280,11 +1281,11 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     }
 #endif //WLAN_SOFTAP_VSTA_FEATURE
 
-    if (wlan_cfgGetInt(pMac, WNI_CFG_DEL_ALL_RX_BA_SESSIONS_2_4_G_BTC, &val) !=
+    if (wlan_cfgGetInt(pMac, WNI_CFG_DEL_ALL_RX_TX_BA_SESSIONS_2_4_G_BTC, &val) !=
                     eSIR_SUCCESS)
     {
         limLog(pMac, LOGE,
-               FL("Unable to get WNI_CFG_DEL_ALL_RX_BA_SESSIONS_2_4_G_BTC"));
+               FL("Unable to get WNI_CFG_DEL_ALL_RX_TX_BA_SESSIONS_2_4_G_BTC"));
         val = 0;
     }
     if ((SIR_BAND_2_4_GHZ == limGetRFBand(psessionEntry->currentOperChannel)) &&
@@ -1480,10 +1481,20 @@ tANI_U8 *pBody;
   // Check first if the peer accepted the ADDBA Req
   if( eSIR_MAC_SUCCESS_STATUS == frmAddBARsp.Status.status )
   {
-    //if peer responded with buffer size 0 then we should pick the default.
-    if(0 == frmAddBARsp.AddBAParameterSet.bufferSize)
-        frmAddBARsp.AddBAParameterSet.bufferSize = BA_DEFAULT_TX_BUFFER_SIZE;
-
+    tANI_U32 val;
+    if (wlan_cfgGetInt(pMac, WNI_CFG_NUM_BUFF_ADVERT , &val) != eSIR_SUCCESS)
+    {
+        limLog(pMac, LOG1, FL("Unable to get WNI_CFG_NUM_BUFF_ADVERT"));
+        goto returnAfterError;
+    }
+    if (0 == frmAddBARsp.AddBAParameterSet.bufferSize)
+        frmAddBARsp.AddBAParameterSet.bufferSize = val;
+    else
+        frmAddBARsp.AddBAParameterSet.bufferSize =
+                    VOS_MIN(val, frmAddBARsp.AddBAParameterSet.bufferSize);
+        limLog( pMac, LOG1,
+            FL( "ADDBA RSP  Buffsize = %d" ),
+            frmAddBARsp.AddBAParameterSet.bufferSize);
     // Now, validate the ADDBA Rsp
     if( eSIR_MAC_SUCCESS_STATUS !=
         __limValidateAddBAParameterSet( pMac, pSta,

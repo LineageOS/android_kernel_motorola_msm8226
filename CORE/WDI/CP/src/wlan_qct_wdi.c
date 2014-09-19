@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*===========================================================================
@@ -186,6 +187,7 @@ static placeHolderInCapBitmap supportEnabledFeatures[] =
 #else
     ,FEATURE_NOT_SUPPORTED          //42
 #endif
+   ,DYNAMIC_WMM_PS                 //43
 
 };
 
@@ -476,6 +478,11 @@ WDI_ReqProcFuncType  pfnReqProcTbl[WDI_MAX_UMAC_IND] =
   WDI_ProcessHT40OBSSStopScanInd,    /*WDI_STOP_HT40_OBSS_SCAN_IND */
 
   WDI_ProcessChannelSwitchReq_V1,    /* WDI_CH_SWITCH_REQ_V1*/
+#ifdef FEATURE_WLAN_TDLS
+  WDI_ProcessTdlsChanSwitchReq,       /* WDI_TDLS_CHAN_SWITCH_REQ */
+#else
+  NULL,
+#endif
 
 };
 
@@ -781,6 +788,12 @@ WDI_RspProcFuncType  pfnRspProcTbl[WDI_MAX_RESP] =
   NULL,
   NULL,
 #endif /* WLAN_FEATURE_EXTSCAN */
+#ifdef FEATURE_WLAN_TDLS
+  WDI_ProcessChanSwitchReqRsp,              /*WDI_TDLS_CHAN_SWITCH_REQ_RESP*/
+#else
+  NULL,
+#endif
+  WDI_delBaInd,                             /* WDI_HAL_DEL_BA_IND*/
 };
 
 
@@ -1038,6 +1051,7 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
     CASE_RETURN_STRING( WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ );
 #ifdef FEATURE_WLAN_TDLS
     CASE_RETURN_STRING( WDI_TDLS_LINK_ESTABLISH_REQ );
+    CASE_RETURN_STRING( WDI_TDLS_CHAN_SWITCH_REQ );
 #endif
     CASE_RETURN_STRING( WDI_ENTER_IMPS_REQ );
     CASE_RETURN_STRING( WDI_EXIT_IMPS_REQ );
@@ -1169,6 +1183,7 @@ static char *WDI_getRespMsgString(wpt_uint16 wdiRespMsgId)
     CASE_RETURN_STRING( WDI_P2P_GO_NOTICE_OF_ABSENCE_RESP );
 #ifdef FEATURE_WLAN_TDLS
     CASE_RETURN_STRING( WDI_TDLS_LINK_ESTABLISH_REQ_RESP );
+    CASE_RETURN_STRING( WDI_TDLS_CHAN_SWITCH_REQ_RESP);
     CASE_RETURN_STRING( WDI_HAL_TDLS_IND );
 #endif
     CASE_RETURN_STRING( WDI_ENTER_IMPS_RESP );
@@ -1365,6 +1380,10 @@ void WDI_TraceHostFWCapabilities(tANI_U32 *capabilityBitmap)
 #endif
                      case MU_MIMO: snprintf(pCapStr, sizeof("MU_MIMO"), "%s", "MU_MIMO");
                           pCapStr += strlen("MU_MIMO");
+                          break;
+
+                     case DYNAMIC_WMM_PS: snprintf(pCapStr, sizeof("DYNAMIC_WMM_PS"), "%s", "DYNAMIC_WMM_PS");
+                          pCapStr += strlen("DYNAMIC_WMM_PS");
                           break;
 
                  }
@@ -5893,6 +5912,67 @@ WDI_SetTDLSLinkEstablishReq
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
 }/*WDI_SetTDLSLinkEstablishReq*/
+
+//tdlsoffchan
+/**
+ @brief WDI_SetTDLSChanSwitchReq will be called when the
+        upper MAC wants to send TDLS Chan Switch Request Parameters
+         Upon the call of this API the WLAN DAL will
+        pack and send the TDLS Link Establish Request  message to the
+        lower RIVA sub-system if DAL is in state STARTED.
+
+        In state BUSY this request will be queued. Request won't
+        be allowed in any other state.
+
+
+ @param pwdiTDLSChanSwitchReqParams: TDLS Peer Parameters
+        for Link Establishment (Used for TDLS Off Channel ...)
+
+        wdiTDLSChanSwitchReqRspCb: callback for passing back the
+        response of the TDLS Chan Switch request received
+        from the device
+
+        pUserData: user data will be passed back with the
+        callback
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_SetTDLSChanSwitchReq
+(
+  WDI_SetTDLSChanSwitchReqParamsType*    pwdiTDLSChanSwitchReqParams,
+  WDI_SetTDLSChanSwitchReqParamsRspCb    wdiTDLSChanSwitchRReqRspCb,
+  void*                            pUserData
+)
+{
+  WDI_EventInfoType      wdiEventData;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*------------------------------------------------------------------------
+    Sanity Check
+  ------------------------------------------------------------------------*/
+  if ( eWLAN_PAL_FALSE == gWDIInitialized )
+  {
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+              "WDI API call before module is initialized - Fail request");
+
+    return WDI_STATUS_E_NOT_ALLOWED;
+  }
+
+  /*------------------------------------------------------------------------
+    Fill in Event data and post to the Main FSM
+  ------------------------------------------------------------------------*/
+  wdiEventData.wdiRequest      = WDI_TDLS_CHAN_SWITCH_REQ;
+  wdiEventData.pEventData      = pwdiTDLSChanSwitchReqParams;
+  wdiEventData.uEventDataSize  = sizeof(*pwdiTDLSChanSwitchReqParams);
+  wdiEventData.pCBfnc          = wdiTDLSChanSwitchRReqRspCb;
+  wdiEventData.pUserData       = pUserData;
+
+  return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+
+}/*WDI_SetTDLSChanSwitchReq*/
+
 #endif
 
 /**
@@ -13419,7 +13499,87 @@ WDI_ProcessTdlsLinkEstablishReq
 }/*WDI_ProcessTdlsLinkEstablishReq*/
 
 
-#endif
+/**
+ @brief sends the channel switch command to f/w (called when Main FSM
+        allows it)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessTdlsChanSwitchReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_SetTDLSChanSwitchReqParamsType* pwdiTDLSChanSwitchReqParams;
+  WDI_SetTDLSChanSwitchReqParamsRspCb wdiTDLSChanSwitchReqRspCb;
+  wpt_uint8*                             pSendBuffer         = NULL;
+  wpt_uint16                             usDataOffset        = 0;
+  wpt_uint16                             usSendSize          = 0;
+  //WDI_Status                             wdiStatus;
+  tTDLSChanSwitchReqType                  halSetTDLSChanSwitchParams;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*-------------------------------------------------------------------------
+    Sanity check
+  -------------------------------------------------------------------------*/
+  if (( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+  pwdiTDLSChanSwitchReqParams =
+    (WDI_SetTDLSChanSwitchReqParamsType*)pEventData->pEventData;
+  wdiTDLSChanSwitchReqRspCb =
+    (WDI_SetTDLSChanSwitchReqParamsRspCb)pEventData->pCBfnc;
+
+  /*-----------------------------------------------------------------------
+    Get message buffer
+  -----------------------------------------------------------------------*/
+  if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
+                        WDI_TDLS_CHAN_SWITCH_REQ,
+                        sizeof(halSetTDLSChanSwitchParams),
+                        &pSendBuffer, &usDataOffset, &usSendSize))||
+      ( usSendSize < (usDataOffset + sizeof(halSetTDLSChanSwitchParams) )))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
+              "Unable to get send buffer in Channel Switch REQ %p %p %p",
+               pEventData, pwdiTDLSChanSwitchReqParams, wdiTDLSChanSwitchReqRspCb);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  halSetTDLSChanSwitchParams.staIdx =
+    pwdiTDLSChanSwitchReqParams->wdiTDLSChanSwitchReqInfo.staIdx;
+  halSetTDLSChanSwitchParams.isOffchannelInitiator =
+    pwdiTDLSChanSwitchReqParams->wdiTDLSChanSwitchReqInfo.isOffchannelInitiator;
+  halSetTDLSChanSwitchParams.targetOperClass =
+    pwdiTDLSChanSwitchReqParams->wdiTDLSChanSwitchReqInfo.targetOperClass;
+  halSetTDLSChanSwitchParams.targetChannel =
+    pwdiTDLSChanSwitchReqParams->wdiTDLSChanSwitchReqInfo.targetChannel;
+  halSetTDLSChanSwitchParams.secondaryChannelOffset =
+    pwdiTDLSChanSwitchReqParams->wdiTDLSChanSwitchReqInfo.secondaryChannelOffset;
+  wpalMemoryCopy( pSendBuffer+usDataOffset,
+                   &halSetTDLSChanSwitchParams,
+                   sizeof(halSetTDLSChanSwitchParams));
+
+  pWDICtx->wdiReqStatusCB     = NULL;
+  pWDICtx->pReqStatusUserData = NULL;
+
+  return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
+                       wdiTDLSChanSwitchReqRspCb, pEventData->pUserData,
+                       WDI_TDLS_CHAN_SWITCH_REQ_RESP);
+}/*WDI_ProcessTdlsChanSwitchReq*/
+
+#endif /*FEATURE_WLAN_TDLS*/
 
 
 
@@ -19014,6 +19174,72 @@ WDI_ProcessLinkEstablishReqRsp
 
   return WDI_STATUS_SUCCESS;
 }/*WDI_ProcessLinkEstablishReqRsp*/
+
+
+
+/**
+ @brief Process TDLS Chan switch Rsp function (called
+        when a response is being received over the bus from HAL)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessChanSwitchReqRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  eHalStatus       halStatus;
+  WDI_SetTDLSChanSwitchReqParamsRspCb   wdiTDLSChanSwitchReqParamsRspCb;
+  tTDLSChanSwitchRespMsg                halTdlsChanSwitchRespMsg;
+  WDI_SetTdlsChanSwitchReqResp          wdiSetTdlsChanSwitchReqResp;
+
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*-------------------------------------------------------------------------
+    Sanity check
+  -------------------------------------------------------------------------*/
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  /*-------------------------------------------------------------------------
+  Extract indication and send it to UMAC
+ -------------------------------------------------------------------------*/
+  wpalMemoryCopy( &halTdlsChanSwitchRespMsg.tdlsChanSwitchRespParams,
+                  pEventData->pEventData,
+                  sizeof(halTdlsChanSwitchRespMsg.tdlsChanSwitchRespParams) );
+
+  wdiTDLSChanSwitchReqParamsRspCb = (WDI_SetTDLSChanSwitchReqParamsRspCb)pWDICtx->pfncRspCB;
+
+  /*-------------------------------------------------------------------------
+    Extract response and send it to UMAC
+  -------------------------------------------------------------------------*/
+  wpalMemoryCopy( &halStatus,
+                  pEventData->pEventData,
+                  sizeof(halStatus));
+
+  wdiSetTdlsChanSwitchReqResp.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
+  wdiSetTdlsChanSwitchReqResp.uStaIdx   =  halTdlsChanSwitchRespMsg.tdlsChanSwitchRespParams.staIdx;
+
+  /*Notify UMAC*/
+  wdiTDLSChanSwitchReqParamsRspCb( &wdiSetTdlsChanSwitchReqResp, pWDICtx->pRspCBUserData );
+
+  return WDI_STATUS_SUCCESS;
+}/*WDI_ProcessChanSwitchReqRsp*/
+
+
+
 #endif
 
 /**
@@ -23434,6 +23660,8 @@ WDI_2_HAL_REQ_TYPE
 #ifdef FEATURE_WLAN_TDLS
   case WDI_TDLS_LINK_ESTABLISH_REQ:
     return WLAN_HAL_TDLS_LINK_ESTABLISHED_REQ;
+  case WDI_TDLS_CHAN_SWITCH_REQ:
+    return WLAN_HAL_TDLS_CHAN_SWITCH_REQ;
 #endif
   case WDI_ENTER_IMPS_REQ:
     return WLAN_HAL_ENTER_IMPS_REQ;
@@ -23716,6 +23944,8 @@ HAL_2_WDI_RSP_TYPE
     return WDI_HAL_P2P_NOA_ATTR_IND;
   case WLAN_HAL_P2P_NOA_START_IND:
     return WDI_HAL_P2P_NOA_START_IND;
+  case WLAN_HAL_DEL_BA_IND:
+    return WDI_HAL_DEL_BA_IND;
   case WLAN_HAL_TX_PER_HIT_IND:
     return WDI_HAL_TX_PER_HIT_IND;
   case WLAN_HAL_SET_MAX_TX_POWER_RSP:
@@ -23729,6 +23959,8 @@ HAL_2_WDI_RSP_TYPE
 #ifdef FEATURE_WLAN_TDLS
   case WLAN_HAL_TDLS_LINK_ESTABLISHED_RSP:
     return WDI_TDLS_LINK_ESTABLISH_REQ_RESP;
+  case WLAN_HAL_TDLS_CHAN_SWITCH_RSP:
+    return WDI_TDLS_CHAN_SWITCH_REQ_RESP;
   case WLAN_HAL_TDLS_IND:
     return WDI_HAL_TDLS_IND;
 #endif
@@ -26217,9 +26449,7 @@ WDI_ProcessUpdateChannelParamsReq
       return WDI_STATUS_E_FAILURE;
    }
    num_channels = pwdiUpdateChanListParams->wdiUpdateChanParams.numchan;
-   usUpdateChanParamSize =  (sizeof(tUpdateChannelReqType) -
-           ((WLAN_HAL_ROAM_SCAN_MAX_CHANNELS - num_channels) *
-           sizeof(tUpdateChannelParam)));
+   usUpdateChanParamSize =  sizeof(tUpdateChannelReqType);
 
    /*-----------------------------------------------------------------------
      Get message buffer
@@ -30295,6 +30525,7 @@ WDI_ProcessChAvoidInd
 
   return WDI_STATUS_SUCCESS;
 }
+
 #endif /* FEATURE_WLAN_CH_AVOID */
 
 /**
@@ -30600,6 +30831,68 @@ WDI_printRegInfo
    }
 
    return WDI_STATUS_SUCCESS;
+}
+
+/*
+ * FUNCTION: WDI_delBaInd
+ * send the delBA to peer.
+ */
+
+WDI_Status
+WDI_delBaInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+
+)
+{
+  tHalWlanDelBaIndMsg    halDelBaInd;
+  WDI_LowLevelIndType    wdiInd;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*-------------------------------------------------------------------------
+        Sanity check
+  -------------------------------------------------------------------------*/
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                  "%s: Invalid parameters", __func__);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+  }
+
+  /*-------------------------------------------------------------------------
+        Extract indication and send it to UMAC
+  -------------------------------------------------------------------------*/
+
+  /* Parameters need to be unpacked according to HAL struct*/
+  wpalMemoryCopy( &halDelBaInd,
+                  pEventData->pEventData,
+                  sizeof(halDelBaInd));
+
+  /*Fill in the indication parameters*/
+  wdiInd.wdiIndicationType = WDI_DEL_BA_IND;
+
+  wdiInd.wdiIndicationData.wdiDeleteBAInd.staIdx = halDelBaInd.staIdx;
+  wpalMemoryCopy(wdiInd.wdiIndicationData.wdiDeleteBAInd.peerMacAddr,
+                            halDelBaInd.peerMacAddr, WDI_MAC_ADDR_LEN);
+
+  wdiInd.wdiIndicationData.wdiDeleteBAInd.baTID = halDelBaInd.baTID;
+  wdiInd.wdiIndicationData.wdiDeleteBAInd.baDirection = halDelBaInd.baDirection;
+  wdiInd.wdiIndicationData.wdiDeleteBAInd.reasonCode = halDelBaInd.reasonCode;
+
+  wpalMemoryCopy(wdiInd.wdiIndicationData.wdiDeleteBAInd.bssId,
+                            halDelBaInd.bssId, WDI_MAC_ADDR_LEN);
+  if ( pWDICtx->wdiLowLevelIndCB )
+  {
+        /*Notify UMAC*/
+        pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
+  }
+
+  return WDI_STATUS_SUCCESS;
+
+
 }
 
 /*

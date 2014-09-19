@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -4203,6 +4204,32 @@ typedef struct sSirMgmtTxCompletionInd
    tANI_U8                sessionId;     // Session ID
    tANI_U32               txCompleteStatus;
 } tSirMgmtTxCompletionInd, *tpSirMgmtTxCompletionInd;
+
+//tdlsoffchan
+/* TDLS Channel Switch struct SME-->PE */
+typedef struct
+{
+    tANI_U16            messageType;  //eWNI_SME_TDLS_CHANNEL_SWITCH_REQ
+    tANI_U16            length;
+    tANI_U8             sessionId;     // Session ID
+    tANI_U16            transactionId; // Transaction ID for cmd
+    tANI_U8             tdlsOffCh;     // Target Off Channel
+    tANI_U8             tdlsOffChBwOffset;// Target Off Channel Bandwidth offset
+    tANI_U8             tdlsSwMode;     // TDLS Off Channel Mode
+    tSirMacAddr         bssid;         // For multi-session, for PE to locate peSession ID
+    tSirMacAddr         peerMac;
+}tSirTdlsChanSwitch, *tpSirTdlsChanSwitch;
+
+/* TDLS Resp struct */
+typedef struct
+{
+    tANI_U16            messageType;   // eWNI_SME_TDLS_CHANNEL_SWITCH_RSP
+    tANI_U16            length;
+    tANI_U8             sessionId;     // Session ID
+    tANI_U16            transactionId; // Transaction ID for cmd
+    tSirResultCodes        statusCode;
+    tSirMacAddr            peerMac;
+}tSirTdlsChanSwitchReqRsp, *tpSirTdlsChanSwitchReqRsp;
 #endif /* FEATURE_WLAN_TDLS */
 
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
@@ -4830,6 +4857,7 @@ typedef PACKED_PRE enum PACKED_POST
 
 typedef PACKED_PRE enum PACKED_POST
 {
+    WIFI_INTERFACE_UNKNOWN = -1,
     WIFI_INTERFACE_STA = 0,
     WIFI_INTERFACE_SOFTAP = 1,
     WIFI_INTERFACE_IBSS = 2,
@@ -4856,7 +4884,7 @@ typedef PACKED_PRE struct PACKED_POST
 {
     /*tSirWifiInterfaceMode*/
     // interface mode
-    tANI_U8                  mode;
+    tANI_S8                  mode;
     // interface mac address (self)
     tSirMacAddr              macAddr;
     /*tSirWifiConnectionState*/

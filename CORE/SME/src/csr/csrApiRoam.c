@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /** ------------------------------------------------------------------------- * 
@@ -261,6 +262,7 @@ void csrRoamReissueRoamCommand(tpAniSirGlobal pMac);
 #ifdef FEATURE_WLAN_BTAMP_UT_RF
 void csrRoamJoinRetryTimerHandler(void *pv);
 #endif
+void limInitOperatingClasses( tHalHandle hHal );
 extern void SysProcessMmhMsg(tpAniSirGlobal pMac, tSirMsgQ* pMsg);
 extern void btampEstablishLogLinkHdlr(void* pMsg);
 static void csrSerDesUnpackDiassocRsp(tANI_U8 *pBuf, tSirSmeDisassocRsp *pRsp);
@@ -422,6 +424,11 @@ eHalStatus csrInitChannelsForCC(tpAniSirGlobal pMac)
     vos_mem_copy(pMac->scan.countryCodeCurrent, pMac->scan.countryCodeDefault,
                  WNI_CFG_COUNTRY_CODE_LEN);
     status = csrInitGetChannels( pMac );
+
+    /* reset info based on new cc, and we are done */
+    csrResetCountryInformation(pMac, eANI_BOOLEAN_TRUE, eANI_BOOLEAN_TRUE);
+    csrScanFilterResults(pMac);
+
     return status;
 }
 
@@ -523,6 +530,7 @@ eHalStatus csrUpdateChannelList(tpAniSirGlobal pMac)
     vos_msg_t msg;
     tANI_U8 i;
 
+    limInitOperatingClasses((tHalHandle)pMac);
     pChanList = (tSirUpdateChanList *) vos_mem_malloc(bufLen);
     if (!pChanList)
     {
@@ -590,16 +598,6 @@ eHalStatus csrStart(tpAniSirGlobal pMac)
            smsLog(pMac, LOGW, " csrStart: Couldn't Init HO control blk ");
            break;
         }
-#ifdef QCA_WIFI_2_0
-        if (pMac->fScanOffload)
-        {
-            VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO,
-                    "Scan offload is enabled, update default chan list");
-            status = csrUpdateChannelList(pMac);
-        }
-#else
-        status = csrUpdateChannelList(pMac);
-#endif
 
     }while(0);
 #if defined(ANI_LOGDUMP)
@@ -1084,6 +1082,7 @@ static void initConfigParam(tpAniSirGlobal pMac)
     pMac->roam.configParam.fSupplicantCountryCodeHasPriority = eANI_BOOLEAN_FALSE;
     pMac->roam.configParam.fEnforceCountryCodeMatch = eANI_BOOLEAN_FALSE;
     pMac->roam.configParam.fEnforceDefaultDomain = eANI_BOOLEAN_FALSE;
+    pMac->roam.configParam.fEnforceCountryCode = eANI_BOOLEAN_FALSE;
     pMac->roam.configParam.nActiveMaxChnTime = CSR_ACTIVE_MAX_CHANNEL_TIME;
     pMac->roam.configParam.nActiveMinChnTime = CSR_ACTIVE_MIN_CHANNEL_TIME;
     pMac->roam.configParam.nPassiveMaxChnTime = CSR_PASSIVE_MAX_CHANNEL_TIME;
@@ -1120,6 +1119,7 @@ static void initConfigParam(tpAniSirGlobal pMac)
     pMac->roam.configParam.neighborRoamConfig.neighborScanChanList.channelList[2] = 11;
     pMac->roam.configParam.neighborRoamConfig.nNeighborResultsRefreshPeriod = 20000; //20 seconds
     pMac->roam.configParam.neighborRoamConfig.nEmptyScanRefreshPeriod = 0;
+    pMac->roam.configParam.neighborRoamConfig.nNeighborInitialForcedRoamTo5GhEnable = 0;
 #endif
 #ifdef WLAN_FEATURE_11AC
      pMac->roam.configParam.nVhtChannelWidth = WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ + 1;
@@ -1379,12 +1379,13 @@ eHalStatus csrCreateRoamScanChannelList(tpAniSirGlobal pMac,
 
     if ((eCSR_BAND_ALL == eBand) && CSR_IS_ROAM_INTRA_BAND_ENABLED(pMac))
     {
-        csrNeighborRoamChannelsFilterByCurrentBand(
+        csrNeighborRoamChannelsFilterByBand(
                              pMac,
                              ChannelList,
                              outNumChannels,
                              tmpChannelList,
-                             &outNumChannels);
+                             &outNumChannels,
+                             GetRFBand(pMac->roam.neighborRoamInfo.currAPoperationChannel));
         vos_mem_copy(ChannelList,
                      tmpChannelList, outNumChannels);
     }
@@ -1800,6 +1801,7 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
         smsLog( pMac, LOG1, "nMaxNeighborRetries = %d", pMac->roam.configParam.neighborRoamConfig.nMaxNeighborRetries);
         smsLog( pMac, LOG1, "nNeighborResultsRefreshPeriod = %d", pMac->roam.configParam.neighborRoamConfig.nNeighborResultsRefreshPeriod);
         smsLog( pMac, LOG1, "nEmptyScanRefreshPeriod = %d", pMac->roam.configParam.neighborRoamConfig.nEmptyScanRefreshPeriod);
+        smsLog( pMac, LOG1, "nNeighborInitialForcedRoamTo5GhEnable = %d", pMac->roam.configParam.neighborRoamConfig.nNeighborInitialForcedRoamTo5GhEnable);
         {
            int i;
            smsLog( pMac, LOG1, FL("Num of Channels in CFG Channel List: %d"), pMac->roam.configParam.neighborRoamConfig.neighborScanChanList.numChannels);
@@ -2250,7 +2252,6 @@ eHalStatus csrInitGetChannels(tpAniSirGlobal pMac)
     }
     return (status);  
 }
-
 eHalStatus csrInitChannelList( tHalHandle hHal )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -2261,7 +2262,7 @@ eHalStatus csrInitChannelList( tHalHandle hHal )
     csrSaveChannelPowerForBand(pMac, eANI_BOOLEAN_TRUE);
     // Apply the base channel list, power info, and set the Country code...
     csrApplyChannelPowerCountryInfo( pMac, &pMac->scan.base20MHzChannels, pMac->scan.countryCodeCurrent, eANI_BOOLEAN_TRUE );
- 
+    limInitOperatingClasses(hHal);
     return (status);
 }
 eHalStatus csrChangeConfigParams(tpAniSirGlobal pMac, 
@@ -7948,7 +7949,8 @@ static void csrRoamRoamingStateReassocRspProcessor( tpAniSirGlobal pMac, tpSirSm
         result = eCsrReassocFailure;
 #ifdef WLAN_FEATURE_VOWIFI_11R
         if ((eSIR_SME_FT_REASSOC_TIMEOUT_FAILURE == pSmeJoinRsp->statusCode) ||
-                        (eSIR_SME_FT_REASSOC_FAILURE == pSmeJoinRsp->statusCode))
+            (eSIR_SME_FT_REASSOC_FAILURE == pSmeJoinRsp->statusCode) ||
+            (eSIR_SME_JOIN_DEAUTH_FROM_AP_DURING_ADD_STA == pSmeJoinRsp->statusCode))
         {
                 // Inform HDD to turn off FT flag in HDD 
                 if (pNeighborRoamInfo)
@@ -8728,6 +8730,11 @@ eHalStatus csrRoamProcessSetKeyCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand )
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_CSR
     tCsrRoamSession *pSession = CSR_GET_SESSION( pMac, sessionId );
     WLAN_VOS_DIAG_EVENT_DEF(setKeyEvent, vos_event_wlan_security_payload_type);
+    if(!pSession)
+    {
+        smsLog(pMac, LOGE, FL("  session %d not found "), sessionId);
+        return eHAL_STATUS_FAILURE;
+    }
     if(eSIR_ED_NONE != edType)
     {
         vos_mem_set(&setKeyEvent,
@@ -8810,6 +8817,11 @@ eHalStatus csrRoamProcessRemoveKeyCommand( tpAniSirGlobal pMac, tSmeCmd *pComman
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_CSR
     tCsrRoamSession *pSession = CSR_GET_SESSION( pMac, sessionId );
     WLAN_VOS_DIAG_EVENT_DEF(removeKeyEvent, vos_event_wlan_security_payload_type);
+    if(!pSession)
+    {
+        smsLog(pMac, LOGE, FL("  session %d not found "), sessionId);
+        return eHAL_STATUS_FAILURE;
+    }
     vos_mem_set(&removeKeyEvent,
                 sizeof(vos_event_wlan_security_payload_type),0);
     removeKeyEvent.eventId = WLAN_SECURITY_EVENT_REMOVE_KEY_REQ;
@@ -13253,6 +13265,9 @@ eHalStatus csrSendJoinReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, tSirBssDe
                 (tANI_U8)pProfile->uapsd_mask);
 
         status = palSendMBMessage(pMac->hHdd, pMsg );
+        /* Memory allocated to pMsg will get free'd in palSendMBMessage */
+        pMsg = NULL;
+
         if(!HAL_STATUS_SUCCESS(status))
         {
             break;
@@ -13273,6 +13288,12 @@ eHalStatus csrSendJoinReqMsg( tpAniSirGlobal pMac, tANI_U32 sessionId, tSirBssDe
 #endif
         }
     } while( 0 );
+
+    if (pMsg != NULL)
+    {
+        vos_mem_free( pMsg );
+    }
+
     return( status );
 }
 
@@ -14668,7 +14689,9 @@ static tANI_U32 csrFindIbssSession( tpAniSirGlobal pMac )
 }
 static void csrRoamLinkUp(tpAniSirGlobal pMac, tCsrBssid bssid)
 {
-   /* Update the current BSS info in ho control block based on connected 
+   VOS_STATUS status = VOS_STATUS_SUCCESS;
+
+    /* Update the current BSS info in ho control block based on connected
       profile info from pmac global structure                              */
    
    smsLog(pMac, LOGW, " csrRoamLinkUp: WLAN link UP with AP= "MAC_ADDRESS_STR,
@@ -14688,6 +14711,25 @@ static void csrRoamLinkUp(tpAniSirGlobal pMac, tCsrBssid bssid)
         /* Indicate the neighbor roal algorithm about the connect indication */
         csrRoamGetSessionIdFromBSSID(pMac, (tCsrBssid *)bssid, &sessionId);
         csrNeighborRoamIndicateConnect(pMac, sessionId, VOS_STATUS_SUCCESS);
+
+        // Making sure we are roaming force fully to 5GHz AP only once and
+        // only when we connected to 2.4GH AP only during initial association.
+        if(pMac->roam.neighborRoamInfo.cfgParams.neighborInitialForcedRoamTo5GhEnable &&
+               GetRFBand(pMac->roam.neighborRoamInfo.currAPoperationChannel) == SIR_BAND_2_4_GHZ)
+        {
+            //Making ini value to false here only so we just roam to
+            //only once for whole driver load to unload tenure
+            pMac->roam.neighborRoamInfo.cfgParams.neighborInitialForcedRoamTo5GhEnable = VOS_FALSE;
+
+            status = vos_timer_start(&pMac->roam.neighborRoamInfo.forcedInitialRoamTo5GHTimer,
+                                     INITIAL_FORCED_ROAM_TO_5G_TIMER_PERIOD);
+            //MUKUL TODO: change the neighborResultsRefreshPeriod to some ini value reuqired ??
+            if ( status != VOS_STATUS_SUCCESS )
+            {
+                smsLog(pMac, LOGE, FL("%s Neighbor forcedInitialRoamTo5GHTimer start failed with status %d"), __func__, status);
+            }
+            smsLog(pMac, LOGE, FL("%s: Forced roam to 5G  started Timer"), __func__);
+        }
     }
 #endif
 }
@@ -16327,6 +16369,9 @@ eHalStatus csrRoamOffloadScanRspHdlr(tpAniSirGlobal pMac, tANI_U8 reason)
             break;
         case REASON_OS_REQUESTED_ROAMING_NOW:
             csrNeighborRoamProceedWithHandoffReq(pMac);
+            break;
+        case REASON_INITIAL_FORCED_ROAM_TO_5G:
+            VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_DEBUG, "%s recevied REASON_INITIAL_FORCED_ROAM_TO_5G", __func__);
             break;
         default:
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_INFO, "Rsp for Roam Scan Offload with reason %d", reason);

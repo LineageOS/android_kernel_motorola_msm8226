@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 #ifndef WLAN_QCT_WDI_H
@@ -413,6 +414,8 @@ typedef enum
   WDI_EXTSCAN_BSSID_HOTLIST_RESULT_IND,
   WDI_EXTSCAN_SIGN_RSSI_RESULT_IND,
 #endif
+  /*Delete BA Ind*/
+  WDI_DEL_BA_IND,
 
   WDI_MAX_IND
 }WDI_LowLevelIndEnumType;
@@ -832,6 +835,26 @@ typedef struct
 }  WDI_LinkLayerStatsResults;
 
 #endif
+
+typedef struct
+{
+    /*STA Index*/
+    wpt_uint16    staIdx;
+
+    /*Peer MAC*/
+    wpt_macAddr   peerMacAddr;
+
+    // TID for which a BA session timeout is being triggered
+    wpt_uint8 baTID;
+       // DELBA direction
+       // 1 - Originator
+       // 0 - Recipient
+    wpt_uint8 baDirection;
+    wpt_uint32 reasonCode;
+    /*MAC ADDR of STA*/
+    wpt_macAddr  bssId;   // TO SUPPORT BT-AMP
+}  WDI_DeleteBAIndType;
+
 /*---------------------------------------------------------------------------
   WDI_LowLevelIndType
     Inidcation type and information about the indication being carried
@@ -909,6 +932,7 @@ typedef struct
     /*EXTSCAN Results from FW*/
     void *pEXTScanIndData;
 #endif
+    WDI_DeleteBAIndType         wdiDeleteBAInd;
   }  wdiIndicationData;
 }WDI_LowLevelIndType;
 
@@ -3543,7 +3567,6 @@ typedef struct
   void*             pUserData;
 }WDI_SetTDLSLinkEstablishReqParamsType;
 
-
 typedef struct
 {
   /*Result of the operation*/
@@ -3553,6 +3576,37 @@ typedef struct
   wpt_uint16 uStaIdx;
 }WDI_SetTdlsLinkEstablishReqResp;
 
+
+
+typedef struct
+{
+   /*STA Index*/
+   wpt_uint8  staIdx;
+   /* if this is 1, self is initiator otherwise responder only*/
+   wpt_uint8  isOffchannelInitiator;
+   /*TDLS off channel related params */
+   wpt_uint8  targetOperClass;
+   wpt_uint8  targetChannel;
+   wpt_uint8   secondaryChannelOffset;
+   wpt_uint8  reserved[64];
+}WDI_SetTDLSChanSwitchReqInfoType;
+
+typedef struct
+{
+  WDI_SetTDLSChanSwitchReqInfoType  wdiTDLSChanSwitchReqInfo;
+  WDI_ReqStatusCb   wdiReqStatusCB;
+  void*  pUserData;
+}WDI_SetTDLSChanSwitchReqParamsType;
+
+
+typedef struct
+{
+  /*Result of the operation*/
+  WDI_Status wdiStatus;
+
+  /*STA Idx*/
+  wpt_uint16 uStaIdx;
+}WDI_SetTdlsChanSwitchReqResp;
 /*---------------------------------------------------------------------------
   WDI_SetAddSTASelfParamsType
 ---------------------------------------------------------------------------*/
@@ -6644,6 +6698,28 @@ typedef void  (*WDI_SetTDLSLinkEstablishReqParamsRspCb)(WDI_SetTdlsLinkEstablish
                                 void*        pUserData);
 
 /*---------------------------------------------------------------------------
+   WDI_SetTDLSChanSwitchReqParamsRspCb
+
+   DESCRIPTION
+
+   This callback is invoked by DAL when it has received a TDLS Link Establish Req response from
+   the underlying device.
+
+   PARAMETERS
+
+    IN
+    wdiStatus:  response status received from HAL
+    pUserData:  user data
+
+
+
+  RETURN VALUE
+    The result code associated with performing the operation
+---------------------------------------------------------------------------*/
+typedef void  (*WDI_SetTDLSChanSwitchReqParamsRspCb)(WDI_SetTdlsChanSwitchReqResp *
+                                wdiSetTdlsChanSwitchReqRsp,
+                                void*        pUserData);
+/*---------------------------------------------------------------------------
    WDI_SetPwrSaveCfgCb
  
    DESCRIPTION   
@@ -8823,6 +8899,13 @@ WDI_SetTDLSLinkEstablishReq
   void*                            pUserData
 );
 
+WDI_Status
+WDI_SetTDLSChanSwitchReq
+(
+  WDI_SetTDLSChanSwitchReqParamsType*    pwdiTDLSChanSwitchReqParams,
+  WDI_SetTDLSChanSwitchReqParamsRspCb    wdiTDLSChanSwitchRReqRspCb,
+  void*                            pUserData
+);
 /*======================================================================== 
  
                             Power Save APIs

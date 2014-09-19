@@ -978,9 +978,17 @@ limProcessMlmReassocCnf(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
                               pLimMlmReassocCnf->resultCode, pLimMlmReassocCnf->protStatusCode,psessionEntry,
                               psessionEntry->smeSessionId,psessionEntry->transactionId);
     }else {
-        // Reassociation failure
-        psessionEntry->limSmeState = eLIM_SME_JOIN_FAILURE_STATE;
-    MTRACE(macTrace(pMac, TRACE_CODE_SME_STATE, psessionEntry->peSessionId, psessionEntry->limSmeState));
+        /* If driver gets deauth when its waiting for ADD_STA_RSP then we need
+        * to do DEL_STA followed by DEL_BSS. So based on below reason-code here
+        * we decide whether to do only DEL_BSS or DEL_STA + DEL_BSS
+        */
+        if(pLimMlmReassocCnf->resultCode
+                                   != eSIR_SME_JOIN_DEAUTH_FROM_AP_DURING_ADD_STA)
+        {
+            // Reassociation failure
+            psessionEntry->limSmeState = eLIM_SME_JOIN_FAILURE_STATE;
+        }
+        MTRACE(macTrace(pMac, TRACE_CODE_SME_STATE, psessionEntry->peSessionId, psessionEntry->limSmeState));
         /**
          * Need to send Reassoc response with
          * Association failure to Host.
@@ -1911,6 +1919,7 @@ void limProcessStaMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ ,tpPESess
         limLog( pMac, LOGE, FL( "Encountered NULL Pointer" ));
         return;
     }
+
     if (true == psessionEntry->fDeauthReceived)
     {
       PELOGE(limLog(pMac, LOGE,
@@ -1923,6 +1932,11 @@ void limProcessStaMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ ,tpPESess
                   "eSIR_SME_JOIN_DEAUTH_FROM_AP_DURING_ADD_STA staIdx: %d"
                   "limMlmState: %d"), pAddStaParams->staIdx,
                    psessionEntry->limMlmState);)
+          if(psessionEntry->limSmeState == eLIM_SME_WT_REASSOC_STATE)
+                mesgType = LIM_MLM_REASSOC_CNF;
+          //We are sending result code eSIR_SME_JOIN_DEAUTH_FROM_AP_DURING_ADD_STA
+          //which will trigger proper cleanup (DEL_STA/DEL_BSS both required) in
+          //either assoc cnf or reassoc cnf handler.
           mlmAssocCnf.resultCode =
               (tSirResultCodes) eSIR_SME_JOIN_DEAUTH_FROM_AP_DURING_ADD_STA;
           psessionEntry->staId = pAddStaParams->staIdx;
@@ -1941,8 +1955,9 @@ void limProcessStaMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ ,tpPESess
             mlmAssocCnf.resultCode = (tSirResultCodes) eSIR_SME_REFUSED;
             goto end;
         }
-    if (psessionEntry->limSmeState == eLIM_SME_WT_REASSOC_STATE)
-             mesgType = LIM_MLM_REASSOC_CNF;
+
+        if(psessionEntry->limSmeState == eLIM_SME_WT_REASSOC_STATE)
+              mesgType = LIM_MLM_REASSOC_CNF;
         //
         // Update the DPH Hash Entry for this STA
         // with proper state info
@@ -2854,6 +2869,9 @@ limProcessStaMlmAddBssRspFT(tpAniSirGlobal pMac, tpSirMsgQ limMsgQ, tpPESession 
         mlmReassocCnf.protStatusCode = eSIR_MAC_UNSPEC_FAILURE_STATUS;
         goto end;
     }
+    // remember staId
+    psessionEntry->staId = pAddBssParams->staContext.staIdx;
+
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_ESE) || defined(FEATURE_WLAN_LFR)
     pMac->lim.pSessionEntry = psessionEntry;
     if(NULL == pMac->lim.pSessionEntry->pLimMlmReassocRetryReq)
@@ -4454,46 +4472,25 @@ void limProcessMlmHalBADeleteInd( tpAniSirGlobal pMac,
         FL( "Received unexpected BA Delete IND when STA BA state is %d" ),
         curBaState );
         goto returnAfterCleanup;
-    }
+  }
 
-  // Validate if a BA is active for the requested TID
-  // AND in that desired direction
-  if( eBA_INITIATOR == pBADeleteParams->baDirection )
+  // Post DELBA REQ to MLME...
+  if( eSIR_SUCCESS !=
+     (status = limPostMlmDelBAReq( pMac,
+                                   pSta,
+                                   pBADeleteParams->baDirection,
+                                   pBADeleteParams->baTID,
+                                   eSIR_MAC_UNSPEC_FAILURE_REASON,psessionEntry )))
   {
-    if( 0 == pSta->tcCfg[pBADeleteParams->baTID].fUseBATx )
-      status = eSIR_FAILURE;
+     limLog( pMac, LOGE,
+        FL( "Attempt to post LIM_MLM_DELBA_REQ failed with status %d" ), status);
   }
   else
   {
-    if( 0 == pSta->tcCfg[pBADeleteParams->baTID].fUseBARx )
-      status = eSIR_FAILURE;
-  }
-    if( eSIR_FAILURE == status )
-    {
-        limLog( pMac, LOGW,
-        FL("Received an INVALID DELBA Delete Ind for TID %d..."),
-        pBADeleteParams->baTID );
-    }
-    else
-    {
-        // Post DELBA REQ to MLME...
-        if( eSIR_SUCCESS !=
-        (status = limPostMlmDelBAReq( pMac,
-                                      pSta,
-                                      pBADeleteParams->baDirection,
-                                      pBADeleteParams->baTID,
-                                      eSIR_MAC_UNSPEC_FAILURE_REASON,psessionEntry )))
-        {
-            limLog( pMac, LOGE,
-            FL( "Attempt to post LIM_MLM_DELBA_REQ failed with status %d" ), status);
-    }
-    else
-    {
-      limLog( pMac, LOGE,
-          FL( "BA Delete - Reason 0x%08x. Attempting to delete BA session for TID %d with peer STA "  ),
-          pBADeleteParams->reasonCode, pBADeleteParams->baTID );
-            limPrintMacAddr( pMac, pSta->staAddr, LOGE );
-        }
+     limLog( pMac, LOGE,
+         FL( "BA Delete - Reason 0x%08x. Attempting to delete BA session for TID %d with peer STA "  ),
+         pBADeleteParams->reasonCode, pBADeleteParams->baTID );
+         limPrintMacAddr( pMac, pSta->staAddr, LOGE );
   }
 returnAfterCleanup:
   // Free the memory allocated for SIR_LIM_DEL_BA_IND

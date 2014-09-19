@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /** ------------------------------------------------------------------------- *
@@ -976,6 +977,7 @@ typedef struct tagCsrNeighborRoamConfigParams
     tANI_U8        nMaxNeighborRetries;
     tANI_U16       nNeighborResultsRefreshPeriod;
     tANI_U16       nEmptyScanRefreshPeriod;
+    tANI_U8        nNeighborInitialForcedRoamTo5GhEnable;
 }tCsrNeighborRoamConfigParams;
 #endif
 

@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*========================================================================
@@ -193,12 +194,6 @@ static VOS_STATUS wlan_hdd_init_channels_for_cc(hdd_context_t *pHddCtx);
  */
 #define WLAN_MAX_BUF_SIZE 1024
 #define WLAN_PRIV_DATA_MAX_LEN    8192
-/*
- * Driver miracast parameters 0-Disabled
- * 1-Source, 2-Sink
- */
-#define WLAN_HDD_DRIVER_MIRACAST_CFG_MIN_VAL 0
-#define WLAN_HDD_DRIVER_MIRACAST_CFG_MAX_VAL 2
 
 //wait time for beacon miss rate.
 #define BCN_MISS_RATE_TIME 500
@@ -2206,7 +2201,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
                     "%s: SetBandCommand Info  comm %s UL %d, TL %d", __func__, command, priv_data.used_len, priv_data.total_len);
            /* Change band request received */
            ret = hdd_setBand_helper(pAdapter->dev, ptr);
-           if(ret != 0)
+           if(ret < 0)
                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
                    "%s: failed to set band ret=%d", __func__, ret);
        }
@@ -3762,6 +3757,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
            //Filtertype value should be either 0-Disabled, 1-Source, 2-sink
            pHddCtx->drvr_miracast = filterType;
            hdd_tx_rx_pkt_cnt_stat_timer_handler(pHddCtx);
+           sme_SetMiracastMode(pHddCtx->hHal, pHddCtx->drvr_miracast);
         }
        else if (strncmp(command, "SETMCRATE", 9) == 0)
        {
@@ -5651,6 +5647,7 @@ static hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMac
       pAdapter->dev = pWlanDev;
       pAdapter->pHddCtx = pHddCtx; 
       pAdapter->magic = WLAN_HDD_ADAPTER_MAGIC;
+      spin_lock_init(&pAdapter->lock_for_active_session);
 
       init_completion(&pAdapter->session_open_comp_var);
       init_completion(&pAdapter->session_close_comp_var);
@@ -6975,6 +6972,9 @@ VOS_STATUS hdd_reset_all_adapters( hdd_context_t *pHddCtx )
       pAdapter->sessionCtx.station.hdd_ReassocScenario = VOS_FALSE;
 
       hdd_deinit_tx_rx(pAdapter);
+
+      wlan_hdd_decr_active_session(pHddCtx, pAdapter->device_mode);
+
       if (test_bit(WMM_INIT_DONE, &pAdapter->event_flags))
       {
           hdd_wmm_adapter_close( pAdapter );
@@ -7907,11 +7907,6 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
 
    //Clean up HDD Nlink Service
    send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
-#ifdef WLAN_KD_READY_NOTIFIER
-   nl_srv_exit(pHddCtx->ptt_pid);
-#else
-   nl_srv_exit();
-#endif /* WLAN_KD_READY_NOTIFIER */
 
 #ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
    if (pHddCtx->cfg_ini->wlanLoggingEnable)
@@ -7919,6 +7914,13 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
        wlan_logging_sock_deactivate_svc();
    }
 #endif
+
+#ifdef WLAN_KD_READY_NOTIFIER
+   nl_srv_exit(pHddCtx->ptt_pid);
+#else
+   nl_srv_exit();
+#endif /* WLAN_KD_READY_NOTIFIER */
+
 
    /* Cancel the vote for XO Core ON. 
     * This is done here to ensure there is no race condition since MC, TX and WD threads have
@@ -8247,6 +8249,48 @@ void hdd_exchange_version_and_caps(hdd_context_t *pHddCtx)
    } while (0);
 
 }
+void wlan_hdd_send_svc_nlink_msg(int type, void *data, int len)
+{
+       struct sk_buff *skb;
+       struct nlmsghdr *nlh;
+       tAniMsgHdr *ani_hdr;
+
+       skb = alloc_skb(NLMSG_SPACE(WLAN_NL_MAX_PAYLOAD), GFP_KERNEL);
+
+       if(skb == NULL) {
+               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                               "%s: alloc_skb failed", __func__);
+               return;
+       }
+
+       nlh = (struct nlmsghdr *)skb->data;
+       nlh->nlmsg_pid = 0;  /* from kernel */
+       nlh->nlmsg_flags = 0;
+       nlh->nlmsg_seq = 0;
+       nlh->nlmsg_type = WLAN_NL_MSG_SVC;
+
+       ani_hdr = NLMSG_DATA(nlh);
+       ani_hdr->type = type;
+
+       switch(type) {
+               case WLAN_SVC_SAP_RESTART_IND:
+                       ani_hdr->length = 0;
+                       nlh->nlmsg_len = NLMSG_LENGTH((sizeof(tAniMsgHdr)));
+                       skb_put(skb, NLMSG_SPACE(sizeof(tAniMsgHdr)));
+                       break;
+               default:
+                       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                       "Attempt to send unknown nlink message %d", type);
+                       kfree_skb(skb);
+                       return;
+       }
+
+    nl_srv_bcast(skb);
+
+    return;
+}
+
+
 
 /**---------------------------------------------------------------------------
 
@@ -9095,7 +9139,8 @@ int hdd_wlan_startup(struct device *dev )
    /*SME must send channel update configuration to RIVA*/
    sme_UpdateChannelConfig(pHddCtx->hHal);
 #endif
-
+   /* Send the update default channel list to the FW*/
+   sme_UpdateChannelList(pHddCtx->hHal);
 #ifndef CONFIG_ENABLE_LINUX_REG
    /*updating wiphy so that regulatory user hints can be processed*/
    if (wiphy)
@@ -9461,9 +9506,33 @@ static void hdd_driver_exit(void)
       pHddCtx->isLoadUnloadInProgress = WLAN_HDD_UNLOAD_IN_PROGRESS;
       vos_set_load_unload_in_progress(VOS_MODULE_ID_VOSS, TRUE);
 
-      if (eANI_BOOLEAN_TRUE == sme_Is11dCountrycode(pHddCtx->hHal) &&
-              pHddCtx->cfg_ini->fSupplicantCountryCodeHasPriority )
+      /* Driver Need to send country code 00 in below condition
+       * 1) If gCountryCodePriority is set to 1; and last country
+       * code set is through 11d. This needs to be done in case
+       * when NV country code is 00.
+       * This Needs to be done as when kernel store last country
+       * code and if stored  country code is not through 11d,
+       * in sme_HandleChangeCountryCodeByUser we will disable 11d
+       * in next load/unload as soon as we get any country through
+       * 11d. In sme_HandleChangeCountryCodeByUser
+       * pMsg->countryCode will be last countryCode and
+       * pMac->scan.countryCode11d will be country through 11d so
+       * due to mismatch driver will disable 11d.
+       *
+       * 2) When NV country Code is non-zero ;
+       * There are chances that kernel last country and default
+       * country can be same. In this case if Driver doesn't pass 00 to
+       * kernel, at the time of driver loading next timer, driver will not
+       * call any hint to kernel as country is same. This can add 3 sec
+       * delay in driver loading.
+       */
+
+      if ((eANI_BOOLEAN_TRUE == sme_Is11dCountrycode(pHddCtx->hHal) &&
+              pHddCtx->cfg_ini->fSupplicantCountryCodeHasPriority  &&
+              sme_Is11dSupported(pHddCtx->hHal)) || (vos_is_nv_country_non_zero() ))
       {
+          hddLog(VOS_TRACE_LEVEL_INFO,
+                     FL("CountryCode 00 is being set while unloading driver"));
           vos_nv_getRegDomainFromCountryCode(&regId , "00", COUNTRY_USER);
       }
 
@@ -9655,6 +9724,52 @@ VOS_STATUS hdd_softap_sta_deauth(hdd_adapter_t *pAdapter, v_U8_t *pDestMacAddres
 
     EXIT();
     return vosStatus;
+}
+
+/**---------------------------------------------------------------------------
+
+  \brief hdd_del_all_sta() - function
+
+  This function removes all the stations associated on stopping AP/P2P GO.
+
+  \param  - pAdapter - Pointer to the HDD
+
+  \return - None
+
+  --------------------------------------------------------------------------*/
+
+int hdd_del_all_sta(hdd_adapter_t *pAdapter)
+{
+    v_U16_t i;
+    VOS_STATUS vos_status;
+
+    ENTER();
+
+    hddLog(VOS_TRACE_LEVEL_INFO,
+           "%s: Delete all STAs associated.",__func__);
+    if ((pAdapter->device_mode == WLAN_HDD_SOFTAP)
+     || (pAdapter->device_mode == WLAN_HDD_P2P_GO)
+       )
+    {
+        for(i = 0; i < WLAN_MAX_STA_COUNT; i++)
+        {
+            if ((pAdapter->aStaInfo[i].isUsed) &&
+                (!pAdapter->aStaInfo[i].isDeauthInProgress))
+            {
+                u8 *macAddr = pAdapter->aStaInfo[i].macAddrSTA.bytes;
+                hddLog(VOS_TRACE_LEVEL_ERROR,
+                       "%s: Delete STA with staid = %d and MAC::"
+                        MAC_ADDRESS_STR,
+                        __func__, i, MAC_ADDR_ARRAY(macAddr));
+                vos_status = hdd_softap_sta_deauth(pAdapter, macAddr);
+                if (VOS_IS_STATUS_SUCCESS(vos_status))
+                    pAdapter->aStaInfo[i].isDeauthInProgress = TRUE;
+            }
+        }
+    }
+
+    EXIT();
+    return 0;
 }
 
 /**---------------------------------------------------------------------------
@@ -9916,7 +10031,11 @@ void wlan_hdd_decr_active_session(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
    case VOS_P2P_CLIENT_MODE:
    case VOS_P2P_GO_MODE:
    case VOS_STA_SAP_MODE:
-        pHddCtx->no_of_active_sessions[mode]--;
+        if (pHddCtx->no_of_active_sessions[mode] > 0)
+            pHddCtx->no_of_active_sessions[mode]--;
+        else
+            hddLog(VOS_TRACE_LEVEL_INFO, FL(" No.# of Active sessions"
+                                     "is already Zero"));
         break;
    default:
         hddLog(VOS_TRACE_LEVEL_INFO, FL("Not Expected Mode %d"), mode);

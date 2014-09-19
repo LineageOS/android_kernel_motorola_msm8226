@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2013 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -335,6 +336,9 @@ enum eWniMsgTypes
     eWNI_SME_MGMT_FRM_TX_COMPLETION_IND,
     eWNI_SME_TDLS_LINK_ESTABLISH_REQ,
     eWNI_SME_TDLS_LINK_ESTABLISH_RSP,
+// tdlsoffchan
+    eWNI_SME_TDLS_CHANNEL_SWITCH_REQ,
+    eWNI_SME_TDLS_CHANNEL_SWITCH_RSP,
 #endif
     //NOTE: If you are planning to add more mesages, please make sure that 
     //SIR_LIM_ITC_MSG_TYPES_BEGIN is moved appropriately. It is set as

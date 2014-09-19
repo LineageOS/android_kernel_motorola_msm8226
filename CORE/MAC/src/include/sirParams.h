@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /*
@@ -114,6 +115,7 @@ typedef enum {
    EXTENDED_SCAN          = 42,
 #endif
 
+   DYNAMIC_WMM_PS        = 43,
    //MAX_FEATURE_SUPPORTED = 128
 } placeHolderInCapBitmap;
 
@@ -672,6 +674,13 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_EXTSCAN_FULL_SCAN_RESULT_IND   (SIR_HAL_ITC_MSG_TYPES_BEGIN + 257)
 
 #endif /* WLAN_FEATURE_EXTSCAN */
+
+#ifdef FEATURE_WLAN_TDLS
+/// PE <-> HAL TDLS messages
+// tdlsoffchan
+#define SIR_HAL_TDLS_CHAN_SWITCH_REQ          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 258)
+#define SIR_HAL_TDLS_CHAN_SWITCH_REQ_RSP      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 259)
+#endif
 
 #define SIR_HAL_MSG_TYPES_END              (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 // CFG message types

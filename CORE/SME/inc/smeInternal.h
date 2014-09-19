@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2013 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 #if !defined( __SMEINTERNAL_H )
@@ -80,6 +81,7 @@ typedef enum eSmeCommandType
     eSmeCommandTdlsAddPeer, 
     eSmeCommandTdlsDelPeer, 
     eSmeCommandTdlsLinkEstablish,
+    eSmeCommandTdlsChannelSwitch, // tdlsoffchan
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
     eSmeCommandTdlsDiscovery,
     eSmeCommandTdlsLinkSetup,

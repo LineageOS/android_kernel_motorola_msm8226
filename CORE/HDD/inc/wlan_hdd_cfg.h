@@ -729,7 +729,7 @@ typedef enum
 #define CFG_QOS_WMM_UAPSD_MASK_NAME                        "UapsdMask" // ACs to setup U-APSD for at assoc
 #define CFG_QOS_WMM_UAPSD_MASK_MIN                         (0x00)
 #define CFG_QOS_WMM_UAPSD_MASK_MAX                         (0xFF) 
-#define CFG_QOS_WMM_UAPSD_MASK_DEFAULT                     (0x00)   
+#define CFG_QOS_WMM_UAPSD_MASK_DEFAULT                     (0x3)
 
 #define CFG_QOS_WMM_INFRA_UAPSD_VO_SRV_INTV_NAME           "InfraUapsdVoSrvIntv"
 #define CFG_QOS_WMM_INFRA_UAPSD_VO_SRV_INTV_MIN             (0)
@@ -1281,6 +1281,12 @@ typedef enum
 #define CFG_EMPTY_SCAN_REFRESH_PERIOD_MIN          (0)
 #define CFG_EMPTY_SCAN_REFRESH_PERIOD_MAX          (60000)
 #define CFG_EMPTY_SCAN_REFRESH_PERIOD_DEFAULT      (0)
+
+#define CFG_NEIGHBOR_INITIAL_FORCED_ROAM_TO_5GH_ENABLE_NAME      "gNeighborInitialForcedRoamTo5GhEnable"
+#define CFG_NEIGHBOR_INITIAL_FORCED_ROAM_TO_5GH_ENABLE_MIN       (0)
+#define CFG_NEIGHBOR_INITIAL_FORCED_ROAM_TO_5GH_ENABLE_MAX       (1)
+#define CFG_NEIGHBOR_INITIAL_FORCED_ROAM_TO_5GH_ENABLE_DEFAULT   (0)
+
 #endif /* WLAN_FEATURE_NEIGHBOR_ROAMING */
 
 #define CFG_QOS_WMM_BURST_SIZE_DEFN_NAME                        "burstSizeDefinition" 
@@ -1453,12 +1459,12 @@ typedef enum
 #define CFG_BTC_SAP_ACTIVE_WLAN_LEN_NAME       "btcSapActiveWlanLen"
 #define CFG_BTC_SAP_ACTIVE_WLAN_LEN_MIN        ( 0 )
 #define CFG_BTC_SAP_ACTIVE_WLAN_LEN_MAX        ( 250000 )
-#define CFG_BTC_SAP_ACTIVE_WLAN_LEN_DEFAULT    ( 60000 )
+#define CFG_BTC_SAP_ACTIVE_WLAN_LEN_DEFAULT    ( 30000 )
 
 #define CFG_BTC_SAP_ACTIVE_BT_LEN_NAME         "btcSapActiveBtLen"
 #define CFG_BTC_SAP_ACTIVE_BT_LEN_MIN          ( 0 )
 #define CFG_BTC_SAP_ACTIVE_BT_LEN_MAX          ( 250000 )
-#define CFG_BTC_SAP_ACTIVE_BT_LEN_DEFAULT      ( 90000 )
+#define CFG_BTC_SAP_ACTIVE_BT_LEN_DEFAULT      ( 30000 )
 
 #define CFG_OBSS_HT40_SCAN_ACTIVE_DWELL_TIME_NAME                "gObssScanActiveDwellTime"
 #define CFG_OBSS_HT40_SCAN_ACTIVE_DWELL_TIME_MIN                 ( 5 )
@@ -2142,7 +2148,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ADVERTISE_CONCURRENT_OPERATION_MAX     ( 1 )
 
 #define CFG_RA_FILTER_ENABLE_NAME               "gRAFilterEnable"
-#define CFG_RA_FILTER_ENABLE_DEFAULT            (1)
+#define CFG_RA_FILTER_ENABLE_DEFAULT            (0)
 #define CFG_RA_FILTER_ENABLE_MIN                (0)
 #define CFG_RA_FILTER_ENABLE_MAX                (1)
 
@@ -2168,7 +2174,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_NAME     "wlanLoggingFEToConsole"
 #define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_ENABLE   ( 1 )
 #define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_DISABLE  ( 0 )
-#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_DEFAULT  ( 0 )
+#define CFG_WLAN_LOGGING_FE_CONSOLE_SUPPORT_DEFAULT  ( 1 )
 
 //Number of buffers to be used for WLAN logging
 #define CFG_WLAN_LOGGING_NUM_BUF_NAME     "wlanLoggingNumBuf"
@@ -2241,6 +2247,89 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_MAX_CONCURRENT_CONNECTIONS_DEFAULT    ( 2 )
 #define CFG_MAX_CONCURRENT_CONNECTIONS_MIN        ( 1 )
 #define CFG_MAX_CONCURRENT_CONNECTIONS_MAX        ( 4 )
+
+//Enable Dynamic WMM PS support
+#define CFG_ENABLE_DYNAMIC_WMMPS_NAME        "gEnableDynamicWMMPS"
+#define CFG_ENABLE_DYNAMIC_WMM_PS_MIN        (0)
+#define CFG_ENABLE_DYNAMIC_WMM_PS_MAX        (1)
+#define CFG_ENABLE_DYNAMIC_WMM_PS_DEFAULT    (1)
+
+/*
+ * If the number of consecutive SPs for which the firmware has sent
+ * trigger frame (because more data bit was set to 1 at end of SP)
+ * when dynamic WMM PS support is enabled exceeds this value then
+ * firmware will come out of power save mode
+ */
+#define CFG_MAX_UAPSD_CONSEC_SP_NAME             "gMaxUapsdConsecSP"
+#define CFG_MAX_UAPSD_CONSEC_SP_DEFAULT          ( 10 )
+#define CFG_MAX_UAPSD_CONSEC_SP_MIN              ( 0 )
+#define CFG_MAX_UAPSD_CONSEC_SP_MAX              ( 500 )
+
+/*
+ * If the number of frames received in the "gUapsdConsecRxCntMeasWindow"
+ * exceeds this value then firmware will come out of power save mode.
+ * Comes into effect only when dynamic WMM PS is enabled.
+ */
+#define CFG_MAX_UAPSD_CONSEC_RX_CNT_NAME         "gMaxUapsdConsecRxCnt"
+#define CFG_MAX_UAPSD_CONSEC_RX_CNT_DEFAULT      ( 50 )
+#define CFG_MAX_UAPSD_CONSEC_RX_CNT_MIN          ( 0 )
+#define CFG_MAX_UAPSD_CONSEC_RX_CNT_MAX          ( 5000 )
+
+/*
+ * If the number of frames transmitted in the "gUapsdConsecTxCntMeasWindow"
+ * exceeds this value then firmware will come out of power save mode.
+ * Comes into effect only when dynamic WMM PS is enabled.
+ */
+#define CFG_MAX_UAPSD_CONSEC_TX_CNT_NAME         "gMaxUapsdConsecTxCnt"
+#define CFG_MAX_UAPSD_CONSEC_TX_CNT_DEFAULT      ( 50 )
+#define CFG_MAX_UAPSD_CONSEC_TX_CNT_MIN          ( 0 )
+#define CFG_MAX_UAPSD_CONSEC_TX_CNT_MAX          ( 5000 )
+
+// Read the description in "gMaxUapsdConsecRxCnt", the interval is in msec
+#define CFG_UAPSD_CONSEC_RX_CNT_MEAS_WINDOW_NAME "gUapsdConsecRxCntMeasWindow"
+#define CFG_UAPSD_CONSEC_RX_CNT_MEAS_WINDOW_DEFAULT      ( 500 )
+#define CFG_UAPSD_CONSEC_RX_CNT_MEAS_WINDOW_MIN          ( 50 )
+#define CFG_UAPSD_CONSEC_RX_CNT_MEAS_WINDOW_MAX          ( 50000 )
+
+// Read the description in "gMaxUapsdConsecTxCnt", the interval is in msec
+#define CFG_UAPSD_CONSEC_TX_CNT_MEAS_WINDOW_NAME "gUapsdConsecTxCntMeasWindow"
+#define CFG_UAPSD_CONSEC_TX_CNT_MEAS_WINDOW_DEFAULT      ( 500 )
+#define CFG_UAPSD_CONSEC_TX_CNT_MEAS_WINDOW_MIN          ( 50 )
+#define CFG_UAPSD_CONSEC_TX_CNT_MEAS_WINDOW_MAX          ( 50000 )
+
+/*
+ * number of PS poll frames that can be sent by the firmware to retrieve
+ * Data before the firmware comes out of power save mode for an AC
+ * which is neither Delivery or Trigger enabled when dynamic WMM PS
+ * is configured.
+ * Comes into effect only when dynamic WMM PS is enabled.
+*/
+#define CFG_UAPSD_PSPOLL_NAME          "gMaxPsPollInWmmUapsdMode"
+#define CFG_UAPSD_PSPOLL_MIN           (0)
+#define CFG_UAPSD_PSPOLL_MAX           (255)
+#define CFG_UAPSD_PSPOLL_DEFAULT       (0)
+
+/*
+ * If the number of itervals for which the firmware detects no activity
+ * on the WMM PS enabled ACs exceeds this value then the firmware will
+ * go to power save mode. The length of the interval is dynamically
+ * calculated by the firmware depending on the configured service
+ * intervals.
+ * Comes into effect only when dynamic WMM PS is enabled.
+ */
+#define CFG_MAX_UAPSD_INACT_INTVL_NAME       "gMaxUapsdInactivityIntervals"
+#define CFG_MAX_UAPSD_INACT_INTVL_MIN        (1)
+#define CFG_MAX_UAPSD_INACT_INTVL_MAX        (255)
+#define CFG_MAX_UAPSD_INACT_INTVL_DEFAULT    (10)
+
+/*
+ * This will enable DHCP packet logging for debugging purpose
+ * The log level is set as INFO.
+ */
+#define CFG_DEBUG_DHCP                          "gEnableDhcpDebug"
+#define CFG_DEBUG_DHCP_DISABLE                  ( 0 )
+#define CFG_DEBUG_DHCP_ENABLE                   ( 1 )
+#define CFG_DEBUG_DHCP_DEFAULT                  ( CFG_DEBUG_DHCP_DISABLE )
 
 /*--------------------------------------------------------------------------- 
   Type declarations
@@ -2382,6 +2471,7 @@ typedef struct
    v_U16_t       nMaxNeighborReqTries;
    v_U16_t       nNeighborResultsRefreshPeriod;
    v_U16_t       nEmptyScanRefreshPeriod;
+   v_U8_t        nNeighborInitialForcedRoamTo5GhEnable;
 #endif
 
    //Additional Handoff params
@@ -2711,6 +2801,16 @@ typedef struct
    v_BOOL_t                    sendDeauthBeforeCon;
    v_BOOL_t                    fenableCHAvoidance;
    v_U8_t                      gMaxConcurrentActiveSessions;
+
+   v_U32_t                     enableDynamicWMMPS;
+   v_U32_t                     maxUapsdConsecSP;
+   v_U32_t                     maxUapsdConsecRxCnt;
+   v_U32_t                     maxUapsdConsecTxCnt;
+   v_U32_t                     uapsdConsecRxCntMeasWindow;
+   v_U32_t                     uapsdConsecTxCntMeasWindow;
+   v_U32_t                     maxPsPollInWmmUapsdMode;
+   v_U32_t                     maxUapsdInactivityIntervals;
+   v_U8_t                      enableDhcpDebug; /* Enable/Disable dhcp debug */
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation

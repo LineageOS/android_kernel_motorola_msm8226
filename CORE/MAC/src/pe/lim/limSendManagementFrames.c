@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012-2014 Qualcomm Atheros, Inc.
- * All Rights Reserved.
- * Qualcomm Atheros Confidential and Proprietary.
- *
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
  */
+
+
 
 
 /**
@@ -892,7 +893,8 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
         }
 
         nBytes = nBytes + totalAddnIeLen;
-
+        limLog(pMac, LOG1,
+            FL("probe rsp packet size is %d "), nBytes);
         if (probeReqP2pIe)
         {
             pP2pIe = limGetP2pIEPtr(pMac, &addIE[0], totalAddnIeLen);
@@ -905,6 +907,9 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
                     total_noaLen = limBuildP2pIe(pMac, &noaIe[0], 
                                             &noaStream[0], noaLen); 
                     nBytes = nBytes + total_noaLen;
+                    limLog(pMac, LOG1,
+                        FL("p2p probe rsp packet size is  %d, noalength is %d"),
+                            nBytes, total_noaLen);
                 }
             }
         }
@@ -2997,6 +3002,9 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
        psessionEntry->assocReqLen = (ft_ies_length);
     }
 
+
+    // Enable TL cahching in case of roaming
+    WLANTL_EnableCaching(psessionEntry->staId);
 
     MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
            psessionEntry->peSessionId,
