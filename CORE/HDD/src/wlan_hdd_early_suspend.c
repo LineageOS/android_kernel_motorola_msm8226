@@ -2225,6 +2225,7 @@ VOS_STATUS hdd_wlan_re_init(void)
    pHddCtx->isLogpInProgress = FALSE;
    vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, FALSE);
    pHddCtx->hdd_mcastbcast_filter_set = FALSE;
+   pHddCtx->btCoexModeSet = FALSE;
    hdd_register_mcast_bcast_filter(pHddCtx);
    wlan_hdd_tdls_init(pHddCtx);
    /* Register with platform driver as client for Suspend/Resume */
@@ -2277,7 +2278,8 @@ err_vosclose:
        /* If we hit this, it means wlan driver is in bad state and needs
        * driver unload and load.
        */
-       pHddCtx->isLogpInProgress = FALSE;
+       if (pHddCtx)
+           pHddCtx->isLogpInProgress = FALSE;
        vos_set_reinit_in_progress(VOS_MODULE_ID_VOSS, FALSE);
        return VOS_STATUS_E_FAILURE;
    }
