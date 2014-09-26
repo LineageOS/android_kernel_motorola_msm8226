@@ -639,6 +639,7 @@ typedef struct
    wpt_uint32                      numFragmentCurrentChain;
    wpt_uint32                      numFrameBeforeInt;
    wpt_uint32                      numTotalFrame;
+   wpt_uint32                      doneIntDisabled;
    wpt_mutex                       dxeChannelLock;
    wpt_boolean                     hitLowResource;
    WLANDXE_ChannelConfigType       channelConfig;
