@@ -47,6 +47,8 @@
 
 #define MEM_PROTECT_SD_CTRL 0xF
 
+#define OVERLAY_MAX 10
+
 struct sd_ctrl_req {
 	unsigned int enable;
 } __attribute__ ((__packed__));
@@ -57,6 +59,7 @@ static int mdss_mdp_overlay_fb_parse_dt(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_splash_parse_dt(struct msm_fb_data_type *mfd);
 static void __overlay_kickoff_requeue(struct msm_fb_data_type *mfd);
+static void mdss_mdp5_dump_ctl(void *data);
 
 static int mdss_mdp_overlay_sd_ctrl(struct msm_fb_data_type *mfd,
 					unsigned int enable)
@@ -264,7 +267,7 @@ static int __mdp_pipe_tune_perf(struct mdss_mdp_pipe *pipe)
 	int rc;
 
 	for (;;) {
-		rc = mdss_mdp_perf_calc_pipe(pipe, &perf,
+		rc = mdss_mdp_perf_calc_pipe(pipe, &perf, NULL, true,
 			pipe->flags & MDP_SECURE_OVERLAY_SESSION);
 
 		if (!rc && (perf.mdp_clk_rate <= mdata->max_mdp_clk_rate))
@@ -1264,27 +1267,24 @@ done:
 /**
  * mdss_mdp_overlay_release_all() - release any overlays associated with fb dev
  * @mfd:	Msm frame buffer structure associated with fb device
- * @release_all: ignore pid and release all the pipes
  *
  * Release any resources allocated by calling process, this can be called
  * on fb_release to release any overlays/rotator sessions left open.
  */
-static int __mdss_mdp_overlay_release_all(struct msm_fb_data_type *mfd,
-	bool release_all)
+static int __mdss_mdp_overlay_release_all(struct msm_fb_data_type *mfd, int pid)
 {
 	struct mdss_mdp_pipe *pipe;
 	struct mdss_mdp_rotator_session *rot, *tmp;
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	u32 unset_ndx = 0;
 	int cnt = 0;
-	int pid = current->tgid;
 
 	pr_debug("releasing all resources for fb%d pid=%d\n", mfd->index, pid);
 
 	mutex_lock(&mdp5_data->ov_lock);
 	mutex_lock(&mfd->lock);
 	list_for_each_entry(pipe, &mdp5_data->pipes_used, used_list) {
-		if (release_all || (pipe->pid == pid)) {
+		if (!mfd->ref_cnt || (pipe->pid == pid)) {
 			unset_ndx |= pipe->ndx;
 			cnt++;
 		}
@@ -1295,9 +1295,6 @@ static int __mdss_mdp_overlay_release_all(struct msm_fb_data_type *mfd,
 			mfd->index);
 		cnt++;
 	}
-
-	pr_debug("release_all=%d mfd->ref_cnt=%d unset_ndx=0x%x cnt=%d\n",
-		release_all, mfd->ref_cnt, unset_ndx, cnt);
 
 	mutex_unlock(&mfd->lock);
 
@@ -2440,11 +2437,17 @@ static int __handle_ioctl_overlay_prepare(struct msm_fb_data_type *mfd,
 		void __user *argp)
 {
 	struct mdp_overlay_list ovlist;
+	struct mdp_overlay *req_list[OVERLAY_MAX];
 	struct mdp_overlay *overlays;
 	int i, ret;
 
 	if (copy_from_user(&ovlist, argp, sizeof(ovlist)))
 		return -EFAULT;
+
+	if (ovlist.num_overlays >= OVERLAY_MAX) {
+		pr_err("Number of overlays exceeds max\n");
+		return -EINVAL;
+	}
 
 	overlays = kmalloc(ovlist.num_overlays * sizeof(*overlays), GFP_KERNEL);
 	if (!overlays) {
@@ -2452,8 +2455,14 @@ static int __handle_ioctl_overlay_prepare(struct msm_fb_data_type *mfd,
 		return -ENOMEM;
 	}
 
+	if (copy_from_user(req_list, ovlist.overlay_list,
+				sizeof(struct mdp_overlay*) * ovlist.num_overlays)) {
+		ret = -EFAULT;
+		goto validate_exit;
+	}
+
 	for (i = 0; i < ovlist.num_overlays; i++) {
-		if (copy_from_user(overlays + i, ovlist.overlay_list[i],
+		if (copy_from_user(overlays + i, req_list[i],
 				sizeof(struct mdp_overlay))) {
 			ret = -EFAULT;
 			goto validate_exit;
@@ -2463,7 +2472,7 @@ static int __handle_ioctl_overlay_prepare(struct msm_fb_data_type *mfd,
 	ret = __handle_overlay_prepare(mfd, &ovlist, overlays);
 	if (!IS_ERR_VALUE(ret)) {
 		for (i = 0; i < ovlist.num_overlays; i++) {
-			if (copy_to_user(ovlist.overlay_list[i], overlays + i,
+			if (copy_to_user(req_list[i], overlays + i,
 					sizeof(struct mdp_overlay))) {
 				ret = -EFAULT;
 				goto validate_exit;
@@ -2701,16 +2710,16 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 		if (IS_ERR_OR_NULL(ctl))
 			return PTR_ERR(ctl);
 		mdp5_data->ctl = ctl;
+
+		mdss_timeout_init(mdss_mdp5_dump_ctl, mdp5_data->ctl);
 	}
 
 	if (!mfd->panel_info->cont_splash_enabled &&
 		(mfd->panel_info->type != DTV_PANEL)) {
 		rc = mdss_mdp_overlay_start(mfd);
 		if (!IS_ERR_VALUE(rc) &&
-			(mfd->panel_info->type != WRITEBACK_PANEL)) {
-			atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
+			(mfd->panel_info->type != WRITEBACK_PANEL))
 			rc = mdss_mdp_overlay_kickoff(mfd, NULL);
-		}
 	} else {
 		rc = mdss_mdp_ctl_setup(mdp5_data->ctl);
 		if (rc)
@@ -2797,13 +2806,13 @@ int mdss_panel_register_done(struct mdss_panel_data *pdata)
 	 * increasing ref_cnt to help balance clocks once done.
 	 */
 	if (pdata->panel_info.cont_splash_enabled) {
-		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
 		mdss_mdp_footswitch_ctrl_splash(1);
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
 	}
 	return 0;
 }
 
-void mdss_mdp5_dump_ctl(void *data)
+static void mdss_mdp5_dump_ctl(void *data)
 {
 	struct mdss_mdp_ctl *ctl = (struct mdss_mdp_ctl *)data;
 
@@ -2816,16 +2825,18 @@ void mdss_mdp5_dump_ctl(void *data)
 	MDSS_TIMEOUT_LOG("global irqs disabled: %d\n", irqs_disabled());
 	MDSS_TIMEOUT_LOG("------ MDP5 INTERRUPT DATA DONE ------\n");
 
-	MDSS_TIMEOUT_LOG("-------- MDP5 CTL DATA ---------\n");
-	MDSS_TIMEOUT_LOG("play_cnt=%u\n", ctl->play_cnt);
-	MDSS_TIMEOUT_LOG("vsync_cnt=%u\n", ctl->vsync_cnt);
-	MDSS_TIMEOUT_LOG("underrun_cnt=%u\n", ctl->underrun_cnt);
-	MDSS_TIMEOUT_LOG("------ MDP5 CTL DATA DONE ------\n");
+	if (ctl) {
+		MDSS_TIMEOUT_LOG("-------- MDP5 CTL DATA ---------\n");
+		MDSS_TIMEOUT_LOG("play_cnt=%u\n", ctl->play_cnt);
+		MDSS_TIMEOUT_LOG("vsync_cnt=%u\n", ctl->vsync_cnt);
+		MDSS_TIMEOUT_LOG("underrun_cnt=%u\n", ctl->underrun_cnt);
+		MDSS_TIMEOUT_LOG("------ MDP5 CTL DATA DONE ------\n");
 
-	if (ctl->ctx_dump_fnc) {
-		MDSS_TIMEOUT_LOG("-------- MDP5 CTX DATA ---------\n");
-		ctl->ctx_dump_fnc(ctl);
-		MDSS_TIMEOUT_LOG("------ MDP5 CTX DATA DONE ------\n");
+		if (ctl->ctx_dump_fnc) {
+			MDSS_TIMEOUT_LOG("-------- MDP5 CTX DATA ---------\n");
+			ctl->ctx_dump_fnc(ctl);
+			MDSS_TIMEOUT_LOG("------ MDP5 CTX DATA DONE ------\n");
+		}
 	}
 }
 
@@ -3134,8 +3145,6 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 			rc = 0;
 		}
 	}
-
-	mdss_timeout_init(mdss_mdp5_dump_ctl, mdp5_data->ctl);
 
 	return rc;
 init_fail:

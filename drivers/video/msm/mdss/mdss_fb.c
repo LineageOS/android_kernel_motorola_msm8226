@@ -73,9 +73,9 @@ static u32 mdss_fb_pseudo_palette[16] = {
 static struct msm_mdp_interface *mdp_instance;
 
 static int mdss_fb_register(struct msm_fb_data_type *mfd);
-static int mdss_fb_open(struct fb_info *info, int user);
-static int mdss_fb_release(struct fb_info *info, int user);
-static int mdss_fb_release_all(struct fb_info *info, bool release_all);
+static int mdss_fb_open(struct fb_info *info, struct file *file, int user);
+static int mdss_fb_release(struct fb_info *info, struct file *file, int user);
+static int mdss_fb_release_all(struct fb_info *info, struct file *file);
 static int mdss_fb_pan_display(struct fb_var_screeninfo *var,
 			       struct fb_info *info);
 static int mdss_fb_check_var(struct fb_var_screeninfo *var,
@@ -368,7 +368,7 @@ static void mdss_fb_shutdown(struct platform_device *pdev)
 
 	mfd->shutdown_pending = true;
 	lock_fb_info(mfd->fbi);
-	mdss_fb_release_all(mfd->fbi, true);
+	mdss_fb_release_all(mfd->fbi, NULL);
 	unlock_fb_info(mfd->fbi);
 }
 
@@ -926,8 +926,8 @@ static int mdss_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 
 static struct fb_ops mdss_fb_ops = {
 	.owner = THIS_MODULE,
-	.fb_open = mdss_fb_open,
-	.fb_release = mdss_fb_release,
+	.fb_open2 = mdss_fb_open,
+	.fb_release2 = mdss_fb_release,
 	.fb_check_var = mdss_fb_check_var,	/* vinfo check */
 	.fb_set_par = mdss_fb_set_par,	/* set the video mode */
 	.fb_blank = mdss_fb_blank,	/* blank display */
@@ -1227,12 +1227,11 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	return 0;
 }
 
-static int mdss_fb_open(struct fb_info *info, int user)
+static int mdss_fb_open(struct fb_info *info, struct file *file, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct mdss_fb_proc_info *pinfo = NULL;
 	int result;
-	int pid = current->tgid;
 
 	if (mfd->shutdown_pending) {
 		pr_err("Shutdown pending. Aborting operation\n");
@@ -1240,20 +1239,22 @@ static int mdss_fb_open(struct fb_info *info, int user)
 	}
 
 	list_for_each_entry(pinfo, &mfd->proc_list, list) {
-		if (pinfo->pid == pid)
+		if (pinfo->file == file)
 			break;
 	}
 
-	if ((pinfo == NULL) || (pinfo->pid != pid)) {
+	if ((pinfo == NULL) || (pinfo->file != file)) {
 		pinfo = kmalloc(sizeof(*pinfo), GFP_KERNEL);
 		if (!pinfo) {
 			pr_err("unable to alloc process info\n");
 			return -ENOMEM;
 		}
-		pinfo->pid = pid;
+		pinfo->pid = current->tgid;
+		pinfo->file = file;
 		pinfo->ref_cnt = 0;
 		list_add(&pinfo->list, &mfd->proc_list);
-		pr_debug("new process entry pid=%d\n", pinfo->pid);
+		pr_debug("new process entry pid=%d file=%p\n",
+			 pinfo->pid, pinfo->file);
 	}
 
 	result = pm_runtime_get_sync(info->dev);
@@ -1303,88 +1304,79 @@ pm_error:
 	return result;
 }
 
-static int mdss_fb_release_all(struct fb_info *info, bool release_all)
+static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct mdss_fb_proc_info *pinfo = NULL, *temp_pinfo = NULL;
+	struct mdss_fb_proc_info *release_pinfo = NULL;
+	int pid_ref_cnt = 0;
 	int ret = 0;
-	int pid = current->tgid;
-	bool unknown_pid = true, release_needed = false;
-	struct task_struct *task = current->group_leader;
 
 	if (!mfd->ref_cnt) {
-		pr_info("try to close unopened fb %d! from %s\n", mfd->index,
-			task->comm);
+		pr_info("try to close unopened fb %d!\n", mfd->index);
 		return -EINVAL;
 	}
 
 	if (!wait_event_timeout(mfd->ioctl_q,
-		!atomic_read(&mfd->ioctl_ref_cnt) || !release_all,
+		!atomic_read(&mfd->ioctl_ref_cnt) || file,
 		msecs_to_jiffies(1000)))
 		pr_warn("fb%d ioctl could not finish. waited 1 sec.\n",
 			mfd->index);
 
 	mdss_fb_pan_idle(mfd);
 
-	pr_debug("release_all = %s\n", release_all ? "true" : "false");
+	pr_debug("file = %p\n", file);
+
+	if (file) {
+		list_for_each_entry(pinfo, &mfd->proc_list, list) {
+			if (pinfo->file == file) {
+				release_pinfo = pinfo;
+				break;
+			}
+		}
+		BUG_ON(!release_pinfo);
+	}
+
+	if (release_pinfo) {
+		list_for_each_entry(pinfo, &mfd->proc_list, list) {
+			if (pinfo->pid == release_pinfo->pid
+				&& pinfo != release_pinfo) {
+				pid_ref_cnt += pinfo->ref_cnt;
+			}
+		}
+	}
 
 	list_for_each_entry_safe(pinfo, temp_pinfo, &mfd->proc_list, list) {
-		if (!release_all && (pinfo->pid != pid))
+		if (file && pinfo != release_pinfo)
 			continue;
 
-		unknown_pid = false;
-
-		pr_debug("found process %s pid=%d mfd->ref=%d pinfo->ref=%d\n",
-			task->comm, mfd->ref_cnt, pinfo->pid, pinfo->ref_cnt);
+		pr_debug("found process entry pid=%d ref=%d\n", pinfo->pid,
+			pinfo->ref_cnt);
 
 		do {
 			if (mfd->ref_cnt < pinfo->ref_cnt)
-				pr_warn("WARN:mfd->ref=%d < pinfo->ref=%d\n",
-					mfd->ref_cnt, pinfo->ref_cnt);
+				pr_warn("WARN:mfd->ref_cnt < pinfo->ref_cnt\n");
 			else
 				mfd->ref_cnt--;
 
 			pinfo->ref_cnt--;
 			pm_runtime_put(info->dev);
-		} while (release_all && pinfo->ref_cnt);
+		} while (!file && pinfo->ref_cnt);
 
-		if (release_all && mfd->disp_thread) {
+		if (!file && mfd->disp_thread) {
 			kthread_stop(mfd->disp_thread);
 			mfd->disp_thread = NULL;
 		}
 
 		if (pinfo->ref_cnt == 0) {
+			if (mfd->mdp.release_fnc && pid_ref_cnt == 0) {
+				ret = mfd->mdp.release_fnc(mfd, pinfo->pid);
+				if (ret)
+					pr_err("error releasing fb%d pid=%d\n",
+						mfd->index, pinfo->pid);
+			}
 			list_del(&pinfo->list);
 			kfree(pinfo);
-			release_needed = !release_all;
-		}
-
-		if (!release_all)
-			break;
-	}
-
-	if (release_needed) {
-		pr_debug("known process %s pid=%d mfd->ref=%d\n",
-			task->comm, pid, mfd->ref_cnt);
-
-		if (mfd->mdp.release_fnc) {
-			ret = mfd->mdp.release_fnc(mfd, false);
-			if (ret)
-				pr_err("error releasing fb%d pid=%d\n",
-					mfd->index, pid);
-		}
-	} else if (unknown_pid || release_all) {
-		pr_warn("unknown process %s pid=%d mfd->ref=%d\n",
-			task->comm, pid, mfd->ref_cnt);
-
-		if (mfd->ref_cnt)
-			mfd->ref_cnt--;
-
-		if (mfd->mdp.release_fnc) {
-			ret = mfd->mdp.release_fnc(mfd, true);
-			if (ret)
-				pr_err("error fb%d release process %s pid=%d\n",
-					mfd->index, task->comm, pid);
 		}
 	}
 
@@ -1397,8 +1389,8 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info,
 			mfd->op_enable);
 		if (ret) {
-			pr_err("can't turn off fb%d! rc=%d process %s pid=%d\n",
-				mfd->index, ret, task->comm, pid);
+			pr_err("can't turn off fb%d! rc=%d\n",
+				mfd->index, ret);
 			return ret;
 		}
 		atomic_set(&mfd->ioctl_ref_cnt, 0);
@@ -1407,9 +1399,9 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 	return ret;
 }
 
-static int mdss_fb_release(struct fb_info *info, int user)
+static int mdss_fb_release(struct fb_info *info, struct file *file, int user)
 {
-	return mdss_fb_release_all(info, false);
+	return mdss_fb_release_all(info, file);
 }
 
 static void mdss_fb_power_setting_idle(struct msm_fb_data_type *mfd)

@@ -51,7 +51,7 @@ static int mdp3_wait4vsync(struct mdp3_dma *dma, bool killable,
 			pr_err("%s: TIMEOUT (vsync_cnt: prev: %u cur: %u)\n",
 				__func__, prev_vsync_cnt, dma->vsync_cnt);
 			timeout_occurred = 1;
-			if (timeouts == 0)
+			if (timeouts == 0 && dma->vsync_cnt > 0)
 				mdss_timeout_dump(__func__);
 			timeouts++;
 		} else {
@@ -967,9 +967,11 @@ void mdp3_dump_dma(void *data)
 	MDSS_TIMEOUT_LOG("global irqs disabled: %d\n", irqs_disabled());
 	MDSS_TIMEOUT_LOG("------ MDP3 INTERRUPT DATA DONE ------\n");
 
-	MDSS_TIMEOUT_LOG("-------- MDP3 DMA DATA ---------\n");
-	MDSS_TIMEOUT_LOG("vsync_cnt=%u\n", dma->vsync_cnt);
-	MDSS_TIMEOUT_LOG("------ MDP3 DMA DATA DONE ------\n");
+	if (dma) {
+		MDSS_TIMEOUT_LOG("-------- MDP3 DMA DATA ---------\n");
+		MDSS_TIMEOUT_LOG("vsync_cnt=%u\n", dma->vsync_cnt);
+		MDSS_TIMEOUT_LOG("------ MDP3 DMA DATA DONE ------\n");
+	}
 }
 
 int mdp3_dma_init(struct mdp3_dma *dma)
