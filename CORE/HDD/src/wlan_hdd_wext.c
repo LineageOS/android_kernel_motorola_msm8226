@@ -7298,7 +7298,7 @@ int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType,
 
 void wlan_hdd_set_mc_v6(hdd_adapter_t *pAdapter, v_U8_t set) {
     tPacketFilterCfg request = {0};
-    v_SCHAR_t mcFilterIndex = WLAN_HDD_MAX_MC_ADDR_LIST;
+    v_SCHAR_t mcFilterIndex = WLAN_HDD_MAX_FILTER_SLOTS;
     int ret;
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
 
@@ -7366,7 +7366,7 @@ void wlan_hdd_set_mc_addr_list(hdd_adapter_t *pAdapter, v_U8_t set)
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     // IKJB42MAIN-1244, Motorola, a19091 - BEGIN
     int ret;
-    v_SCHAR_t mcFilterIndex = WLAN_HDD_MAX_MC_ADDR_LIST;
+    v_SCHAR_t mcFilterIndex = WLAN_HDD_MAX_FILTER_SLOTS;
     // IKJB42MAIN-1244, Motorola, a19091 - END
 
     if (NULL == pHddCtx)
