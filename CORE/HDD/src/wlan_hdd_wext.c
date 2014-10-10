@@ -7576,7 +7576,7 @@ static int __iw_set_packet_filter_params(struct net_device *dev,
 
     if(pRequest == NULL) {
         hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Out of memory - cant alloc %d bytes",
-                __FUNCTION__,sizeof(tpPacketFilterCfg));
+                __FUNCTION__,(int)sizeof(tPacketFilterCfg));
         return -ENOMEM;
     }
 
