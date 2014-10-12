@@ -927,7 +927,7 @@ static inline void adreno_set_protected_registers(struct kgsl_device *device,
 	/* There are only 16 registers available */
 	BUG_ON(*index >= 16);
 
-	val = 0x60000000 | ((mask_len & 0x1F) << 24) | ((reg << 2) & 0x1FFFF);
+	val = 0x60000000 | ((mask_len & 0x1F) << 24) | ((reg << 2) & 0xFFFF);
 
 	/*
 	 * Write the protection range to the next available protection
