@@ -164,8 +164,8 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 #define WE_SET_TDLS_SEC_OFF_CHAN_OFFSET  15
 #define WE_SET_TDLS_OFF_CHAN_MODE        16
 #endif
-#define  WE_SET_SCAN_BAND_PREFERENCE     17
-#define  WE_SET_MIRACAST_VENDOR_CONFIG     18
+#define  WE_SET_SCAN_BAND_PREFERENCE     19
+#define  WE_SET_MIRACAST_VENDOR_CONFIG     22
 #define  WE_SET_RTS_CTS_HTVHT             21
 
 
