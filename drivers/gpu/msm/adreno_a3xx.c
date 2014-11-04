@@ -3092,16 +3092,11 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 	case A3XX_INT_CP_HW_FAULT:
 		err = "ringbuffer hardware fault";
 		break;
-	case A3XX_INT_CP_REG_PROTECT_FAULT: {
-		unsigned int reg;
-		kgsl_regread(device, A3XX_CP_PROTECT_STATUS, &reg);
+	case A3XX_INT_CP_REG_PROTECT_FAULT:
+		err = "ringbuffer protected mode error interrupt";
+		break;
 
-		KGSL_DRV_CRIT(device,
-			"CP | Protected mode error| %s | addr=%x\n",
-			reg & (1 << 24) ? "WRITE" : "READ",
-			(reg & 0x1FFFF) >> 2);
-		goto done;
-	}
+		return;
 	case A3XX_INT_CP_AHB_ERROR_HALT:
 		err = "ringbuffer AHB error interrupt";
 		break;
@@ -4138,6 +4133,7 @@ static void a3xx_protect_init(struct kgsl_device *device)
 
 	/* CP registers */
 	adreno_set_protected_registers(device, &index, 0x1C0, 5);
+	adreno_set_protected_registers(device, &index, 0x1EC, 1);
 	adreno_set_protected_registers(device, &index, 0x1F6, 1);
 	adreno_set_protected_registers(device, &index, 0x1F8, 2);
 	adreno_set_protected_registers(device, &index, 0x45E, 2);
