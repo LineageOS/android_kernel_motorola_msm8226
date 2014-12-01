@@ -1330,12 +1330,14 @@ eHalStatus csrOpen(tpAniSirGlobal pMac);
   -------------------------------------------------------------------------------*/
 eHalStatus csrInitChannels(tpAniSirGlobal pMac);
 
+#ifdef CONFIG_ENABLE_LINUX_REG
 /* ---------------------------------------------------------------------------
     \fn csrInitChannelsForCC
     \brief This function must be called to issue reg hint
     \return eHalStatus
   -------------------------------------------------------------------------------*/
 eHalStatus csrInitChannelsForCC(tpAniSirGlobal pMac, driver_load_type init );
+#endif
 
 /* ---------------------------------------------------------------------------
     \fn csrClose
