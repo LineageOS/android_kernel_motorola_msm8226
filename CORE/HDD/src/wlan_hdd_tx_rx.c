@@ -924,7 +924,8 @@ int hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
    spin_unlock(&pAdapter->wmm_tx_queue[qid].lock);
 
-   if ( ( NULL != pHddCtx ) && pHddCtx->cfg_ini->enableDhcpDebug )
+   if (( NULL != pHddCtx ) &&
+      (pHddCtx->cfg_ini->gEnableDebugLog & VOS_PKT_PROTO_TYPE_DHCP))
    {
        hdd_dump_dhcp_pkt(skb, TX_PATH);
    }
@@ -1702,7 +1703,8 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
    else 
       pPktMetaInfo->ucIsEapol = hdd_IsEAPOLPacket( pVosPacket ) ? 1 : 0;
 
-   if (pHddCtx->cfg_ini->gEnableDebugLog)
+   if ((NULL != pHddCtx) &&
+       (pHddCtx->cfg_ini->gEnableDebugLog))
    {
       proto_type = vos_pkt_get_proto_type(skb,
                                           pHddCtx->cfg_ini->gEnableDebugLog);
@@ -2092,7 +2094,8 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
          }
        */
 #endif
-      if ( pHddCtx->cfg_ini->enableDhcpDebug )
+      if (( NULL != pHddCtx ) &&
+         (pHddCtx->cfg_ini->gEnableDebugLog & VOS_PKT_PROTO_TYPE_DHCP))
       {
           hdd_dump_dhcp_pkt(skb, RX_PATH);
       }
