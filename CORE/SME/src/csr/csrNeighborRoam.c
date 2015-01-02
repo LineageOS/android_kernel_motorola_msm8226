@@ -2746,8 +2746,17 @@ eHalStatus csrNeighborRoamScanForInitialForced5GRoaming(tpAniSirGlobal pMac, tAN
     if (eHAL_STATUS_SUCCESS != status)
     {
         smsLog(pMac, LOGE, FL("Forced intial roam to 5Gh request failed: Status = %d"), status);
+        return status;
     }
 
+    //keep firmware shut-up for any roaming related scan during
+    //this tenure.
+    status = csrRoamOffloadScan(pMac, ROAM_SCAN_OFFLOAD_STOP,
+                                REASON_INITIAL_FORCED_ROAM_TO_5G);
+    if (eHAL_STATUS_SUCCESS != status)
+    {
+        smsLog(pMac, LOGE, FL("csrRoamOffloadScan stop scan cmd got failed status = %d"), status);
+    }
     return status;
 }
 #endif
@@ -3046,16 +3055,6 @@ void csrForcedInitialRoamTo5GHTimerCallback(void *context)
     //keep track this scan & roam is due to Forced initial roam to 5GHz
     pNeighborRoamInfo->isForcedInitialRoamTo5GH = 1;
 
-    //keep firmware shut-up for any roaming related scan during
-    //this tenure.
-    status = csrRoamOffloadScan(pMac, ROAM_SCAN_OFFLOAD_STOP,
-                                REASON_INITIAL_FORCED_ROAM_TO_5G);
-    if (eHAL_STATUS_SUCCESS != status)
-    {
-        smsLog(pMac, LOGE, FL("csrRoamOffloadScan stop scan cmd got failed status = %d"), status);
-        return;
-    }
-
     // MUKUL TODO: whatever we are doing should we need to move
     // it after offload scan response comes from firmware ???
     status = csrNeighborRoamTransitToCFGChanScan(pMac);
@@ -3063,8 +3062,6 @@ void csrForcedInitialRoamTo5GHTimerCallback(void *context)
     {
         smsLog(pMac, LOGE,
                FL("csrNeighborRoamTransitToCFGChanScan failed status=%d"), status);
-         //restart scan offload to firmware
-         csrNeighborRoamStartLfrScan(pMac, REASON_INITIAL_FORCED_ROAM_TO_5G);
     }
 }
 
