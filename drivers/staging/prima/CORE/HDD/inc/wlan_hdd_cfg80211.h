@@ -123,6 +123,33 @@ typedef struct {
 }__attribute__((packed)) qcom_ie_age ;
 #endif
 
+/* Vendor id to be used in vendor specific command and events
+ * to user space. Use QCA OUI 00:13:74 to match with define in
+ * supplicant code.
+ */
+#define QCOM_NL80211_VENDOR_ID                0x001374
+
+/* Vendor speicific sub-command id and their index */
+#ifdef FEATURE_WLAN_CH_AVOID
+#define QCOM_NL80211_VENDOR_SUBCMD_AVOID_FREQUENCY         10
+#define QCOM_NL80211_VENDOR_SUBCMD_AVOID_FREQUENCY_INDEX   0
+#endif /* FEATURE_WLAN_CH_AVOID */
+
+#ifdef FEATURE_WLAN_CH_AVOID
+#define HDD_MAX_AVOID_FREQ_RANGES   4
+typedef struct sHddAvoidFreqRange
+{
+   u32 startFreq;
+   u32 endFreq;
+} tHddAvoidFreqRange;
+
+typedef struct sHddAvoidFreqList
+{
+   u32 avoidFreqRangeCount;
+   tHddAvoidFreqRange avoidFreqRange[HDD_MAX_AVOID_FREQ_RANGES];
+} tHddAvoidFreqList;
+#endif /* FEATURE_WLAN_CH_AVOID */
+
 struct cfg80211_bss* wlan_hdd_cfg80211_update_bss_db( hdd_adapter_t *pAdapter,
                                       tCsrRoamInfo *pRoamInfo
                                       );
@@ -143,7 +170,7 @@ int wlan_hdd_cfg80211_pmksa_candidate_notify(
 void wlan_hdd_cfg80211_set_key_wapi(hdd_adapter_t* pAdapter,
               u8 key_index, const u8 *mac_addr, u8 *key , int key_Len);
 #endif
-struct wiphy *wlan_hdd_cfg80211_init(int priv_size);
+struct wiphy *wlan_hdd_cfg80211_wiphy_alloc(int priv_size);
 
 int wlan_hdd_cfg80211_scan( struct wiphy *wiphy,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0))
@@ -151,21 +178,30 @@ int wlan_hdd_cfg80211_scan( struct wiphy *wiphy,
 #endif
                             struct cfg80211_scan_request *request);
 
-int wlan_hdd_cfg80211_register(struct device *dev,
+int wlan_hdd_cfg80211_init(struct device *dev,
                                struct wiphy *wiphy,
                                hdd_config_t *pCfg
                                          );
 
+int wlan_hdd_cfg80211_register( struct wiphy *wiphy);
 void wlan_hdd_cfg80211_post_voss_start(hdd_adapter_t* pAdapter);
 
 void wlan_hdd_cfg80211_pre_voss_stop(hdd_adapter_t* pAdapter);
 
+#ifdef CONFIG_ENABLE_LINUX_REG
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
+void wlan_hdd_linux_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
+#else
+int wlan_hdd_linux_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
+#endif
+#else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
 void wlan_hdd_crda_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
 #else
 int wlan_hdd_crda_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
 #endif
-int wlan_hdd_get_crda_regd_entry(struct wiphy *wiphy, hdd_config_t *pCfg);
+#endif
+
 extern v_VOID_t hdd_connSetConnectionState( hdd_station_ctx_t *pHddStaCtx,
                                         eConnectionState connState );
 VOS_STATUS wlan_hdd_validate_operation_channel(hdd_adapter_t *pAdapter,int channel);
@@ -177,8 +213,11 @@ int wlan_hdd_cfg80211_send_tdls_discover_req(struct wiphy *wiphy,
 extern void wlan_hdd_cfg80211_update_replayCounterCallback(void *callbackContext,
                             tpSirGtkOffloadGetInfoRspParams pGtkOffloadGetInfoRsp);
 #endif
-
+void* wlan_hdd_change_country_code_cb(void *pAdapter);
 void hdd_select_cbmode( hdd_adapter_t *pAdapter,v_U8_t operationChannel);
 
+
+int wlan_hdd_send_avoid_freq_event(hdd_context_t *pHddCtx,
+                                   tHddAvoidFreqList *pAvoidFreqList);
 
 #endif

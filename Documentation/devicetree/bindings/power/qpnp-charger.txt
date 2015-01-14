@@ -59,6 +59,8 @@ Parent node optional properties:
 - qcom,ibatmax-cool-ma:			Maximum cool battery charge current.
 - qcom,ibatmax-warm-ma:			Maximum warm battery charge current.
 - qcom,warm-bat-mv:			Warm temperature battery target voltage.
+- qcom,warm-bat-soc:			Warm temperature battery target soc.
+- qcom,resume_delta_soc			Battery charging resume delta after Warm temperature is reached.
 - qcom,cool-bat-mv:			Cool temperature battery target voltage.
 - qcom,tchg-mins:			Maximum total software initialized charge time.
 - qcom,bpd-detection:			Select a battery presence detection scheme by
@@ -110,6 +112,14 @@ Parent node optional properties:
                                         charge at a reduced rate.
 - qcom,step-charge-current             Reduced charge rate for High Voltage batteries
                                         which are above a certain Voltage threshold
+- qcom,step-charge-voltage              Voltage threshold for High Voltage batteries to
+                                        charge at a reduced rate.  USAGE HAS BEEN DEPRECATED STARTING MSM8974
+- qcom,step-charge-soc                  SOC threshold for High Voltage batteries to
+                                        charge at a reduced rate.
+- qcom,step-charge-current              Reduced charge rate for High Voltage batteries
+                                        which are above a certain Voltage threshold
+- qcom,ir-comp                          Indicates support for Fast charge / Turbo feature where
+                                        IR compensaton is needed.
 
 Sub node required structure:
 - A qcom,chg node must be a child of an SPMI node that has specified

@@ -154,6 +154,7 @@ typedef enum
  */
 #define IS_MCC_SUPPORTED (WDA_IsWcnssWlanReportedVersionGreaterThanOrEqual( 0, 1, 1, 0))
 #define IS_FEATURE_SUPPORTED_BY_FW(featEnumValue) (!!WDA_getFwWlanFeatCaps(featEnumValue))
+#define IS_FEATURE_SUPPORTED_BY_DRIVER(featEnumValue) (!!WDA_getHostWlanFeatCaps(featEnumValue))
 
 #ifdef WLAN_ACTIVEMODE_OFFLOAD_FEATURE
 #define IS_ACTIVEMODE_OFFLOAD_FEATURE_ENABLE ((WDA_getFwWlanFeatCaps(WLANACTIVE_OFFLOAD)) & (WDI_getHostWlanFeatCaps(WLANACTIVE_OFFLOAD)))
@@ -169,6 +170,70 @@ typedef enum
 
 /* Check if heartbeat offload is enabled */
 #define IS_IBSS_HEARTBEAT_OFFLOAD_FEATURE_ENABLE ((WDI_getHostWlanFeatCaps(IBSS_HEARTBEAT_OFFLOAD)) & (WDA_getFwWlanFeatCaps(IBSS_HEARTBEAT_OFFLOAD)))
+
+#ifdef FEATURE_WLAN_TDLS
+#define IS_ADVANCE_TDLS_ENABLE ((WDI_getHostWlanFeatCaps(ADVANCE_TDLS)) & (WDA_getFwWlanFeatCaps(ADVANCE_TDLS)))
+#else
+#define IS_ADVANCE_TDLS_ENABLE 0
+#endif
+typedef enum {
+    MODE_11A        = 0,   /* 11a Mode */
+    MODE_11G        = 1,   /* 11b/g Mode */
+    MODE_11B        = 2,   /* 11b Mode */
+    MODE_11GONLY    = 3,   /* 11g only Mode */
+    MODE_11NA_HT20   = 4,  /* 11a HT20 mode */
+    MODE_11NG_HT20   = 5,  /* 11g HT20 mode */
+    MODE_11NA_HT40   = 6,  /* 11a HT40 mode */
+    MODE_11NG_HT40   = 7,  /* 11g HT40 mode */
+    MODE_11AC_VHT20 = 8,
+    MODE_11AC_VHT40 = 9,
+    MODE_11AC_VHT80 = 10,
+//    MODE_11AC_VHT160 = 11,
+    MODE_11AC_VHT20_2G = 11,
+    MODE_11AC_VHT40_2G = 12,
+    MODE_11AC_VHT80_2G = 13,
+    MODE_UNKNOWN    = 14,
+    MODE_MAX        = 14
+} WLAN_PHY_MODE;
+
+#define WLAN_HAL_CHAN_FLAG_HT40_PLUS   6
+#define WLAN_HAL_CHAN_FLAG_PASSIVE     7
+#define WLAN_HAL_CHAN_ADHOC_ALLOWED    8
+#define WLAN_HAL_CHAN_AP_DISABLED      9
+#define WLAN_HAL_CHAN_FLAG_DFS         10
+#define WLAN_HAL_CHAN_FLAG_ALLOW_HT    11  /* HT is allowed on this channel */
+#define WLAN_HAL_CHAN_FLAG_ALLOW_VHT   12  /* VHT is allowed on this channel */
+
+#define WDA_SET_CHANNEL_FLAG(pwda_channel,flag) do { \
+        (pwda_channel)->channel_info |=  (1 << flag);      \
+     } while(0)
+
+#define WDA_SET_CHANNEL_MODE(pwda_channel,val) do { \
+     (pwda_channel)->channel_info &= 0xffffffc0;            \
+     (pwda_channel)->channel_info |= (val);                 \
+     } while(0)
+
+#define WDA_SET_CHANNEL_MAX_POWER(pwda_channel,val) do { \
+     (pwda_channel)->reg_info_1 &= 0xffff00ff;           \
+     (pwda_channel)->reg_info_1 |= ((val&0xff) << 8);    \
+     } while(0)
+
+#define WDA_SET_CHANNEL_REG_POWER(pwda_channel,val) do { \
+     (pwda_channel)->reg_info_1 &= 0xff00ffff;           \
+     (pwda_channel)->reg_info_1 |= ((val&0xff) << 16);   \
+     } while(0)
+#define WDA_SET_CHANNEL_MIN_POWER(pwlan_hal_update_channel,val) do { \
+     (pwlan_hal_update_channel)->reg_info_1 &= 0xffffff00;           \
+     (pwlan_hal_update_channel)->reg_info_1 |= (val&0xff);           \
+     } while(0)
+#define WDA_SET_CHANNEL_ANTENNA_MAX(pwlan_hal_update_channel,val) do { \
+     (pwlan_hal_update_channel)->reg_info_2 &= 0xffffff00;             \
+     (pwlan_hal_update_channel)->reg_info_2 |= (val&0xff);             \
+     } while(0)
+#define WDA_SET_CHANNEL_REG_CLASSID(pwlan_hal_update_channel,val) do { \
+     (pwlan_hal_update_channel)->reg_info_1 &= 0x00ffffff;             \
+     (pwlan_hal_update_channel)->reg_info_1 |= ((val&0xff) << 24);     \
+     } while(0)
 
 /*--------------------------------------------------------------------------
   Definitions for Data path APIs
@@ -284,6 +349,7 @@ typedef enum
 #define WDA_DS_TX_START_XMIT  WLANTL_TX_START_XMIT
 #define WDA_DS_FINISH_ULA     WLANTL_FINISH_ULA
 
+#define VOS_TO_WPAL_PKT(_vos_pkt) ((wpt_packet*)_vos_pkt)
 
 #define WDA_TX_PACKET_FREED      0X0
 
@@ -1000,6 +1066,11 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_SET_MAX_TX_POWER_REQ       SIR_HAL_SET_MAX_TX_POWER_REQ
 #define WDA_SET_MAX_TX_POWER_RSP       SIR_HAL_SET_MAX_TX_POWER_RSP
 
+#define WDA_SET_MAX_TX_POWER_PER_BAND_REQ \
+        SIR_HAL_SET_MAX_TX_POWER_PER_BAND_REQ
+#define WDA_SET_MAX_TX_POWER_PER_BAND_RSP \
+        SIR_HAL_SET_MAX_TX_POWER_PER_BAND_RSP
+
 #define WDA_SEND_MSG_COMPLETE          SIR_HAL_SEND_MSG_COMPLETE 
 
 /// PE <-> HAL Host Offload message
@@ -1061,6 +1132,7 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ    SIR_HAL_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ
 #define WDA_PACKET_COALESCING_FILTER_MATCH_COUNT_RSP    SIR_HAL_PACKET_COALESCING_FILTER_MATCH_COUNT_RSP
 #define WDA_RECEIVE_FILTER_CLEAR_FILTER_REQ             SIR_HAL_RECEIVE_FILTER_CLEAR_FILTER_REQ   
+#define WDA_RECEIVE_FILTER_SET_FILTER_MC_REQ            SIR_HAL_RECEIVE_FILTER_SET_FILTER_MC_REQ // IKJB42MAIN-1244, Motorola, a19091
 #endif // WLAN_FEATURE_PACKET_FILTERING
 
 #define WDA_SET_POWER_PARAMS_REQ   SIR_HAL_SET_POWER_PARAMS_REQ
@@ -1100,9 +1172,17 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_ADD_PERIODIC_TX_PTRN_IND    SIR_HAL_ADD_PERIODIC_TX_PTRN_IND
 #define WDA_DEL_PERIODIC_TX_PTRN_IND    SIR_HAL_DEL_PERIODIC_TX_PTRN_IND
 
+#ifdef FEATURE_WLAN_BATCH_SCAN
+#define WDA_SET_BATCH_SCAN_REQ            SIR_HAL_SET_BATCH_SCAN_REQ
+#define WDA_SET_BATCH_SCAN_RSP            SIR_HAL_SET_BATCH_SCAN_RSP
+#define WDA_STOP_BATCH_SCAN_IND           SIR_HAL_STOP_BATCH_SCAN_IND
+#define WDA_TRIGGER_BATCH_SCAN_RESULT_IND SIR_HAL_TRIGGER_BATCH_SCAN_RESULT_IND
+#endif
+
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
 
-eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId);
+eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId,
+                                               tAniBool sendRegHint);
 
 #define HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME 0x40 // Bit 6 will be used to control BD rate for Management frames
 
@@ -1851,9 +1931,10 @@ tANI_U8 WDA_getFwWlanFeatCaps(tANI_U8 featEnumValue);
   PARAMETERS
     pMac : upper MAC context pointer
     displaySnapshot : Display DXE snapshot option
-    enableStallDetect : Enable stall detect feature
-                        This feature will take effect to data performance
-                        Not integrate till fully verification
+    debugFlags      : Enable stall detect features
+                      defined by WPAL_DeviceDebugFlags
+                      These features may effect
+                      data performance.
 
   RETURN VALUE
     NONE
@@ -1863,7 +1944,7 @@ void WDA_TransportChannelDebug
 (
   tpAniSirGlobal pMac,
   v_BOOL_t       displaySnapshot,
-  v_BOOL_t       toggleStallDetect
+  v_U8_t         debugFlags
 );
 
 /*==========================================================================

@@ -110,7 +110,7 @@
 
 
 /// Start of Sirius/Host message types
-#define WNI_HOST_MSG_START             0x1400
+#define WNI_HOST_MSG_START             0x1500
 
 enum eWniMsgTypes
 {
@@ -322,6 +322,7 @@ enum eWniMsgTypes
     eWNI_SME_TX_PER_HIT_IND,
 
     eWNI_SME_CHANGE_COUNTRY_CODE,
+    eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE,
     eWNI_SME_PRE_SWITCH_CHL_IND,
     eWNI_SME_POST_SWITCH_CHL_IND,
 
@@ -371,6 +372,7 @@ enum eWniMsgTypes
     eWNI_SME_DELETE_TDLS_PEER_IND,    
 #endif
     eWNI_SME_SET_BCN_FILTER_REQ,
+    eWNI_SME_SET_V6_MC_FILTER, // IKJB42MAIN-1244, Motorola, a19091
     eWNI_SME_RESET_AP_CAPS_CHANGED,
 #ifdef WLAN_FEATURE_11W
     eWNI_SME_UNPROT_MGMT_FRM_IND,
@@ -384,10 +386,18 @@ enum eWniMsgTypes
 #ifdef FEATURE_WLAN_LPHB
     eWNI_SME_LPHB_WAIT_TIMEOUT_IND,
 #endif /* FEATURE_WLAN_LPHB */
+
+    eWNI_SME_GET_TSM_STATS_REQ,
+    eWNI_SME_GET_TSM_STATS_RSP,
+    eWNI_SME_TSM_IE_IND,
+
+#ifdef FEATURE_WLAN_CH_AVOID
+   eWNI_SME_CH_AVOID_IND,
+#endif /* FEATURE_WLAN_CH_AVOID */
     eWNI_SME_MSG_TYPES_END
 };
 
-#define WNI_CFG_MSG_TYPES_BEGIN        0x1100
+#define WNI_CFG_MSG_TYPES_BEGIN        0x1200
 
 /*---------------------------------------------------------------------*/
 /* CFG Module Definitions                                              */

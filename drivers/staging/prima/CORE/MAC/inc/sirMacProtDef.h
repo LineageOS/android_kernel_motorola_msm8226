@@ -176,17 +176,20 @@
 #define SIR_MAC_ACTION_DLP             2
 #define SIR_MAC_ACTION_BLKACK          3
 #define SIR_MAC_ACTION_PUBLIC_USAGE    4
-#if defined WLAN_FEATURE_VOWIFI
 #define SIR_MAC_ACTION_RRM             5
-#endif
+#define SIR_MAC_ACTION_FAST_BSS_TRNST  6
 #define SIR_MAC_ACTION_HT              7
-#ifdef FEATURE_WLAN_TDLS
+#define SIR_MAC_ACTION_SA_QUERY        8
+#define SIR_MAC_ACTION_PROT_DUAL_PUB   9
+#define SIR_MAC_ACTION_WNM            10
+#define SIR_MAC_ACTION_UNPROT_WNM     11
 #define SIR_MAC_ACTION_TDLS           12
-#endif
+#define SIR_MAC_ACITON_MESH           13
+#define SIR_MAC_ACTION_MULTIHOP       14
+#define SIR_MAC_SELF_PROTECTED        15
 #define SIR_MAC_ACTION_WME            17
-#ifdef WLAN_FEATURE_11AC
 #define SIR_MAC_ACTION_VHT            21
-#endif
+
 
 // QoS management action codes
 
@@ -262,7 +265,6 @@
 
 #ifdef WLAN_FEATURE_11W
 //11w SA query request/response action frame category code
-#define SIR_MAC_ACTION_SA_QUERY          8
 #define SIR_MAC_SA_QUERY_REQ             0
 #define SIR_MAC_SA_QUERY_RSP             1
 #endif
@@ -394,7 +396,11 @@
 #define SIR_MAC_EXTENDED_RATE_EID      50
 #define SIR_MAC_EXTENDED_RATE_EID_MIN      0
 #define SIR_MAC_EXTENDED_RATE_EID_MAX      255
-// reserved       51-220
+// reserved       51-69
+#define SIR_MAC_RM_ENABLED_CAPABILITY_EID      70
+#define SIR_MAC_RM_ENABLED_CAPABILITY_EID_MIN  5
+#define SIR_MAC_RM_ENABLED_CAPABILITY_EID_MAX  5
+// reserved       71-220
 #define SIR_MAC_WPA_EID                221
 #define SIR_MAC_WPA_EID_MIN                0
 #define SIR_MAC_WPA_EID_MAX                255
@@ -456,6 +462,9 @@
 #define SIR_MAX_NOA_ATTR_LEN        31
 #define SIR_MAX_NOA_DESCR           2
 #define SIR_P2P_IE_HEADER_LEN       6
+
+#define SIR_MAC_CISCO_OUI "\x00\x40\x96"
+#define SIR_MAC_CISCO_OUI_SIZE 3
 
 // min size of wme oui header: oui(3) + type + subtype + version
 #define SIR_MAC_OUI_WME_HDR_MIN       6
@@ -631,6 +640,9 @@
 // bitname must be one of the above, eg ESS, CF_POLLABLE, etc.
 #define SIR_MAC_CLEAR_CAPABILITY(u16value, bitname) \
   ((u16value) &= (~(SIR_MAC_SET_##bitname(0))))
+
+#define IS_WES_MODE_ENABLED(x) \
+                    ((x)->roam.configParam.isWESModeEnabled)
 
 #define BA_RECIPIENT       1
 #define BA_INITIATOR       2
@@ -1080,6 +1092,86 @@ typedef __ani_attr_pre_packed struct sSirMacWpaInfo
     tANI_U8        length;
     tANI_U8        info[SIR_MAC_MAX_IE_LENGTH];
 } __ani_attr_packed tSirMacWpaInfo, *tpSirMacWpaInfo, tSirMacRsnInfo, *tpSirMacRsnInfo;
+
+typedef __ani_attr_pre_packed struct sSirMacFHParamSet
+{
+    tANI_U16     dwellTime;
+    tANI_U8      hopSet;
+    tANI_U8      hopPattern;
+    tANI_U8      hopIndex;
+} tSirMacFHParamSet, *tpSirMacFHParamSet;
+
+typedef __ani_attr_pre_packed struct sSirMacIBSSParams
+{
+    tANI_U16     atim;
+} tSirMacIBSSParams, *tpSirMacIBSSParams;
+
+typedef __ani_attr_pre_packed struct sSirMacRRMEnabledCap
+{
+#ifndef ANI_LITTLE_BIT_ENDIAN
+    tANI_U8                reserved: 6;
+    tANI_U8      AntennaInformation: 1;
+    tANI_U8       BSSAvailAdmission: 1;
+    tANI_U8       BssAvgAccessDelay: 1;
+    tANI_U8         RSNIMeasurement: 1;
+    tANI_U8         RCPIMeasurement: 1;
+    tANI_U8       NeighborTSFOffset: 1;
+    tANI_U8 MeasurementPilotEnabled: 1;
+    tANI_U8        MeasurementPilot: 3;
+    tANI_U8      nonOperatinChanMax: 3;
+    tANI_U8        operatingChanMax: 3;
+    tANI_U8           RRMMIBEnabled: 1;
+    tANI_U8            APChanReport: 1;
+    tANI_U8            triggeredTCM: 1;
+    tANI_U8           TCMCapability: 1;
+    tANI_U8              LCIAzimuth: 1;
+    tANI_U8          LCIMeasurement: 1;
+    tANI_U8              statistics: 1;
+    tANI_U8          NoiseHistogram: 1;
+    tANI_U8             ChannelLoad: 1;
+    tANI_U8        FrameMeasurement: 1;
+    tANI_U8           BeaconRepCond: 1;
+    tANI_U8             BeaconTable: 1;
+    tANI_U8            BeaconActive: 1;
+    tANI_U8           BeaconPassive: 1;
+    tANI_U8                repeated: 1;
+    tANI_U8                parallel: 1;
+    tANI_U8             NeighborRpt: 1;
+    tANI_U8         LinkMeasurement: 1;
+    tANI_U8                    present;
+#else
+    tANI_U8                    present;
+    tANI_U8         LinkMeasurement: 1;
+    tANI_U8             NeighborRpt: 1;
+    tANI_U8                parallel: 1;
+    tANI_U8                repeated: 1;
+    tANI_U8           BeaconPassive: 1;
+    tANI_U8            BeaconActive: 1;
+    tANI_U8             BeaconTable: 1;
+    tANI_U8           BeaconRepCond: 1;
+    tANI_U8        FrameMeasurement: 1;
+    tANI_U8             ChannelLoad: 1;
+    tANI_U8          NoiseHistogram: 1;
+    tANI_U8              statistics: 1;
+    tANI_U8          LCIMeasurement: 1;
+    tANI_U8              LCIAzimuth: 1;
+    tANI_U8           TCMCapability: 1;
+    tANI_U8            triggeredTCM: 1;
+    tANI_U8            APChanReport: 1;
+    tANI_U8           RRMMIBEnabled: 1;
+    tANI_U8        operatingChanMax: 3;
+    tANI_U8      nonOperatinChanMax: 3;
+    tANI_U8        MeasurementPilot: 3;
+    tANI_U8 MeasurementPilotEnabled: 1;
+    tANI_U8       NeighborTSFOffset: 1;
+    tANI_U8         RCPIMeasurement: 1;
+    tANI_U8         RSNIMeasurement: 1;
+    tANI_U8       BssAvgAccessDelay: 1;
+    tANI_U8       BSSAvailAdmission: 1;
+    tANI_U8      AntennaInformation: 1;
+    tANI_U8                reserved: 6;
+#endif
+} tSirMacRRMEnabledCap, *tpSirMacRRMEnabledCap;
 
 
 /* ----------------

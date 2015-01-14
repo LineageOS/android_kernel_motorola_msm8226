@@ -268,6 +268,16 @@ void ConvertCFParams(tpAniSirGlobal     pMac,
     pOld->cfpDurRemaining = pNew->cfp_durremaining;
 }
 
+void ConvertFHParams (tpAniSirGlobal        pMac,
+                      tSirMacFHParamSet    *pOld,
+                      tDot11fIEFHParamSet  *pNew)
+{
+    pOld->dwellTime   = pNew->dwell_time;
+    pOld->hopSet      = pNew->hop_set;
+    pOld->hopPattern  = pNew->hop_pattern;
+    pOld->hopIndex    = pNew->hop_index;
+}
+
 void ConvertTIM(tpAniSirGlobal pMac,
                       tSirMacTim    *pOld,
                       tDot11fIETIM     *pNew)
@@ -494,7 +504,7 @@ void ConvertWMMTSPEC(tpAniSirGlobal     pMac,
     pOld->tsinfo.traffic.psb          = (tANI_U16)pNew->psb;
     pOld->tsinfo.traffic.userPrio     = (tANI_U16)pNew->user_priority;
     pOld->tsinfo.traffic.ackPolicy    = (tANI_U16)pNew->tsinfo_ack_pol;
-    pOld->nomMsduSz                   = pNew->size;
+    pOld->nomMsduSz                   = (pNew->fixed << 15) | pNew->size;
     pOld->maxMsduSz                   = pNew->max_msdu_size;
     pOld->minSvcInterval              = pNew->min_service_int;
     pOld->maxSvcInterval              = pNew->max_service_int;

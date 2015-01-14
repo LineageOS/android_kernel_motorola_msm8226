@@ -48,6 +48,7 @@
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
 		qcom,mdss-dsi-cont-splash-skip-ov-handoff;
+		qcom,splash-no-solid-fill;
 
 		qcom,mdss-dsi-on-command = [
 			29 01 00 00 78 00 02 11 00      /* exit sleep */

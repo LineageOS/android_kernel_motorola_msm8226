@@ -322,6 +322,9 @@ typedef struct
 
   /* Min Threshold for Processing Frames in TL */
   v_U8_t   uMinFramesProcThres;
+
+  /* Re-order Aging Time */
+  v_U16_t  ucReorderAgingTime[WLANTL_MAX_AC];
 }WLANTL_ConfigInfoType;
 
 /*---------------------------------------------------------------------------
@@ -427,9 +430,6 @@ typedef struct
 
   /* STA has more packets to send */
   v_BOOL_t  bMorePackets;
-
-  /* notifying TL if this is an ARP frame or not */
-  v_U8_t    ucIsArp;
 }WLANTL_MetaInfoType;
 
 /*---------------------------------------------------------------------------

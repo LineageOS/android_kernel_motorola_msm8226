@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -64,10 +64,10 @@
 #include "smeQosInternal.h"
 #include "wlan_qct_wda.h"
 
-#ifdef FEATURE_WLAN_CCX
+#if defined(FEATURE_WLAN_CCX) && !defined(FEATURE_WLAN_CCX_UPLOAD)
 #include "vos_utils.h"
 #include "csrCcx.h"
-#endif /* FEATURE_WLAN_CCX */
+#endif /* FEATURE_WLAN_CCX && !FEATURE_WLAN_CCX_UPLOAD*/
 
 tANI_U8 csrWpaOui[][ CSR_WPA_OUI_SIZE ] = {
     { 0x00, 0x50, 0xf2, 0x00 },
@@ -1540,6 +1540,7 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
     tCsrRoamSession *pSession = NULL;
     tANI_U32 countP2pCli = 0;
     tANI_U32 countP2pGo = 0;
+    tANI_U32 countSAP = 0;
 
     for( i = 0; i < CSR_ROAM_SESSION_MAX; i++ )
     {
@@ -1556,6 +1557,10 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
                 if (pSession->pCurRoamProfile->csrPersona == VOS_P2P_GO_MODE) {
                     countP2pGo++;
                 }
+
+                if (pSession->pCurRoamProfile->csrPersona == VOS_STA_SAP_MODE) {
+                    countSAP++;
+                }
             }
         }
     }
@@ -1564,7 +1569,7 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
      * - at least one P2P CLI session is connected
      * - at least one P2P GO session is connected
      */
-    if ( (countP2pCli > 0) || (countP2pGo > 0 ) ) {
+    if ( (countP2pCli > 0) || (countP2pGo > 0 ) || (countSAP > 0 ) ) {
         fRc = eANI_BOOLEAN_TRUE;
     }
 
@@ -2910,6 +2915,16 @@ tANI_U16 csrCalculateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U16 sta_bi, tAN
     else
        go_cbi = 100 + (go_gbi % 100);
 
+      if ( sta_bi == 0 )
+    {
+        /* There is possibility to receive zero as value.
+           Which will cause divide by zero. Hence initialise with 100
+        */
+        sta_bi =  100;
+        smsLog(pMac, LOGW,
+            FL("sta_bi 2nd parameter is zero, initialise to %d"), sta_bi);
+    }
+
     // check, if either one is multiple of another
     if (sta_bi > go_cbi)
     {
@@ -3087,6 +3102,14 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                             continue;
                         }
 
+                        //Assert if connected profile beacon internal is ZERO
+                        if(!pMac->roam.roamSession[sessionId].\
+                            connectedProfile.beaconInterval)
+                        {
+                            smsLog( pMac, LOGE, FL(" Connected profile "
+                                "beacon interval is zero") );
+                        }
+
                             
                         if (csrIsConnStateConnectedInfra(pMac, sessionId) &&
                            (pMac->roam.roamSession[sessionId].connectedProfile.operationChannel
@@ -3111,7 +3134,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                 break;
 
                 default :
-                    smsLog(pMac, LOG1, FL(" Persona not supported : %d"),currBssPersona);
+                    smsLog(pMac, LOGE, FL(" Persona not supported : %d"),currBssPersona);
                     return eHAL_STATUS_FAILURE;
             }
         }
@@ -3694,10 +3717,8 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
             Capabilities->NoPairwise = (pRSNIe->RSN_Cap[0] >> 1) & 0x1 ; // Bit 1 No Pairwise
             Capabilities->PTKSAReplayCounter = (pRSNIe->RSN_Cap[0] >> 2) & 0x3 ; // Bit 2, 3 PTKSA Replay Counter
             Capabilities->GTKSAReplayCounter = (pRSNIe->RSN_Cap[0] >> 4) & 0x3 ; // Bit 4, 5 GTKSA Replay Counter
-#ifdef WLAN_FEATURE_11W
             Capabilities->MFPRequired = (pRSNIe->RSN_Cap[0] >> 6) & 0x1 ; // Bit 6 MFPR
             Capabilities->MFPCapable = (pRSNIe->RSN_Cap[0] >> 7) & 0x1 ; // Bit 7 MFPC
-#endif
             Capabilities->Reserved = pRSNIe->RSN_Cap[1]  & 0xff ; // remaining reserved
         }
     }
@@ -3743,8 +3764,8 @@ tANI_BOOLEAN csrLookupPMKID( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U8 *p
     {
         for( Index=0; Index < pSession->NumPmkidCache; Index++ )
         {
-            smsLog(pMac, LOGW, "match PMKID %02X-%02X-%02X-%02X-%02X-%02X to ",
-                pBSSId[0], pBSSId[1], pBSSId[2], pBSSId[3], pBSSId[4], pBSSId[5]);
+            smsLog(pMac, LOGW, "match PMKID "MAC_ADDRESS_STR " to ",
+                   MAC_ADDR_ARRAY(pBSSId));
             if( palEqualMemory( pMac->hHdd, pBSSId, pSession->PmkidCacheInfo[Index].BSSID, sizeof(tCsrBssid) ) )
             {
                 // match found
@@ -4028,8 +4049,8 @@ tANI_BOOLEAN csrLookupBKID( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U8 *pB
     {
         for( Index=0; Index < pSession->NumBkidCache; Index++ )
         {
-            smsLog(pMac, LOGW, "match BKID %02X-%02X-%02X-%02X-%02X-%02X to ",
-                pBSSId[0], pBSSId[1], pBSSId[2], pBSSId[3], pBSSId[4], pBSSId[5]);
+            smsLog(pMac, LOGW, "match BKID "MAC_ADDRESS_STR" to ",
+                   MAC_ADDR_ARRAY(pBSSId));
             if( palEqualMemory( pMac->hHdd, pBSSId, pSession->BkidCacheInfo[Index].BSSID, sizeof(tCsrBssid) ) )
             {
                 // match found
@@ -5900,7 +5921,7 @@ tSirResultCodes csrGetDeAuthRspStatusCode( tSirSmeDeauthRsp *pSmeRsp )
     tANI_U8 *pBuffer = (tANI_U8 *)pSmeRsp;
     tANI_U32 ret;
 
-    pBuffer += (sizeof(tANI_U16) + sizeof(tANI_U16) + sizeof(tSirMacAddr));
+    pBuffer += (sizeof(tANI_U16) + sizeof(tANI_U16) + sizeof(tANI_U8) + sizeof(tANI_U16));
     //tSirResultCodes is an enum, assuming is 32bit
     //If we cannot make this assumption, use copymemory
     pal_get_U32( pBuffer, &ret );
@@ -6106,7 +6127,13 @@ v_REGDOMAIN_t csrGetCurrentRegulatoryDomain(tpAniSirGlobal pMac)
 }
 
 
-eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac, tANI_U8 *pCountry, v_REGDOMAIN_t *pDomainId)
+eHalStatus csrGetRegulatoryDomainForCountry
+(
+tpAniSirGlobal pMac,
+tANI_U8 *pCountry,
+v_REGDOMAIN_t *pDomainId,
+v_CountryInfoSource_t source
+)
 {
     eHalStatus status = eHAL_STATUS_INVALID_PARAMETER;
     VOS_STATUS vosStatus;
@@ -6117,7 +6144,10 @@ eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac, tANI_U8 *pCount
     {
         countryCode[0] = pCountry[0];
         countryCode[1] = pCountry[1];
-        vosStatus = vos_nv_getRegDomainFromCountryCode( &domainId, countryCode );
+        vosStatus = vos_nv_getRegDomainFromCountryCode(&domainId,
+                                                       countryCode,
+                                                       source);
+
         if( VOS_IS_STATUS_SUCCESS(vosStatus) )
         {
             if( pDomainId )
@@ -6128,7 +6158,7 @@ eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac, tANI_U8 *pCount
         }
         else
         {
-            smsLog(pMac, LOGW, FL("  doesn't match country %c%c"), pCountry[0], pCountry[1]);
+            smsLog(pMac, LOGW, FL(" Couldn't find domain for country code  %c%c"), pCountry[0], pCountry[1]);
             status = eHAL_STATUS_INVALID_PARAMETER;
         }
     }
@@ -6165,10 +6195,15 @@ tANI_BOOLEAN csrMatchCountryCode( tpAniSirGlobal pMac, tANI_U8 *pCountry, tDot11
             //Make sure this country is recognizable
             if( pIes->Country.present )
             {
-                status = csrGetRegulatoryDomainForCountry( pMac, pIes->Country.country, &domainId );
+                status = csrGetRegulatoryDomainForCountry(pMac,
+                                           pIes->Country.country,
+                                           &domainId, COUNTRY_QUERY);
                 if( !HAL_STATUS_SUCCESS( status ) )
                 {
-                     status = csrGetRegulatoryDomainForCountry( pMac, pMac->scan.countryCode11d,(v_REGDOMAIN_t *) &domainId );
+                     status = csrGetRegulatoryDomainForCountry(pMac,
+                                                 pMac->scan.countryCode11d,
+                                                 (v_REGDOMAIN_t *) &domainId,
+                                                 COUNTRY_QUERY);
                      if( !HAL_STATUS_SUCCESS( status ) )
                      {
                            fRet = eANI_BOOLEAN_FALSE;

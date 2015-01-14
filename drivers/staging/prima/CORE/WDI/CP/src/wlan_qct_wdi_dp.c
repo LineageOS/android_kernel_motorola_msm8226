@@ -399,6 +399,7 @@ WDI_FillTxBd
     wpt_uint8              ucTxFlag, 
     wpt_uint8              ucProtMgmtFrame,
     wpt_uint32             uTimeStamp,
+    wpt_uint8              isEapol,
     wpt_uint8*             staIndex
 )
 {
@@ -551,12 +552,6 @@ WDI_FillTxBd
            pBd->bdRate = WDI_BDRATE_CTRL_FRAME;
         }
 #endif
-        if(ucTxFlag & WDI_USE_BD_RATE_MASK)
-        {
-            pBd->bdRate = WDI_BDRATE_BCDATA_FRAME;
-            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "arp: %s",__func__);
-        }
-
         pBd->rmf    = WDI_RMF_DISABLED;     
 
         /* sanity: Might already be set by caller, but enforce it here again */
@@ -617,16 +612,23 @@ WDI_FillTxBd
          * Sanity: Force HW frame translation OFF for mgmt frames.
          --------------------------------------------------------------------*/
          /* apply to both ucast/mcast mgmt frames */
-         if (useStaRateForBcastFrames)
-         {
-             pBd->bdRate = (ucUnicastDst)? WDI_BDRATE_BCMGMT_FRAME : WDI_TXBD_BDRATE_DEFAULT; 
-         }
-         else
+         /* Probe requests are sent using BD rate */
+         if( ucSubType ==  WDI_MAC_MGMT_PROBE_REQ )
          {
              pBd->bdRate = WDI_BDRATE_BCMGMT_FRAME;
          }
-
-         if ( ucTxFlag & WDI_USE_BD_RATE2_FOR_MANAGEMENT_FRAME) 
+         else
+         {
+             if (useStaRateForBcastFrames)
+             {
+                 pBd->bdRate = (ucUnicastDst)? WDI_BDRATE_BCMGMT_FRAME : WDI_TXBD_BDRATE_DEFAULT;
+             }
+             else
+             {
+                 pBd->bdRate = WDI_BDRATE_BCMGMT_FRAME;
+             }
+         }
+         if ( ucTxFlag & WDI_USE_BD_RATE2_FOR_MANAGEMENT_FRAME)
          {
            pBd->bdRate = WDI_BDRATE_CTRL_FRAME;
          }
@@ -921,7 +923,7 @@ WDI_FillTxBd
 #ifdef FEATURE_WLAN_TDLS
                   (ucSTAType == WDI_STA_ENTRY_TDLS_PEER ) &&
 #endif
-                  (ucTxFlag & WDI_TRIGGER_ENABLED_AC_MASK)))
+                  (ucTxFlag & WDI_TRIGGER_ENABLED_AC_MASK)) || isEapol)
        {
            pBd->dpuRF = BMUWQ_FW_DPU_TX;
        }

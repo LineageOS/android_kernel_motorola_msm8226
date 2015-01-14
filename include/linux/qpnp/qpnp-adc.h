@@ -20,6 +20,7 @@
 
 #include <linux/kernel.h>
 #include <linux/list.h>
+#include <linux/qpnp-revid.h>
 /**
  * enum qpnp_vadc_channels - QPNP AMUX arbiter channels
  */
@@ -1001,14 +1002,22 @@ struct qpnp_adc_drv {
  * @chan_prop - Represent the channel properties of the ADC.
  */
 struct qpnp_adc_amux_properties {
-	uint32_t			amux_channel;
-	uint32_t			decimation;
-	uint32_t			mode_sel;
-	uint32_t			hw_settle_time;
-	uint32_t			fast_avg_setup;
-	enum qpnp_vadc_trigger		trigger_channel;
+	uint32_t				amux_channel;
+	uint32_t				decimation;
+	uint32_t				mode_sel;
+	uint32_t				hw_settle_time;
+	uint32_t				fast_avg_setup;
+	enum qpnp_vadc_trigger			trigger_channel;
 	struct qpnp_vadc_chan_properties	chan_prop[0];
 };
+
+/* SW index's for PMIC type and version used by QPNP VADC and IADC */
+#define QPNP_REV_ID_8941_3_1	1
+#define QPNP_REV_ID_8026_1_0	2
+#define QPNP_REV_ID_8026_2_0	3
+#define QPNP_REV_ID_8110_1_0	4
+#define QPNP_REV_ID_8026_2_1	5
+#define QPNP_REV_ID_8110_2_0	6
 
 /* Public API */
 #if defined(CONFIG_SENSORS_QPNP_ADC_VOLTAGE)				\
@@ -1023,6 +1032,21 @@ struct qpnp_adc_amux_properties {
 int32_t qpnp_vadc_read(struct qpnp_vadc_chip *dev,
 				enum qpnp_vadc_channels channel,
 				struct qpnp_vadc_result *result);
+
+/**
+ * Same as qpnp_vadc_read() while can be called in suspend op
+ */
+int32_t qpnp_vadc_read_pmsafe(struct qpnp_vadc_chip *vadc,
+				enum qpnp_vadc_channels channel,
+				struct qpnp_vadc_result *result);
+
+/**
+ * Same as qpnp_vadc_read() while can be called in suspend op if pmsafe is 1
+ */
+int32_t qpnp_vadc_read_base(struct qpnp_vadc_chip *vadc,
+				enum qpnp_vadc_channels channel,
+				struct qpnp_vadc_result *result,
+				int pmsafe);
 
 /**
  * qpnp_vadc_conv_seq_request() - Performs ADC read on the conversion
@@ -1374,11 +1398,22 @@ int32_t qpnp_vadc_iadc_sync_complete_request(struct qpnp_vadc_chip *dev,
  * qpnp_vadc_sns_comp_result() - Compensate vbatt readings based on temperature
  * @dev:	Structure device for qpnp vadc
  * @result:	Voltage in uV that needs compensation.
+ * @is_pon_ocv: Whether the reading is from a power on OCV or not
  */
 int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *dev,
-						int64_t *result);
+					int64_t *result, bool is_pon_ocv);
+/**
+ * qpnp_adc_get_revid_version() - Obtain the PMIC number and revision.
+ * @dev:	Structure device node.
+ * returns internal mapped PMIC number and revision id.
+ */
+int qpnp_adc_get_revid_version(struct device *dev);
 #else
 static inline int32_t qpnp_vadc_read(struct qpnp_vadc_chip *dev,
+				uint32_t channel,
+				struct qpnp_vadc_result *result)
+{ return -ENXIO; }
+static inline int32_t qpnp_vadc_read_pmsafe(struct qpnp_vadc_chip *dev,
 				uint32_t channel,
 				struct qpnp_vadc_result *result)
 { return -ENXIO; }
@@ -1490,6 +1525,8 @@ static inline int32_t qpnp_vadc_iadc_sync_complete_request(
 static inline int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *dev,
 						int64_t *result)
 { return -ENXIO; }
+static inline int qpnp_adc_get_revid_version(struct device *dev)
+{ return -ENXIO; }
 #endif
 
 /* Public API */
@@ -1525,6 +1562,12 @@ int32_t qpnp_iadc_get_rsense(struct qpnp_iadc_chip *dev, int32_t *rsense);
  */
 int32_t qpnp_iadc_get_gain_and_offset(struct qpnp_iadc_chip *dev,
 					struct qpnp_iadc_calib *result);
+/**
+ * Same as qpnp_iadc_get_gain_and_offset() while can be called in suspend op
+ */
+int32_t qpnp_iadc_get_gain_and_offset_pmsafe(struct qpnp_iadc_chip *dev,
+					struct qpnp_iadc_calib *result);
+
 /**
  * qpnp_get_iadc() - Clients need to register with the iadc with the
  *		corresponding device instance it wants to read the channels.
@@ -1598,6 +1641,9 @@ static inline int32_t qpnp_iadc_get_rsense(struct qpnp_iadc_chip *iadc,
 { return -ENXIO; }
 static inline int32_t qpnp_iadc_get_gain_and_offset(struct qpnp_iadc_chip *iadc,
 				struct qpnp_iadc_calib *result)
+{ return -ENXIO; }
+static inline int32_t qpnp_iadc_get_gain_and_offset_pmsafe(
+	struct qpnp_iadc_chip *iadc, struct qpnp_iadc_calib *result)
 { return -ENXIO; }
 static inline struct qpnp_iadc_chip *qpnp_get_iadc(struct device *dev,
 							const char *name)

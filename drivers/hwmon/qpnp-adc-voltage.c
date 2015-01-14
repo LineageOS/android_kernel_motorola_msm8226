@@ -512,48 +512,40 @@ static int32_t qpnp_vadc_version_check(struct qpnp_vadc_chip *dev)
 #define QPNP_VBAT_COEFF_13	102640000
 #define QPNP_VBAT_COEFF_14	22220000
 #define QPNP_VBAT_COEFF_15	83060000
-
-#define QPNP_VADC_REV_ID_8941_3_1	1
-#define QPNP_VADC_REV_ID_8026_1_0	2
-#define QPNP_VADC_REV_ID_8026_2_0	3
-
-static void qpnp_temp_comp_version_check(struct qpnp_vadc_chip *vadc,
-							int32_t *version)
-{
-	if (vadc->revision_dig_major == 3 &&
-			vadc->revision_ana_minor == 2)
-		*version = QPNP_VADC_REV_ID_8941_3_1;
-	else if (vadc->revision_dig_major == 1 &&
-			vadc->revision_ana_minor == 2)
-		*version = QPNP_VADC_REV_ID_8026_1_0;
-	else if (vadc->revision_dig_major == 2 &&
-			vadc->revision_ana_minor == 2)
-		*version = QPNP_VADC_REV_ID_8026_2_0;
-	else
-		*version = -EINVAL;
-
-	return;
-}
+#define QPNP_VBAT_COEFF_16	2810
+#define QPNP_VBAT_COEFF_17	5260
+#define QPNP_VBAT_COEFF_18	8027
+#define QPNP_VBAT_COEFF_19	2347
+#define QPNP_VBAT_COEFF_20	6043
+#define QPNP_VBAT_COEFF_21	1914
+#define QPNP_VBAT_OFFSET_SMIC	9446
+#define QPNP_VBAT_OFFSET_GF	9441
+#define QPNP_OCV_OFFSET_SMIC	4596
+#define QPNP_OCV_OFFSET_GF	5896
 
 static int32_t qpnp_ocv_comp(int64_t *result,
 			struct qpnp_vadc_chip *vadc, int64_t die_temp)
 {
 	int64_t temp_var = 0;
 	int64_t old = *result;
-	int32_t version;
+	int version;
 
-	qpnp_temp_comp_version_check(vadc, &version);
+	version = qpnp_adc_get_revid_version(vadc->dev);
 	if (version == -EINVAL)
 		return 0;
 
-	if (die_temp < 25000)
-		return 0;
-
-	if (die_temp > 60000)
-		die_temp = 60000;
+	if (version == QPNP_REV_ID_8110_2_0) {
+		if (die_temp < -20000)
+			die_temp = -20000;
+	} else {
+		if (die_temp < 25000)
+			return 0;
+		if (die_temp > 60000)
+			die_temp = 60000;
+	}
 
 	switch (version) {
-	case QPNP_VADC_REV_ID_8941_3_1:
+	case QPNP_REV_ID_8941_3_1:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
 			temp_var = (((die_temp *
@@ -568,7 +560,7 @@ static int32_t qpnp_ocv_comp(int64_t *result,
 			break;
 		}
 		break;
-	case QPNP_VADC_REV_ID_8026_1_0:
+	case QPNP_REV_ID_8026_1_0:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
 			temp_var = (((die_temp *
@@ -583,16 +575,41 @@ static int32_t qpnp_ocv_comp(int64_t *result,
 			break;
 		}
 		break;
-	case QPNP_VADC_REV_ID_8026_2_0:
+	case QPNP_REV_ID_8026_2_0:
+	case QPNP_REV_ID_8026_2_1:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
-			temp_var = ((die_temp - 2500) *
+			temp_var = ((die_temp - 25000) *
 			(-QPNP_VBAT_COEFF_10));
 			break;
 		default:
 		case COMP_ID_GF:
-			temp_var = ((die_temp - 2500) *
+			temp_var = ((die_temp - 25000) *
 			(-QPNP_VBAT_COEFF_8));
+			break;
+		}
+		break;
+	case QPNP_REV_ID_8110_2_0:
+		switch (vadc->id) {
+		case COMP_ID_SMIC:
+			*result -= QPNP_OCV_OFFSET_SMIC;
+			if (die_temp < 25000)
+				temp_var = QPNP_VBAT_COEFF_18;
+			else
+				temp_var = QPNP_VBAT_COEFF_19;
+			temp_var = (die_temp - 25000) * temp_var;
+			break;
+		case COMP_ID_TSMC:
+			pr_debug("No TSMC Comp Info, exiting\n");
+			return 0;
+		default:
+		case COMP_ID_GF:
+			*result -= QPNP_OCV_OFFSET_GF;
+			if (die_temp < 25000)
+				temp_var = QPNP_VBAT_COEFF_20;
+			else
+				temp_var = QPNP_VBAT_COEFF_21;
+			temp_var = (die_temp - 25000) * temp_var;
 			break;
 		}
 		break;
@@ -618,21 +635,25 @@ static int32_t qpnp_vbat_sns_comp(int64_t *result,
 {
 	int64_t temp_var = 0;
 	int64_t old = *result;
-	int32_t version;
+	int version;
 
-	qpnp_temp_comp_version_check(vadc, &version);
+	version = qpnp_adc_get_revid_version(vadc->dev);
 	if (version == -EINVAL)
 		return 0;
 
-	if (die_temp < 25000)
-		return 0;
-
-	/* min(die_temp_c, 60_degC) */
-	if (die_temp > 60000)
-		die_temp = 60000;
+	if (version == QPNP_REV_ID_8110_2_0) {
+		if (die_temp < -20000)
+			die_temp = -20000;
+	} else {
+		if (die_temp < 25000)
+			return 0;
+		/* min(die_temp_c, 60_degC) */
+		if (die_temp > 60000)
+			die_temp = 60000;
+	}
 
 	switch (version) {
-	case QPNP_VADC_REV_ID_8941_3_1:
+	case QPNP_REV_ID_8941_3_1:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
 			temp_var = (die_temp *
@@ -646,7 +667,7 @@ static int32_t qpnp_vbat_sns_comp(int64_t *result,
 			break;
 		}
 		break;
-	case QPNP_VADC_REV_ID_8026_1_0:
+	case QPNP_REV_ID_8026_1_0:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
 			temp_var = (((die_temp *
@@ -661,16 +682,35 @@ static int32_t qpnp_vbat_sns_comp(int64_t *result,
 			break;
 		}
 		break;
-	case QPNP_VADC_REV_ID_8026_2_0:
+	case QPNP_REV_ID_8026_2_0:
+	case QPNP_REV_ID_8026_2_1:
 		switch (vadc->id) {
 		case COMP_ID_TSMC:
-			temp_var = ((die_temp - 2500) *
+			temp_var = ((die_temp - 25000) *
 			(-QPNP_VBAT_COEFF_11));
 			break;
 		default:
 		case COMP_ID_GF:
-			temp_var = ((die_temp - 2500) *
+			temp_var = ((die_temp - 25000) *
 			(-QPNP_VBAT_COEFF_9));
+			break;
+		}
+		break;
+	case QPNP_REV_ID_8110_2_0:
+		switch (vadc->id) {
+		case COMP_ID_SMIC:
+			*result -= QPNP_VBAT_OFFSET_SMIC;
+			temp_var = ((die_temp - 25000) *
+			(QPNP_VBAT_COEFF_17));
+			break;
+		case COMP_ID_TSMC:
+			pr_debug("No TSMC Comp Info, exiting\n");
+			return 0;
+		default:
+		case COMP_ID_GF:
+			*result -= QPNP_VBAT_OFFSET_GF;
+			temp_var = ((die_temp - 25000) *
+			(QPNP_VBAT_COEFF_16));
 			break;
 		}
 		break;
@@ -692,7 +732,7 @@ static int32_t qpnp_vbat_sns_comp(int64_t *result,
 }
 
 int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *vadc,
-						int64_t *result)
+					int64_t *result, bool is_pon_ocv)
 {
 	struct qpnp_vadc_result die_temp_result;
 	int rc = 0;
@@ -708,7 +748,12 @@ int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *vadc,
 		return rc;
 	}
 
-	rc = qpnp_ocv_comp(result, vadc, die_temp_result.physical);
+	if (is_pon_ocv)
+		rc = qpnp_ocv_comp(result, vadc, die_temp_result.physical);
+	else
+		rc = qpnp_vbat_sns_comp(result, vadc,
+				die_temp_result.physical);
+
 	if (rc < 0)
 		pr_err("Error with vbat compensation\n");
 
@@ -973,10 +1018,11 @@ struct qpnp_vadc_chip *qpnp_get_vadc(struct device *dev, const char *name)
 }
 EXPORT_SYMBOL(qpnp_get_vadc);
 
-int32_t qpnp_vadc_conv_seq_request(struct qpnp_vadc_chip *vadc,
-				enum qpnp_vadc_trigger trigger_channel,
+static int32_t qpnp_vadc_conv_seq_request_base(struct qpnp_vadc_chip *vadc,
+					enum qpnp_vadc_trigger trigger_channel,
 					enum qpnp_vadc_channels channel,
-					struct qpnp_vadc_result *result)
+					struct qpnp_vadc_result *result,
+					int pmsafe)
 {
 	int rc = 0, scale_type, amux_prescaling, dt_index = 0;
 	uint32_t ref_channel, count = 0;
@@ -987,7 +1033,7 @@ int32_t qpnp_vadc_conv_seq_request(struct qpnp_vadc_chip *vadc,
 
 	mutex_lock(&vadc->adc->adc_lock);
 
-	if (vadc->vadc_poll_eoc) {
+	if (vadc->vadc_poll_eoc && !pmsafe) {
 		pr_debug("requesting vadc eoc stay awake\n");
 		pm_stay_awake(vadc->dev);
 	}
@@ -1125,7 +1171,7 @@ int32_t qpnp_vadc_conv_seq_request(struct qpnp_vadc_chip *vadc,
 		vadc->adc->adc_prop, vadc->adc->amux_prop->chan_prop, result);
 
 fail_unlock:
-	if (vadc->vadc_poll_eoc) {
+	if (vadc->vadc_poll_eoc && !pmsafe) {
 		pr_debug("requesting vadc eoc stay awake\n");
 		pm_relax(vadc->dev);
 	}
@@ -1134,25 +1180,46 @@ fail_unlock:
 
 	return rc;
 }
+
+int32_t qpnp_vadc_conv_seq_request(struct qpnp_vadc_chip *vadc,
+				enum qpnp_vadc_trigger trigger_channel,
+					enum qpnp_vadc_channels channel,
+					struct qpnp_vadc_result *result)
+{
+	return qpnp_vadc_conv_seq_request_base(vadc, trigger_channel, channel,
+					result, 0);
+}
 EXPORT_SYMBOL(qpnp_vadc_conv_seq_request);
 
-int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
+int32_t qpnp_vadc_conv_seq_request_pmsafe(struct qpnp_vadc_chip *vadc,
+					enum qpnp_vadc_trigger trigger_channel,
+					enum qpnp_vadc_channels channel,
+					struct qpnp_vadc_result *result)
+{
+	return qpnp_vadc_conv_seq_request_base(vadc, trigger_channel, channel,
+					result, 1);
+}
+EXPORT_SYMBOL(qpnp_vadc_conv_seq_request_pmsafe);
+
+int32_t qpnp_vadc_read_base(struct qpnp_vadc_chip *vadc,
 				enum qpnp_vadc_channels channel,
-				struct qpnp_vadc_result *result)
+				struct qpnp_vadc_result *result,
+				int pmsafe)
 {
 	struct qpnp_vadc_result die_temp_result;
 	int rc = 0;
 
 	if (channel == VBAT_SNS) {
-		rc = qpnp_vadc_conv_seq_request(vadc, ADC_SEQ_NONE,
-				channel, result);
+		rc = qpnp_vadc_conv_seq_request_base(vadc, ADC_SEQ_NONE,
+						channel, result, pmsafe);
 		if (rc < 0) {
 			pr_err("Error reading vbatt\n");
 			return rc;
 		}
 
-		rc = qpnp_vadc_conv_seq_request(vadc, ADC_SEQ_NONE,
-				DIE_TEMP, &die_temp_result);
+		rc = qpnp_vadc_conv_seq_request_base(vadc, ADC_SEQ_NONE,
+						DIE_TEMP, &die_temp_result,
+						pmsafe);
 		if (rc < 0) {
 			pr_err("Error reading die_temp\n");
 			return rc;
@@ -1165,10 +1232,25 @@ int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
 
 		return 0;
 	} else
-		return qpnp_vadc_conv_seq_request(vadc, ADC_SEQ_NONE,
-				channel, result);
+		return qpnp_vadc_conv_seq_request_base(vadc, ADC_SEQ_NONE,
+						channel, result, pmsafe);
+}
+
+int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
+				enum qpnp_vadc_channels channel,
+				struct qpnp_vadc_result *result)
+{
+	return qpnp_vadc_read_base(vadc, channel, result, 0);
 }
 EXPORT_SYMBOL(qpnp_vadc_read);
+
+int32_t qpnp_vadc_read_pmsafe(struct qpnp_vadc_chip *vadc,
+				enum qpnp_vadc_channels channel,
+				struct qpnp_vadc_result *result)
+{
+	return qpnp_vadc_read_base(vadc, channel, result, 1);
+}
+EXPORT_SYMBOL(qpnp_vadc_read_pmsafe);
 
 static void qpnp_vadc_lock(struct qpnp_vadc_chip *vadc)
 {

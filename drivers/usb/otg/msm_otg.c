@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2013, Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2014, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2497,14 +2497,20 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 			else
 				clear_bit(B_SESS_VLD, &motg->inputs);
 		} else if (pdata->otg_control == OTG_PMIC_CONTROL) {
-			if (pdata->id_gnd_gpio || pdata->pmic_id_irq) {
+			/* Set ID if SESS_VLD is set */
+			if (test_bit(B_SESS_VLD, &motg->inputs))
+				set_bit(ID, &motg->inputs);
+			else if (pdata->id_gnd_gpio || pdata->pmic_id_irq) {
 				if (msm_otg_read_pmic_id_state(motg) ||
+					(pdata->id_flt_gpio &&
 					!(gpio_get_value(pdata->id_flt_gpio) ^
-					pdata->id_flt_active_high))
+					pdata->id_flt_active_high)))
 					set_bit(ID, &motg->inputs);
 				else
 					clear_bit(ID, &motg->inputs);
-			}
+			} else
+				/* Fallback */
+				set_bit(ID, &motg->inputs);
 			/*
 			 * VBUS initial state is reported after PMIC
 			 * driver initialization. Wait for it.
@@ -2577,6 +2583,8 @@ static void msm_otg_sm_work(struct work_struct *w)
 	bool work = 0, srp_reqd, dcp;
 
 	pm_runtime_resume(otg->phy->dev);
+	if (motg->pm_done)
+		pm_runtime_get_sync(otg->phy->dev);
 	pr_debug("%s work\n", otg_state_string(otg->phy->state));
 	switch (otg->phy->state) {
 	case OTG_STATE_UNDEFINED:
@@ -2736,6 +2744,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			 */
 			pm_runtime_mark_last_busy(otg->phy->dev);
 			pm_runtime_autosuspend(otg->phy->dev);
+			motg->pm_done = 1;
 			/* Re-enable ID IRQ's if they are masked */
 			if (motg->pdata->pmic_id_irq &&
 				atomic_read(&motg->pmic_id_masked) &&
@@ -3457,11 +3466,8 @@ static bool  msm_pmic_mmi_factory_mode(void)
 	return factory;
 }
 
-static void msm_pmic_id_status_w(struct work_struct *w)
+static int msm_hff_handle_id_transition(struct msm_otg *motg)
 {
-	struct msm_otg *motg = container_of(w, struct msm_otg,
-						pmic_id_status_work.work);
-	int work = 0;
 	int id_gnd = msm_otg_read_pmic_id_state(motg);
 	int id_flt = gpio_get_value(motg->pdata->id_flt_gpio) ^
 			motg->pdata->id_flt_active_high;
@@ -3484,7 +3490,7 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 			} else {
 				pr_info("2 sec to power off.\n");
 				kernel_power_off();
-				return;
+				return 0;
 			}
 		}
 
@@ -3493,14 +3499,45 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 		if (id_gnd || !id_flt) {
 			if (!test_and_set_bit(ID, &motg->inputs)) {
 				pr_debug("PMIC: ID set\n");
-				work = 1;
+				return 1;
 			}
 		} else {
 			if (test_and_clear_bit(ID, &motg->inputs)) {
 				pr_debug("PMIC: ID clear\n");
 				set_bit(A_BUS_REQ, &motg->inputs);
-				work = 1;
+				return 1;
 			}
+		}
+	}
+
+	return 0;
+}
+
+static void msm_pmic_id_status_w(struct work_struct *w)
+{
+	struct msm_otg *motg = container_of(w, struct msm_otg,
+						pmic_id_status_work.work);
+	int work = 0;
+	bool is_hff = motg->pdata->id_gnd_gpio && motg->pdata->id_flt_gpio;
+
+
+	if (test_bit(B_SESS_VLD, &motg->inputs) && !factory_mode) {
+		pr_err("PMIC: Id interrupt ignored in B_SESS_VLD\n");
+		return;
+	}
+
+	if (is_hff)
+		work = msm_hff_handle_id_transition(motg);
+	else if (msm_otg_read_pmic_id_state(motg)) {
+		if (!test_and_set_bit(ID, &motg->inputs)) {
+			pr_debug("PMIC: ID set\n");
+			work = 1;
+		}
+	} else {
+		if (test_and_clear_bit(ID, &motg->inputs)) {
+			pr_debug("PMIC: ID clear\n");
+			set_bit(A_BUS_REQ, &motg->inputs);
+			work = 1;
 		}
 	}
 
@@ -3513,19 +3550,24 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 
 }
 
-#define MSM_PMIC_ID_STATUS_DELAY	5 /* 5msec */
+#define MSM_PMIC_ID_STATUS_DELAY	150 /* 150 msec */
 static irqreturn_t msm_pmic_id_irq(int irq, void *data)
 {
 	struct msm_otg *motg = data;
 
 	if (test_bit(MHL, &motg->inputs) ||
 			mhl_det_in_progress) {
-		pr_debug("PMIC: Id interrupt ignored in MHL\n");
+		pr_err("PMIC: Id interrupt ignored in MHL\n");
+		return IRQ_HANDLED;
+	}
+
+	if (test_bit(B_SESS_VLD, &motg->inputs) && !factory_mode) {
+		pr_debug("PMIC: Id interrupt ignored in B_SESS_VLD\n");
 		return IRQ_HANDLED;
 	}
 
 	if (!aca_id_turned_on)
-		/*schedule delayed work for 5msec for ID line state to settle*/
+		/*schedule delayed work for ID line state to settle*/
 		queue_delayed_work(system_nrt_wq, &motg->pmic_id_status_work,
 				msecs_to_jiffies(MSM_PMIC_ID_STATUS_DELAY));
 
@@ -3809,6 +3851,9 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = otg_get_prop_usbin_voltage_now(motg);
 		break;
+	case POWER_SUPPLY_PROP_LOW_POWER:
+		val->intval = atomic_read(&motg->in_lpm);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -3842,6 +3887,19 @@ static int otg_power_set_property_usb(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HEALTH:
 		motg->usbin_health = val->intval;
 		break;
+	case POWER_SUPPLY_PROP_LOW_POWER:
+		if (!!val->intval == atomic_read(&motg->in_lpm))
+			return 0;
+
+		if (val->intval) {
+			pm_runtime_put_noidle(motg->phy.otg->phy->dev);
+			pm_runtime_mark_last_busy(motg->phy.otg->phy->dev);
+			pm_runtime_autosuspend(motg->phy.otg->phy->dev);
+			motg->pm_done = 1;
+		} else {
+			pm_runtime_get_sync(motg->phy.otg->phy->dev);
+		}
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -3859,6 +3917,7 @@ static int otg_power_property_is_writeable_usb(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_LOW_POWER:
 		return 1;
 	default:
 		break;
@@ -3880,6 +3939,7 @@ static enum power_supply_property otg_pm_power_props_usb[] = {
 	POWER_SUPPLY_PROP_SCOPE,
 	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_LOW_POWER,
 };
 
 const struct file_operations msm_otg_bus_fops = {
@@ -4337,10 +4397,9 @@ static void msm_otg_get_id_gpio(struct msm_otg_platform_data *pdata,
 	if (pdata->id_gnd_gpio < 0)
 		pdata->id_gnd_gpio = 0;
 
-	if (pdata->id_gnd_gpio == 0)
-		pdata->id_gnd_gpio = pdata->id_flt_gpio;
-
-	if (!(pdata->id_gnd_gpio && pdata->id_flt_gpio))
+	/* For HFF to work, we need uniquely defined id_gnd and id_flt gpios */
+	if (!pdata->id_gnd_gpio ||  !pdata->id_flt_gpio ||
+			pdata->id_gnd_gpio == pdata->id_flt_gpio)
 		return;
 	pdata->id_flt_active_high = of_property_read_bool(node,
 				"id_flt_active_high");
@@ -4359,30 +4418,25 @@ static void msm_otg_get_id_gpio(struct msm_otg_platform_data *pdata,
 	if (ret)
 		goto free_flt;
 
-	if (pdata->id_gnd_gpio != pdata->id_flt_gpio) {
-		ret = gpio_request_one(pdata->id_gnd_gpio, GPIOF_IN, "id_gnd");
-		if (ret)
-			goto free_flt;
+	ret = gpio_request_one(pdata->id_gnd_gpio, GPIOF_IN, "id_gnd");
+	if (ret)
+		goto free_flt;
 
-		ret = gpio_export(pdata->id_gnd_gpio, 0);
-		if (ret)
-			goto free_gnd;
+	ret = gpio_export(pdata->id_gnd_gpio, 0);
+	if (ret)
+		goto free_gnd;
 
-		ret = gpio_export_link(&pdev->dev, "id_gnd",
-				       pdata->id_gnd_gpio);
-		if (ret)
-			goto free_gnd;
-	}
+	ret = gpio_export_link(&pdev->dev, "id_gnd",
+			       pdata->id_gnd_gpio);
+	if (ret)
+		goto free_gnd;
 
-	if (pdata->id_gnd_gpio)
-		pdata->pmic_id_irq = gpio_to_irq(pdata->id_gnd_gpio);
+	pdata->pmic_id_irq = gpio_to_irq(pdata->id_gnd_gpio);
 	return;
 
 free_gnd:
-	if (pdata->id_gnd_gpio != pdata->id_flt_gpio) {
-		gpio_free(pdata->id_gnd_gpio);
-		pdata->id_gnd_gpio = 0;
-	}
+	gpio_free(pdata->id_gnd_gpio);
+	pdata->id_gnd_gpio = 0;
 free_flt:
 	gpio_free(pdata->id_flt_gpio);
 	pdata->id_flt_gpio = 0;
@@ -4815,20 +4869,23 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 	}
 
 
-	if (motg->pdata->pmic_id_irq) {
-		ret = request_irq(motg->pdata->pmic_id_irq,
-				  msm_pmic_id_irq,
-				  IRQF_TRIGGER_RISING |
-				  IRQF_TRIGGER_FALLING,
-				  "msm_otg", motg);
-		if (ret) {
-			dev_err(&pdev->dev, "request irq failed for PMIC ID\n");
+	if (motg->pdata->mode == USB_OTG &&
+		motg->pdata->otg_control == OTG_PMIC_CONTROL) {
+		if (motg->pdata->pmic_id_irq) {
+			ret = request_irq(motg->pdata->pmic_id_irq,
+					  msm_pmic_id_irq,
+					  IRQF_TRIGGER_RISING |
+					  IRQF_TRIGGER_FALLING,
+					  "msm_otg", motg);
+			if (ret) {
+				dev_err(&pdev->dev, "request irq failed for PMIC ID\n");
+				goto remove_phy;
+			}
+		} else {
+			ret = -ENODEV;
+			dev_err(&pdev->dev, "PMIC IRQ for ID notifications doesn't exist\n");
 			goto remove_phy;
 		}
-	} else {
-		ret = -ENODEV;
-		dev_err(&pdev->dev, "PMIC IRQ for ID notifications doesn't exist\n");
-		goto remove_phy;
 	}
 
 	msm_hsusb_mhl_switch_enable(motg, 1);
@@ -5114,6 +5171,7 @@ static int msm_otg_runtime_resume(struct device *dev)
 
 	dev_dbg(dev, "OTG runtime resume\n");
 	pm_runtime_get_noresume(dev);
+	motg->pm_done = 0;
 	return msm_otg_resume(motg);
 }
 #endif
@@ -5141,6 +5199,7 @@ static int msm_otg_pm_resume(struct device *dev)
 
 	dev_dbg(dev, "OTG PM resume\n");
 
+	motg->pm_done = 0;
 	atomic_set(&motg->pm_suspended, 0);
 	if (motg->async_int || motg->sm_work_pending) {
 		pm_runtime_get_noresume(dev);

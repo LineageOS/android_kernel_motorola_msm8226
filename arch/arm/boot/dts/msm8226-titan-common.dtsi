@@ -16,7 +16,6 @@
 /include/ "dsi-panel-mot-dummy-qhd-video.dtsi"
 /include/ "dsi-panel-mot-inx-720p-video.dtsi"
 /include/ "dsi-panel-mot-jdi-720p-video.dtsi"
-/include/ "msm8226-camera-sensor-titan.dtsi"
 
 / {
 	model = "Motorola QC-MSM8226 Titan";
@@ -37,6 +36,14 @@
 			debounce-interval = <15>;
 		};
 
+		lid-sw {
+			label = "lid-switch";
+			gpios = <&msmgpio 109 0x1>;
+			linux,input-type = <5>;
+			linux,code = <0>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
 	};
 
 	i2c@f9923000 {
@@ -76,8 +83,10 @@
 			ti,ledb-max-brt = <0xff>;
 			ti,leda-init-brt = <0xff>;
 			ti,ledb-init-brt = <0xff>;
-			ti,leda-max-cur = <0x11>;
-			ti,ledb-max-cur = <0x11>;
+			ti,leda-max-cur = <0x14>;
+			ti,ledb-max-cur = <0x14>;
+			ti,leda-max-hbm-cur = <0x1C>;
+			ti,ledb-max-hbm-cur = <0x1C>;
 			ti,boost-ctrl = <0x20>;
 			ti,config = <0x09>;
 			ti,irq-gpio = <&msmgpio 4 0>;
@@ -94,6 +103,9 @@
 
 		synaptics_dsx_i2c@20 {
 			touch_vdd-supply = <&vdd_touch_vreg>;
+			synaptics,reset-on-resume;
+			synaptics,hw-reset;
+			/delete-property/ synaptics,normal-mode;
 		};
 
 		cyttsp3_i2c@3b {
@@ -106,7 +118,19 @@
 
 	};
 
-	i2c@f9928000 {
+	i2c_6: i2c@f9928000 { /* BLSP-1 QUP-6 */
+		cell-index = <6>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9928000 0x1000>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 100 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <19200000>;
+		qcom,sda-gpio = <&msmgpio 22 0>;
+		qcom,scl-gpio = <&msmgpio 23 0>;
+		qcom,extended-recovery = <1>;
+		qcom,master-id = <86>;
 		status = "disabled";
 	};
 
@@ -268,10 +292,11 @@
 
 	qcom,pad-pull-on = <0x0 0x3 0x3>; /* no-pull, pull-up, pull-up */
 	qcom,pad-pull-off = <0x0 0x3 0x3>; /* no-pull, pull-up, pull-up */
-	qcom,pad-drv-on = <0x4 0x4 0x4>; /* 10mA, 10mA, 10mA */
+	qcom,pad-drv-on = <0x3 0x3 0x3>; /* 8mA, 8mA, 8mA */
 	qcom,pad-drv-off = <0x0 0x0 0x0>; /* 2mA, 2mA, 2mA */
 
-	qcom,clk-rates = <400000 25000000 50000000 100000000 200000000>;
+	qcom,clk-rates = <400000 23076923 50000000 100000000 120000000>;
+	qcom,bus-speed-mode = "SDR12_1p8v", "SDR25_1p8v", "SDR50_1p8v", "DDR_1p8v", "SDR104_1p8v";
 
 	#address-cells = <0>;
 	interrupt-parent = <&sdhc_2>;
@@ -370,6 +395,10 @@
 };
 
 &pm8226_mpps {
+	mpp@a000 { /* MPP 1 */
+		status = "disabled";
+	};
+
 	mpp@a400 { /* MPP 5 */
 		/* PA_THERM0 config */
 		qcom,mode = <4>; /* AIN input */
@@ -404,6 +433,7 @@
 };
 
 &pm8226_vadc {
+	qcom,adc-batt-therm-type = <2>;
 	chan@14 {
 		label = "pa_therm0";
 		reg = <0x14>;
@@ -430,6 +460,7 @@
 
 &pm8226_adc_tm {
 
+	qcom,adc-batt-therm-type = <2>;
 	/delete-node/ chan@17;
 };
 
@@ -518,13 +549,19 @@
 	qcom,cont-splash-enabled;
 };
 
+&mot_jdi_720p_vid_v1 {
+	qcom,cont-splash-enabled;
+};
+
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&mot_jdi_720p_vid_v0>;
+	qcom,dsi-pref-prim-pan = <&mot_jdi_720p_vid_v1>;
 	vddio_disp-supply = <&vddio_disp_vreg>;
 	lcdbias-supply = <&tps65132>;
 };
 
 &i2c_2 {
+	qcom,extended-recovery = <1>;
+
         bma2x2@11 {
                 compatible = "bosch,bma2x2";
                 reg = <0x11>;
@@ -557,14 +594,14 @@
                 stk,irq-gpio = <&msmgpio 65 0x0>;
                 stk,transmittance = <500>;
                 stk,state-reg = <0x00>;
-                stk,psctrl-reg = <0x71>;
-                stk,alsctrl-reg = <0x39>;
+                stk,psctrl-reg = <0x31>;
+                stk,alsctrl-reg = <0x38>;
                 stk,ledctrl-reg = <0xFF>;
-                stk,wait-reg = <0x07>;
+                stk,wait-reg = <0xA7>;
 		stk,als_thresh_pct = <5>;
-		stk,covered_thresh = <0x0096>;
-		stk,uncovered_thresh = <0x006E>;
-		stk,recal_thresh = <0x0046>;
+		stk,covered_thresh = <0x0066>;
+		stk,uncovered_thresh = <0x003E>;
+		stk,recal_thresh = <0x0016>;
 		stk,max_noise_fl = <0x0F00>;
         };
 };
@@ -575,3 +612,5 @@
 
 	};
 };
+
+/include/ "msm8226-camera-sensor-titan.dtsi"

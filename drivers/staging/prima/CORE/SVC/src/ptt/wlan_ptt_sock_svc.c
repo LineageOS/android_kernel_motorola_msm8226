@@ -132,7 +132,7 @@ int ptt_sock_send_msg_to_app(tAniHdr *wmsg, int radio, int src_mod, int pid)
 #ifdef PTT_SOCK_DEBUG_VERBOSE
    ptt_sock_dump_buf((const unsigned char *)skb->data, skb->len);
 #endif
-   err = nl_srv_ucast(skb, pid);
+   err = nl_srv_ucast(skb, pid, MSG_DONTWAIT);
    return err;
 }
 /*
@@ -148,6 +148,11 @@ static void ptt_sock_proc_reg_req(tAniHdr *wmsg, int radio)
    //send reg response message to the application
    rspmsg.ret = ANI_NL_MSG_OK;
    rspmsg.regReq.type = reg_req->type;
+#ifdef WLAN_KD_READY_NOTIFIER
+   /* NL client try to registration
+    * to make sure connection, broadcast READY notification */
+   nl_srv_nl_ready_indication();
+#endif /* WLAN_KD_READY_NOTIFIER */
    /*Save the pid*/    
    pAdapterHandle->ptt_pid = reg_req->pid;   
    rspmsg.regReq.pid= reg_req->pid;
