@@ -2689,8 +2689,9 @@ eHalStatus sme_ScanRequest(tHalHandle hHal, tANI_U8 sessionId, tCsrScanRequest *
     smsLog(pMac, LOG2, FL("enter"));
     do
     {
-        if(pMac->scan.fScanEnable &&
-           (pMac->isCoexScoIndSet ? sco_isScanAllowed(pMac, pscanReq) : TRUE))
+        //Moto IKVPREL1L-7890: Dont block any scans while in BT call similar to titan/Victara
+        if(pMac->scan.fScanEnable) /*&&
+           (pMac->isCoexScoIndSet ? sco_isScanAllowed(pMac, pscanReq) : TRUE))*/
         {
             status = sme_AcquireGlobalLock( &pMac->sme );
             if ( HAL_STATUS_SUCCESS( status ) )
