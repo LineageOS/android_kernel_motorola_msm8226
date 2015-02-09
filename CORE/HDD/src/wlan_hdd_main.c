@@ -9084,6 +9084,8 @@ int hdd_wlan_startup(struct device *dev )
    }
 #endif
 
+   wcnss_wlan_set_drvdata(pHddCtx->parent_dev, pHddCtx);
+
    if (VOS_STA_SAP_MODE == hdd_get_conparam())
    {
      pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_SOFTAP, "softap.%d", 
