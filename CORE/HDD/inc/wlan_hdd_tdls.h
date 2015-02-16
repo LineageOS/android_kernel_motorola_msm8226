@@ -346,4 +346,6 @@ int hdd_set_tdls_scan_type(hdd_adapter_t *pAdapter,
 
 // tdlsoffchan
 hddTdlsPeer_t *wlan_hdd_tdls_get_first_connected_peer(hdd_adapter_t *pAdapter);
+
+int wlan_hdd_validate_tdls_context(hdd_context_t *pHddCtx, tdlsCtx_t *pTdlsCtx);
 #endif // __HDD_TDSL_H
