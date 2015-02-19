@@ -13714,11 +13714,11 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
 
     /* framework provides interval in ms */
     //BEGIN MOT a19110 IKJBMR2-1528 set PNO intervals
-    pPnoRequest->scanTimers.ucScanTimersCount = 2;
-    pPnoRequest->scanTimers.aTimerValues[0].uTimerRepeat = 7;
-    pPnoRequest->scanTimers.aTimerValues[0].uTimerValue = 45;
-    pPnoRequest->scanTimers.aTimerValues[1].uTimerRepeat = 0;
-    pPnoRequest->scanTimers.aTimerValues[1].uTimerValue = 480;
+    pnoRequest.scanTimers.ucScanTimersCount = 2;
+    pnoRequest.scanTimers.aTimerValues[0].uTimerRepeat = 7;
+    pnoRequest.scanTimers.aTimerValues[0].uTimerValue = 45;
+    pnoRequest.scanTimers.aTimerValues[1].uTimerRepeat = 0;
+    pnoRequest.scanTimers.aTimerValues[1].uTimerValue = 480;
     //END IKJBMR2-1528
 
 
