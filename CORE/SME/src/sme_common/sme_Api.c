@@ -1033,6 +1033,9 @@ sme_process_cmd:
                                 smsLog(pMac, LOGE,
                                   FL("failed to post SME PNO SCAN %d"), status);
                             }
+                            //We need to re-run the command
+                            fContinue = eANI_BOOLEAN_TRUE;
+
                             if (csrLLRemoveEntry(&pMac->sme.smeCmdActiveList,
                                               &pCommand->Link, LL_ACCESS_LOCK))
                             {
