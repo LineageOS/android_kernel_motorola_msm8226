@@ -8364,3 +8364,15 @@ void limParseBeaconForTim(tpAniSirGlobal pMac,tANI_U8* pRxPacketInfo, tpPESessio
     }
     return;
 }
+
+void limDecrementPendingMgmtCount (tpAniSirGlobal pMac)
+{
+    if( pMac->sys.gSysBbtPendingMgmtCount )
+    {
+         vos_spin_lock_acquire( &pMac->sys.lock );
+         pMac->sys.gSysBbtPendingMgmtCount--;
+         vos_spin_lock_release( &pMac->sys.lock );
+    }
+    else
+         limLog(pMac, LOGW, FL("Pending Management count going negative"));
+}
