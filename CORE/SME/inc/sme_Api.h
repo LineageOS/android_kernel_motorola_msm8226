@@ -3516,4 +3516,8 @@ eHalStatus sme_RegisterBtCoexTDLSCallback
 tANI_BOOLEAN smeNeighborRoamIsHandoffInProgress(tHalHandle hHal);
 
 void sme_SetDefDot11Mode(tHalHandle hHal);
+eHalStatus sme_SetMiracastVendorConfig(tHalHandle hHal,
+                               tANI_U32 iniNumBuffAdvert,
+                                      tANI_U32 set_value);
+
 #endif //#if !defined( __SME_API_H )
