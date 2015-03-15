@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7ac969e8_a03586f8",
+        "filename": "arch/arm/configs/titan_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 1287,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-03-15T10:52:35Z",
+      "side": 1,
+      "message": "This should be \"# CONFIG_OPTION is not set\" rather than CONFIG_OPTION\u003dn",
+      "revId": "fa1cbb8ed2888fa04c0bdff0f3cb757ecd5ca853",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
