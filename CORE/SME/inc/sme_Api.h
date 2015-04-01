@@ -3609,4 +3609,5 @@ tANI_BOOLEAN sme_handleSetFccChannel(tHalHandle hHal,
                                       tANI_U8 fcc_constraint);
 
 
+void sme_SetDefDot11Mode(tHalHandle hHal);
 #endif //#if !defined( __SME_API_H )
