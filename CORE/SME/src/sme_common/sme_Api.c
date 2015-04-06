@@ -11769,3 +11769,10 @@ tANI_BOOLEAN smeNeighborRoamIsHandoffInProgress(tHalHandle hHal)
 {
     return (csrNeighborRoamIsHandoffInProgress(PMAC_STRUCT(hHal)));
 }
+
+void sme_SetDefDot11Mode(tHalHandle hHal)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
+    csrSetDefaultDot11Mode(pMac);
+}
+
