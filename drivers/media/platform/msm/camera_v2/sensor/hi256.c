@@ -1912,7 +1912,7 @@ int32_t hi256_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 
 		if ((!conf_array.size) ||
-			(conf_array.size > I2C_SEQ_REG_DATA_MAX)) {
+			(conf_array.size > I2C_REG_DATA_MAX)) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
@@ -1953,7 +1953,7 @@ int32_t hi256_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 
 		if ((!conf_array.size) ||
-			(conf_array.size > I2C_SEQ_REG_DATA_MAX)) {
+			(conf_array.size > I2C_REG_DATA_MAX)) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
