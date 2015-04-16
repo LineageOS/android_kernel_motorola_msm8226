@@ -3515,4 +3515,5 @@ eHalStatus sme_RegisterBtCoexTDLSCallback
 ---------------------------------------------------------------------------*/
 tANI_BOOLEAN smeNeighborRoamIsHandoffInProgress(tHalHandle hHal);
 
+void sme_SetDefDot11Mode(tHalHandle hHal);
 #endif //#if !defined( __SME_API_H )
