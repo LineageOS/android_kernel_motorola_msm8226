@@ -5944,8 +5944,6 @@ void hdd_wmm_tx_snapshot(hdd_adapter_t *pAdapter)
      * whether the clients are registered or not.
      */
     int i = 0, j = 0;
-
-    spin_lock_bh( &pAdapter->staInfo_lock );
     for ( i=0; i< NUM_TX_QUEUES; i++)
     {
         spin_lock_bh(&pAdapter->wmm_tx_queue[i].lock);
@@ -5971,7 +5969,6 @@ void hdd_wmm_tx_snapshot(hdd_adapter_t *pAdapter)
              }
         }
     }
-    spin_unlock_bh( &pAdapter->staInfo_lock );
 
 }
 static int __iw_set_var_ints_getnone(struct net_device *dev,
