@@ -27,6 +27,21 @@
 
 static u32 prod_id;
 
+static int lpm_mode = 0;
+int __init board_mode_init(char *s)
+{
+	if (!strcmp(s, "mot-charger"))
+		lpm_mode = 1;
+
+	return 1;
+}
+__setup("androidboot.mode=", board_mode_init);
+
+int board_lpm_mode(void)
+{
+	return lpm_mode;
+}
+
 #define SERIALNO_MAX_LEN 64
 static char serialno[SERIALNO_MAX_LEN];
 int __init board_serialno_init(char *s)
