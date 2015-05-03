@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da7fb54a_3ba0a4f4",
+        "filename": "arch/arm/mach-msm/Makefile",
+        "patchSetId": 1
+      },
+      "lineNbr": 439,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-05-03T05:19:31Z",
+      "side": 1,
+      "message": "You probably want to attach this to one of the MMI common config options.",
+      "revId": "33e99c24ea11e9d74923173b0a3623b3e9c8a0e8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
