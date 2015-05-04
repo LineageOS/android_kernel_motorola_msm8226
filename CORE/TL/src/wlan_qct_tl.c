@@ -11446,6 +11446,7 @@ WLANTL_CleanSTA
    ptlSTAClient->ucCurrentAC     = WLANTL_AC_HIGH_PRIO;
    ptlSTAClient->ucCurrentWeight = 0;
    ptlSTAClient->ucServicedAC    = WLANTL_AC_BK;
+   ptlSTAClient->ucPktPending = 0;
 
    vos_mem_zero( ptlSTAClient->aucACMask, sizeof(ptlSTAClient->aucACMask));
    vos_mem_zero( &ptlSTAClient->wUAPSDInfo, sizeof(ptlSTAClient->wUAPSDInfo));
