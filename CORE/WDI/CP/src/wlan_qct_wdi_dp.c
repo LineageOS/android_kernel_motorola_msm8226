@@ -563,7 +563,15 @@ WDI_FillTxBd
         }
         else if(ucTxFlag & WDI_USE_BD_RATE_3_MASK)
         {
-           pBd->bdRate = WDI_BDRATE_CTRL_FRAME;
+            pBd->bdRate = WDI_BDRATE_BCDATA_FRAME;
+        }
+        else if(ucTxFlag & WDI_USE_BD_RATE_2_MASK)
+        {
+            pBd->bdRate = WDI_BDRATE_BCMGMT_FRAME;
+        }
+        else if(ucTxFlag & WDI_USE_BD_RATE_3_MASK)
+        {
+            pBd->bdRate = WDI_BDRATE_CTRL_FRAME;
         }
 
         pBd->rmf    = WDI_RMF_DISABLED;     
