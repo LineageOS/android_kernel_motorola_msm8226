@@ -1722,13 +1722,6 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
    if( HDD_ETHERTYPE_ARP_SIZE == packet_size )
       pPktMetaInfo->ucIsArp = hdd_IsARP( pVosPacket ) ? 1 : 0;
 
-   if (pPktMetaInfo->ucIsArp)
-   {
-      VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
-                "STA TX ARP");
-   }
-
-
 #ifdef FEATURE_WLAN_WAPI
    // Override usIsEapol value when its zero for WAPI case
    pPktMetaInfo->ucIsWai = hdd_IsWAIPacket( pVosPacket ) ? 1 : 0;
@@ -1966,7 +1959,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
    vos_pkt_t* pVosPacket;
    vos_pkt_t* pNextVosPacket;
    v_U8_t proto_type;
-   int is_arp;
 
    //Sanity check on inputs
    if ( ( NULL == vosContext ) || 
@@ -2014,16 +2006,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
          return VOS_STATUS_E_FAILURE;
       }
 
-      if (hdd_IsARP(pVosPacket))
-      {
-         is_arp = 1;
-         VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
-                         "%s: Rx ARP packet", __func__);
-      }
-      else
-      {
-         is_arp = 0;
-      }
       // Extract the OS packet (skb).
       // Tell VOS to detach the OS packet from the VOS packet
       status = vos_pkt_get_os_packet( pVosPacket, (v_VOID_t **)&skb, VOS_TRUE );
@@ -2041,7 +2023,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
            "Magic cookie(%x) for adapter sanity verification is invalid", pAdapter->magic);
          return eHAL_STATUS_FAILURE;
       }
-
 
 #ifdef FEATURE_WLAN_TDLS
     if ((eTDLS_SUPPORT_ENABLED == pHddCtx->tdls_mode) &&
