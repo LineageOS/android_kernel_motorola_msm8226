@@ -2905,10 +2905,21 @@
 #define WNI_CFG_BTC_FAST_WLAN_CONN_PREF_APMAX    1
 #define WNI_CFG_BTC_FAST_WLAN_CONN_PREF_APDEF    1
 
-#define CFG_PARAM_MAX_NUM         346
-#define CFG_AP_IBUF_MAX_SIZE      284
+/* Bit mask value to enable RTS/CTS for different modes
+ * for 2.4 GHz, HT20 - 0x0001, for 2.4 GHz, HT40 - 0x0002
+ * for 2.4 GHz, VHT20 - 0x0004, for 2.4 GHz, VHT40 - 0x0008
+ * for 5 GHz, HT20 - 0x0100, for 5 GHz, HT40 - 0x0200
+ * for 5 GHz, VHT20 - 0x0400, for 5 GHz, VHT40 - 0x0800
+ * for 5 GHz, VHT80 - 0x1000
+ */
+#define WNI_CFG_ENABLE_RTSCTS_HTVHT_APMIN 0x0000
+#define WNI_CFG_ENABLE_RTSCTS_HTVHT_APMAX 0x1f0f
+#define WNI_CFG_ENABLE_RTSCTS_HTVHT_APDEF 0x0000
+
+#define CFG_PARAM_MAX_NUM         347
+#define CFG_AP_IBUF_MAX_SIZE      285
 #define CFG_AP_SBUF_MAX_SIZE      3422
-#define CFG_STA_IBUF_MAX_SIZE     280
+#define CFG_STA_IBUF_MAX_SIZE     281
 #define CFG_STA_SBUF_MAX_SIZE     3389
 #define CFG_SEM_MAX_NUM           19
 
