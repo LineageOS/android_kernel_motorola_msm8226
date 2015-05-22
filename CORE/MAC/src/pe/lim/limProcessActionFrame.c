@@ -520,8 +520,9 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
     frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
 
+    limLog(pMac, LOGE, "Recv AddTs Response");
+    limPrintFrame((tANI_U8 *)pHdr, frameLen + sizeof(tSirMacMgmtHdr));
 
-    PELOGW(limLog(pMac, LOGW, "Recv AddTs Response");)
     if ((psessionEntry->limSystemRole == eLIM_AP_ROLE)||(psessionEntry->limSystemRole == eLIM_BT_AMP_AP_ROLE))
     {
         PELOGW(limLog(pMac, LOGW, FL("AddTsRsp recvd at AP: ignoring"));)

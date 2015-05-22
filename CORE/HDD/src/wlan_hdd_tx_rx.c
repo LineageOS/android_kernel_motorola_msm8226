@@ -1780,7 +1780,7 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
       }
       pPktMetaInfo->ucUP = hddWmmAcToHighestUp[newAc];
       pPktMetaInfo->ucTID = pPktMetaInfo->ucUP;
-      VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_LOW,
+      VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
                "Downgrading UP %d to UP %d ",
                 pktNode->userPriority, pPktMetaInfo->ucUP);
    }

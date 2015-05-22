@@ -951,7 +951,26 @@ limInitMlm(tpAniSirGlobal pMac)
     }
 } /*** end limInitMlm() ***/
 
+void
+limPrintFrame(tANI_U8 *data, tANI_U32 len)
+{
 
+extern v_U8_t assocrsp[256];
+extern v_U8_t assocresplen;
+assocresplen = 256>len?len:256;
+vos_mem_copy(assocrsp, (tANI_U8*)data,assocresplen);
+do{
+    tANI_U32 i;
+    printk("\n");
+    printk("000000 ");
+    for (i = 0 ; i < len; i++) {
+        printk("%02x ", ((tANI_U8*)data)[i]);
+        if (15 == i%16)
+           printk("\n%06x ", (i + 1));
+    }
+     printk("\n");
+  }while(0);
+}
 
 /**
  * limCleanupMlm()
