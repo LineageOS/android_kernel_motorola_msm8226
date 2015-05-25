@@ -9250,7 +9250,7 @@ static int wlan_hdd_cfg80211_update_bss( struct wiphy *wiphy,
     tScanResultHandle pResult;
     struct cfg80211_bss *bss_status = NULL;
     hdd_context_t *pHddCtx;
-
+    bool is_p2p_scan = false;
     ENTER();
 
     MTRACE(vos_trace(VOS_MODULE_ID_HDD,
@@ -9275,7 +9275,13 @@ static int wlan_hdd_cfg80211_update_bss( struct wiphy *wiphy,
         return VOS_STATUS_E_PERM;
     }
 
-
+    if (pAdapter->request != NULL)
+    {
+        if ((pAdapter->request->n_ssids == 1)
+                && (pAdapter->request->ssids != NULL)
+                && vos_mem_compare(&pAdapter->request->ssids[0], "DIRECT-", 7))
+            is_p2p_scan = true;
+    }
     /*
      * start getting scan results and populate cgf80211 BSS database
      */
@@ -9303,7 +9309,14 @@ static int wlan_hdd_cfg80211_update_bss( struct wiphy *wiphy,
          * ieee80211_mgmt(probe response) and passing to c
          * fg80211_inform_bss_frame.
          * */
-
+        if(is_p2p_scan && (pScanResult->ssId.ssId != NULL) &&
+                !vos_mem_compare( pScanResult->ssId.ssId, "DIRECT-", 7) )
+        {
+            hddLog(VOS_TRACE_LEVEL_INFO, FL(" Non P2P BSS skipped: =%s:"),
+                    pScanResult->ssId.ssId);
+            pScanResult = sme_ScanResultGetNext(hHal, pResult);
+            continue; //Skip the non p2p bss entries
+        }
         bss_status = wlan_hdd_cfg80211_inform_bss_frame(pAdapter,
                 &pScanResult->BssDescriptor);
 
@@ -9326,7 +9339,7 @@ static int wlan_hdd_cfg80211_update_bss( struct wiphy *wiphy,
     }
 
     sme_ScanResultPurge(hHal, pResult);
-
+    is_p2p_scan = false;
     return 0;
 }
 
