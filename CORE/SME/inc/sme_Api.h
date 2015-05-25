@@ -3520,4 +3520,6 @@ eHalStatus sme_SetMiracastVendorConfig(tHalHandle hHal,
                                tANI_U32 iniNumBuffAdvert,
                                       tANI_U32 set_value);
 
+eHalStatus sme_SetRtsCtsHtVht(tHalHandle hHal, tANI_U32 set_value);
+
 #endif //#if !defined( __SME_API_H )

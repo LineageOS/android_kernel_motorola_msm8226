@@ -252,6 +252,11 @@ VOS_STATUS WDA_ProcessLLStatsGetReq(tWDA_CbContext *pWDA,
 VOS_STATUS WDA_ProcessLLStatsClearReq(tWDA_CbContext *pWDA,
                                       tSirLLStatsClearReq *wdaRequest);
 #endif /* WLAN_FEATURE_LINK_LAYER_STATS */
+
+VOS_STATUS
+WDA_ProcessSetRtsCtsHTVhtInd(tWDA_CbContext *pWDA,
+                         tANI_U32 val);
+
 /*
  * FUNCTION: WDA_open
  * Allocate the WDA context 
@@ -13448,6 +13453,11 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
           WDA_ProcessSetSpoofMacAddrReq(pWDA, (tpSpoofMacAddrReqParams)pMsg->bodyptr);
           break;
       }
+      case WDA_SET_RTS_CTS_HTVHT:
+      {
+         WDA_ProcessSetRtsCtsHTVhtInd( pWDA, pMsg->bodyval);
+         break;
+      }
       default:
       {
          VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
@@ -18068,3 +18078,35 @@ VOS_STATUS WDA_ProcessLLStatsClearReq(tWDA_CbContext *pWDA,
 }
 
 #endif /* WLAN_FEATURE_LINK_LAYER_STATS */
+
+/*==========================================================================
+  FUNCTION   WDA_ProcessSetRtsCtsHTVhtInd
+
+  DESCRIPTION
+    API to enable/disable RTS/CTS for different modes.
+
+  PARAMETERS
+    pWDA: Pointer to WDA context
+    rtsCtsVal : Bit mask value to enable RTS/CTS for different modes
+===========================================================================*/
+
+VOS_STATUS
+WDA_ProcessSetRtsCtsHTVhtInd(tWDA_CbContext *pWDA,
+                         tANI_U32 rtsCtsVal)
+{
+    WDI_Status status;
+    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+                 FL("---> %s"), __func__);
+    status = WDI_SetRtsCtsHTVhtInd(rtsCtsVal);
+    if (WDI_STATUS_PENDING == status)
+    {
+        VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+                 FL("pending status received "));
+    }
+    else if (WDI_STATUS_SUCCESS_SYNC != status)
+    {
+       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+               FL("Failure status %d"), status);
+    }
+    return CONVERT_WDI2VOS_STATUS(status) ;
+}
