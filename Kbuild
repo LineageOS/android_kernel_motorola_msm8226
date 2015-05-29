@@ -672,6 +672,8 @@ endif
 
 CDEFINES += -DFEATURE_WLAN_CH_AVOID
 
+CDEFINES += -DHAVE_CBC_DONE
+
 # Some kernel include files are being moved.  Check to see if
 # the old version of the files are present
 
