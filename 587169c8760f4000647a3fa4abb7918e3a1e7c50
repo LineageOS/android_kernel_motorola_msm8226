@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7a8ec9b2_a8d8f41e",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3100,
+      "author": {
+        "id": 1391
+      },
+      "writtenOn": "2015-06-01T18:38:11Z",
+      "side": 1,
+      "message": "This gets removed with android logger not set. See regenerated config.",
+      "revId": "587169c8760f4000647a3fa4abb7918e3a1e7c50",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a8ec9b2_c8038075",
+        "filename": "arch/arm/configs/peregrine_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3100,
+      "author": {
+        "id": 1391
+      },
+      "writtenOn": "2015-06-01T18:38:11Z",
+      "side": 1,
+      "message": "Same here.",
+      "revId": "587169c8760f4000647a3fa4abb7918e3a1e7c50",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a8ec9b2_e8083c94",
+        "filename": "arch/arm/configs/titan_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3100,
+      "author": {
+        "id": 1391
+      },
+      "writtenOn": "2015-06-01T18:38:11Z",
+      "side": 1,
+      "message": "Same here.",
+      "revId": "587169c8760f4000647a3fa4abb7918e3a1e7c50",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
