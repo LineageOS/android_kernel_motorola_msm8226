@@ -1726,17 +1726,6 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
    {
       VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
                 "STA TX ARP");
-      do {
-         int i;
-         printk("\n");
-         printk("000000 ");
-         for (i = 0 ; i < skb->len; i++) {
-             printk("%02x ", ((u8*)skb->data)[i]);
-             if (15 == i%16)
-                 printk("\n%06x ", (i + 1));
-         }
-         printk("\n");
-      } while(0);
    }
 
 
@@ -2053,20 +2042,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
          return eHAL_STATUS_FAILURE;
       }
 
-      if (is_arp)
-      {
-         do {
-            int i;
-            printk("\n");
-            printk("000000 ");
-            for (i = 0 ; i < skb->len; i++) {
-                printk("%02x ", ((u8*)skb->data)[i]);
-                if (15 == i%16)
-                    printk("\n%06x ", (i + 1));
-            }
-            printk("\n");
-         } while(0);
-      }
 
 #ifdef FEATURE_WLAN_TDLS
     if ((eTDLS_SUPPORT_ENABLED == pHddCtx->tdls_mode) &&
