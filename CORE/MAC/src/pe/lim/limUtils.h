@@ -154,7 +154,6 @@ void limUpdateShortSlotTime(tpAniSirGlobal pMac, tSirMacAddr peerMacAddr, tpUpda
  * allowed in IBSS.
  */
 void    limReleasePeerIdx(tpAniSirGlobal, tANI_U16, tpPESession);
-void limPrintFrame(tANI_U8 *data, tANI_U32 len);
 
 
 void limDecideApProtection(tpAniSirGlobal pMac, tSirMacAddr peerMacAddr,  tpUpdateBeaconParams pBeaconParams,tpPESession);

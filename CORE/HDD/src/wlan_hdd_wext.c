@@ -142,9 +142,6 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 
 #define FREQ_CHAN_MAP_TABLE_SIZE (sizeof(freq_chan_map)/sizeof(freq_chan_map[0]))
 
-v_U8_t assocrsp[256] = {0};
-v_U8_t assocresplen;
-
 /* Private ioctls and their sub-ioctls */
 #define WLAN_PRIV_SET_INT_GET_NONE    (SIOCIWFIRSTPRIV + 0)
 #define WE_SET_11D_STATE     1
@@ -6066,18 +6063,6 @@ static int __iw_setnone_getnone(struct net_device *dev,
         case WE_DISPLAY_DATAPATH_SNAP_SHOT:
         {
             hddLog(LOGE, "%s: called %d",__func__, sub_cmd);
-
-            do{
-                tANI_U32 i;
-                printk("\n");
-                printk("000000 ");
-                for (i = 0 ; i < assocresplen; i++) {
-                        printk("%02x ", ((v_U8_t*)assocrsp)[i]);
-                    if (15 == i%16)
-                       printk("\n%06x ", (i + 1));
-                }
-                 printk("\n");
-            }while(0);
             hdd_wmm_tx_snapshot(pAdapter);
             WLANTL_TLDebugMessage(WLANTL_DEBUG_TX_SNAPSHOT);
             break;

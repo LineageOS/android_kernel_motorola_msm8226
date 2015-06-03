@@ -1982,7 +1982,7 @@ v_VOID_t hdd_wmm_classify_pkt ( hdd_adapter_t* pAdapter,
       userPri = pAdapter->hddWmmDscpToUpMap[dscp];
 
 #ifdef HDD_WMM_DEBUG
-      VOS_TRACE(VOS_MODULE_ID_HDD, WMM_TRACE_LEVEL_ERROR,
+      VOS_TRACE(VOS_MODULE_ID_HDD, WMM_TRACE_LEVEL_INFO,
                 "%s: tos is %d, dscp is %d, up is %d",
                 __func__, tos, dscp, userPri);
 #endif // HDD_WMM_DEBUG
