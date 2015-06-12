@@ -2261,6 +2261,11 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_WLAN_LOGGING_NUM_BUF_DEFAULT  ( 32 )
 #endif //WLAN_LOGGING_SOCK_SVC_ENABLE
 
+#define CFG_IGNORE_PEER_ERP_INFO_NAME      "gIgnorePeerErpInfo"
+#define CFG_IGNORE_PEER_ERP_INFO_MIN       ( 0 )
+#define CFG_IGNORE_PEER_ERP_INFO_MAX       ( 1 )
+#define CFG_IGNORE_PEER_ERP_INFO_DEFAULT   ( 0 )
+
 #define CFG_INITIAL_DWELL_TIME_NAME            "gInitialDwellTime"
 #define CFG_INITIAL_DWELL_TIME_DEFAULT         (0)
 #define CFG_INITIAL_DWELL_TIME_MIN             (0)
@@ -2433,6 +2438,8 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_TOGGLE_ARP_BDRATES_MIN         0
 #define CFG_TOGGLE_ARP_BDRATES_MAX         1
 #define CFG_TOGGLE_ARP_BDRATES_DEFAULT     0
+
+
 
 /*
  * If within gLinkFailTimeout period(values is mentioned in msec) if FW
@@ -2909,7 +2916,7 @@ typedef struct
    v_U32_t                     wlanLoggingFEToConsole;
    v_U32_t                     wlanLoggingNumBuf;
 #endif
-
+   v_BOOL_t                    ignorePeerErpInfo;
    v_BOOL_t                    initialScanSkipDFSCh;
    v_U32_t                     cfgBtcFatalHidnSniffBlkGuidance;
    v_U32_t                     cfgBtcCriticalHidnSniffBlkGuidance;
