@@ -3586,4 +3586,8 @@ eHalStatus sme_SetMiracastVendorConfig(tHalHandle hHal,
 
 eHalStatus sme_SetRtsCtsHtVht(tHalHandle hHal, tANI_U32 set_value);
 
+tANI_BOOLEAN sme_handleSetFccChannel(tHalHandle hHal,
+                                      tANI_U8 fcc_constraint);
+
+
 #endif //#if !defined( __SME_API_H )
