@@ -10857,8 +10857,9 @@ int wlan_hdd_cfg80211_set_ie( hdd_adapter_t *pAdapter,
                     pWextState->roamProfile.nAddIEAssocLength = pWextState->assocAddIE.length;
                 }
 
-                break;
-                if (WLAN_HDD_IBSS == pAdapter->device_mode) {
+                 /* Update only for WPA IE */
+                if (!memcmp(genie, WPA_OUI_TYPE, WPA_OUI_TYPE_SIZE) &&
+                       (WLAN_HDD_IBSS == pAdapter->device_mode)) {
 
                    /* populating as ADDIE in beacon frames */
                    if (ccmCfgSetStr(WLAN_HDD_GET_HAL_CTX(pAdapter),
