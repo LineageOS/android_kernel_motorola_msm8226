@@ -464,12 +464,12 @@ void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter )
     hdd_remain_on_chan_ctx_t* pRemainChanCtx = cfgState->remain_on_chan_ctx;
 
     hddLog( LOG1, "Ready on chan ind");
-    MTRACE(vos_trace(VOS_MODULE_ID_HDD,
-                     TRACE_CODE_HDD_REMAINCHANREADYHANDLER,
-                     pAdapter->sessionId, pRemainChanCtx->duration));
     if( pRemainChanCtx != NULL )
     {
-        if( REMAIN_ON_CHANNEL_REQUEST == pRemainChanCtx->rem_on_chan_request )
+        MTRACE(vos_trace(VOS_MODULE_ID_HDD,
+                         TRACE_CODE_HDD_REMAINCHANREADYHANDLER,
+                         pAdapter->sessionId, pRemainChanCtx->duration));
+        if( REMAIN_ON_CHANNEL_REQUEST == pRemainChanCtx->rem_on_chan_request)
         {
             cfg80211_ready_on_channel(
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))

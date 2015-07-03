@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -456,6 +456,13 @@ tSmeCmd *smeGetCommandBuffer( tpAniSirGlobal pMac )
         csrLLUnlock(&pMac->roam.roamCmdPendingList);
     }
 
+    if( pRetCmd )
+    {
+         vos_mem_set((tANI_U8 *)&pRetCmd->command, sizeof(pRetCmd->command), 0);
+         vos_mem_set((tANI_U8 *)&pRetCmd->sessionId, sizeof(pRetCmd->sessionId), 0);
+         vos_mem_set((tANI_U8 *)&pRetCmd->u, sizeof(pRetCmd->u), 0);
+    }
+
     return( pRetCmd );
 }
 
@@ -687,6 +694,30 @@ tANI_BOOLEAN smeProcessScanQueue(tpAniSirGlobal pMac)
 end:
     csrLLUnlock(&pMac->sme.smeScanCmdActiveList);
     return status;
+}
+
+eHalStatus smeProcessPnoCommand(tpAniSirGlobal pMac, tSmeCmd *pCmd)
+{
+    tpSirPNOScanReq pnoReqBuf;
+    tSirMsgQ msgQ;
+
+    pnoReqBuf = vos_mem_malloc(sizeof(tSirPNOScanReq));
+    if ( NULL == pnoReqBuf )
+    {
+        smsLog(pMac, LOGE, FL("failed to allocate memory"));
+        return eHAL_STATUS_FAILURE;
+    }
+
+    vos_mem_copy(pnoReqBuf, &(pCmd->u.pnoInfo), sizeof(tSirPNOScanReq));
+
+    smsLog(pMac, LOG1, FL("post WDA_SET_PNO_REQ comamnd"));
+    msgQ.type = WDA_SET_PNO_REQ;
+    msgQ.reserved = 0;
+    msgQ.bodyptr = pnoReqBuf;
+    msgQ.bodyval = 0;
+    wdaPostCtrlMsg( pMac, &msgQ);
+
+    return eHAL_STATUS_SUCCESS;
 }
 
 tANI_BOOLEAN smeProcessCommand( tpAniSirGlobal pMac )
@@ -973,7 +1004,22 @@ sme_process_cmd:
                                 }
                             }
                             break;
+                        case eSmeCommandPnoReq:
+                            csrLLUnlock( &pMac->sme.smeCmdActiveList );
+                            status = smeProcessPnoCommand(pMac, pCommand);
+                            if (!HAL_STATUS_SUCCESS(status)){
+                                smsLog(pMac, LOGE,
+                                  FL("failed to post SME PNO SCAN %d"), status);
+                            }
+                            //We need to re-run the command
+                            fContinue = eANI_BOOLEAN_TRUE;
 
+                            if (csrLLRemoveEntry(&pMac->sme.smeCmdActiveList,
+                                              &pCommand->Link, LL_ACCESS_LOCK))
+                            {
+                                csrReleaseCommand(pMac, pCommand);
+                            }
+                            break;
                         case eSmeCommandAddTs:
                         case eSmeCommandDelTs:
                             csrLLUnlock( &pMac->sme.smeCmdActiveList );

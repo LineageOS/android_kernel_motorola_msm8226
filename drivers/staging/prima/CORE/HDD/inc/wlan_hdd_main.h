@@ -210,7 +210,7 @@
 #define HDD_PNO_SCAN_TIMERS_SET_ONE      1
 /* value should not be greater than PNO_MAX_SCAN_TIMERS */
 #define HDD_PNO_SCAN_TIMERS_SET_MULTIPLE 6
-#define WLAN_WAIT_TIME_PNO  500
+#define WLAN_WAIT_TIME_PNO  2000
 #endif
 
 #define MAX_USER_COMMAND_SIZE 4096
@@ -1288,6 +1288,7 @@ struct hdd_context_s
 #endif /* FEATURE_WLAN_CH_AVOID */
 
    v_BOOL_t btCoexModeSet;
+   v_BOOL_t isPnoEnable;
 };
 
 
@@ -1431,5 +1432,7 @@ void hdd_deinit_batch_scan(hdd_adapter_t *pAdapter);
 #endif /*End of FEATURE_WLAN_BATCH_SCAN*/
 
 boolean hdd_is_5g_supported(hdd_context_t * pHddCtx);
+
+VOS_STATUS wlan_hdd_cancel_remain_on_channel(hdd_context_t *pHddCtx);
 
 #endif    // end #if !defined( WLAN_HDD_MAIN_H )

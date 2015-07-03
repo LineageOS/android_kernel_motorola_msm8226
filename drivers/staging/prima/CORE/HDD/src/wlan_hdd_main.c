@@ -9505,6 +9505,33 @@ VOS_STATUS hdd_issta_p2p_clientconnected(hdd_context_t *pHddCtx)
     return sme_isSta_p2p_clientConnected(pHddCtx->hHal);
 }
 
+VOS_STATUS wlan_hdd_cancel_remain_on_channel(hdd_context_t *pHddCtx)
+{
+    hdd_adapter_t *pAdapter;
+    hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
+    VOS_STATUS vosStatus;
+
+    vosStatus = hdd_get_front_adapter ( pHddCtx, &pAdapterNode );
+    while (NULL != pAdapterNode && VOS_STATUS_E_EMPTY != vosStatus)
+    {
+        pAdapter = pAdapterNode->pAdapter;
+        if (NULL != pAdapter)
+        {
+            if (WLAN_HDD_P2P_DEVICE == pAdapter->device_mode ||
+                WLAN_HDD_P2P_CLIENT == pAdapter->device_mode ||
+                WLAN_HDD_P2P_GO == pAdapter->device_mode)
+            {
+                hddLog(LOG1, FL("abort ROC deviceMode: %d"),
+                                 pAdapter->device_mode);
+                wlan_hdd_cancel_existing_remain_on_channel(pAdapter);
+            }
+        }
+        vosStatus = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
+        pAdapterNode = pNext;
+    }
+    return VOS_STATUS_SUCCESS;
+}
+
 //Register the module init/exit functions
 module_init(hdd_module_init);
 module_exit(hdd_module_exit);

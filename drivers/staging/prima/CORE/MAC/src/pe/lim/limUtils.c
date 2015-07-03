@@ -7751,3 +7751,14 @@ tANI_U8 limGetShortSlotFromPhyMode(tpAniSirGlobal pMac, tpPESession psessionEntr
     limLog(pMac, LOG1, FL("phyMode = %u shortslotsupported = %u"), phyMode, val);
     return val;
 }
+void limDecrementPendingMgmtCount (tpAniSirGlobal pMac)
+{
+    if( pMac->sys.gSysBbtPendingMgmtCount )
+    {
+         vos_spin_lock_acquire( &pMac->sys.lock );
+         pMac->sys.gSysBbtPendingMgmtCount--;
+         vos_spin_lock_release( &pMac->sys.lock );
+    }
+    else
+         limLog(pMac, LOGW, FL("Pending Management count going negative"));
+}
