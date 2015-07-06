@@ -3263,6 +3263,20 @@ REG_VARIABLE( CFG_EXTSCAN_ENABLE, WLAN_PARAM_Integer,
                  CFG_TOGGLE_ARP_BDRATES_DEFAULT,
                  CFG_TOGGLE_ARP_BDRATES_MIN,
                  CFG_TOGGLE_ARP_BDRATES_MAX),
+
+   REG_VARIABLE( CFG_LINK_FAIL_TIMEOUT_NAME , WLAN_PARAM_Integer,
+                 hdd_config_t, linkFailTimeout,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_LINK_FAIL_TIMEOUT_DEF,
+                 CFG_LINK_FAIL_TIMEOUT_MIN,
+                 CFG_LINK_FAIL_TIMEOUT_MAX ),
+
+   REG_VARIABLE( CFG_LINK_FAIL_TX_CNT_NAME , WLAN_PARAM_Integer,
+                 hdd_config_t, linkFailTxCnt,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_LINK_FAIL_TX_CNT_DEF,
+                 CFG_LINK_FAIL_TX_CNT_MIN,
+                 CFG_LINK_FAIL_TX_CNT_MAX ),
 };
 
 /*
@@ -5194,6 +5208,22 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
        fStatus = FALSE;
        hddLog(LOGE, "Could not pass on"
                "WNI_CFG_TOGGLE_ARP_BDRATES to CCM");
+   }
+
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_LINK_FAIL_TIMEOUT,
+                    pConfig->linkFailTimeout, NULL,
+                    eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE)
+   {
+      fStatus = FALSE;
+      hddLog(LOGE, "Could not pass on WNI_CFG_LINK_FAIL_TIMEOUT ");
+   }
+
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_LINK_FAIL_TX_CNT,
+                    pConfig->linkFailTxCnt, NULL,
+                    eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE)
+   {
+      fStatus = FALSE;
+      hddLog(LOGE, "Could not pass on WNI_CFG_LINK_FAIL_TX_CNT ");
    }
    return fStatus;
 }
