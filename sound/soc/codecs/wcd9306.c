@@ -517,43 +517,6 @@ static int tapan_put_anc_func(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int tapan_loopback_mode_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tapan_priv *tapan = snd_soc_codec_get_drvdata(codec);
-
-	ucontrol->value.integer.value[0] = tapan->lb_mode;
-	dev_dbg(codec->dev, "%s: lb_mode = %d\n",
-		__func__, tapan->lb_mode);
-
-	return 0;
-}
-
-static int tapan_loopback_mode_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tapan_priv *tapan = snd_soc_codec_get_drvdata(codec);
-
-	dev_dbg(codec->dev, "%s: ucontrol->value.integer.value[0] = %ld\n",
-		__func__, ucontrol->value.integer.value[0]);
-
-	switch (ucontrol->value.integer.value[0]) {
-	case 0:
-		tapan->lb_mode = false;
-		break;
-	case 1:
-		tapan->lb_mode = true;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-
 static int tapan_pa_gain_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
