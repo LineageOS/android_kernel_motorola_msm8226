@@ -1261,8 +1261,6 @@ WLANTL_RegisterSTAClient
   pClientSTA->tlPri    = WLANTL_STA_PRI_NORMAL;
   pClientSTA->wSTADesc.ucSTAId  = pwSTADescType->ucSTAId;
   pClientSTA->ptkInstalled = 0;
-  /* Use BD rate 1 for sending ARP packets by default */
-  pClientSTA->arpRate = 1;
 
   pMac = vos_get_context(VOS_MODULE_ID_PE, pvosGCtx);
   if ( NULL != pMac )

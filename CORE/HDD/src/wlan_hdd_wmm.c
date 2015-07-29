@@ -1967,12 +1967,6 @@ v_VOID_t hdd_wmm_classify_pkt ( hdd_adapter_t* pAdapter,
                    pHdr->eth_II.h_proto == htons(HDD_ETHERTYPE_ARP))
           {
               tos = TID3;
-          else if (pHdr->eth_II.h_proto == htons(HDD_ETHERTYPE_ARP))
-          {
-              tos = 0x60;
-              VOS_TRACE(VOS_MODULE_ID_HDD, WMM_TRACE_LEVEL_ERROR,
-                        "%s: ARP Packet",
-                        __func__);
           }
           else
               tos = 0;
