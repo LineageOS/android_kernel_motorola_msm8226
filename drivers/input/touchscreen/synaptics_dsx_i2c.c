@@ -750,6 +750,41 @@ static ssize_t synaptics_rmi4_ic_ver_show(struct device *dev,
 static ssize_t synaptics_rmi4_poweron_show(struct device *dev,
 		struct device_attribute *attr, char *buf);
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+static ssize_t synaptics_rmi4_wake_gesture_supported_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_rmi4_wake_gesture_enabled_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_rmi4_wake_gesture_enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_x_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_x_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_y_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_y_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_rmi4_wake_gesture_timeout_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_rmi4_wake_gesture_timeout_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_rmi4_wake_gesture_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_rmi4_wake_gesture_mode_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+#endif
+
 struct synaptics_rmi4_f01_device_status {
 	union {
 		struct {
@@ -862,6 +897,26 @@ static struct device_attribute attrs[] = {
 	__ATTR(poweron, S_IRUSR | S_IRGRP,
 			synaptics_rmi4_poweron_show,
 			synaptics_rmi4_store_error),
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	__ATTR(wake_gesture_supported, S_IRUGO,
+			synaptics_rmi4_wake_gesture_supported_show,
+			synaptics_rmi4_store_error),
+	__ATTR(wake_gesture_enabled, S_IWUSR | S_IRGRP,
+			synaptics_rmi4_wake_gesture_enabled_show,
+			synaptics_rmi4_wake_gesture_enabled_store),
+	__ATTR(wake_gesture_delta_x, S_IWUSR | S_IRGRP,
+			synaptics_rmi4_wake_gesture_delta_x_show,
+			synaptics_rmi4_wake_gesture_delta_x_store),
+	__ATTR(wake_gesture_delta_y, S_IWUSR | S_IRGRP,
+			synaptics_rmi4_wake_gesture_delta_y_show,
+			synaptics_rmi4_wake_gesture_delta_y_store),
+	__ATTR(wake_gesture_timeout, S_IWUSR | S_IRGRP,
+			synaptics_rmi4_wake_gesture_timeout_show,
+			synaptics_rmi4_wake_gesture_timeout_store),
+	__ATTR(wake_gesture_mode, S_IWUSR | S_IRGRP,
+			synaptics_rmi4_wake_gesture_mode_show,
+			synaptics_rmi4_wake_gesture_mode_store),
+#endif
 };
 
 struct synaptics_exp_fn_ctrl {
@@ -1037,6 +1092,11 @@ static int synaptics_dsx_sensor_ready_state(
 static void synaptics_dsx_sensor_state(struct synaptics_rmi4_data *rmi4_data,
 		int state)
 {
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	if (atomic_read(&rmi4_data->wake_gesture.active_state))
+		return;
+#endif
+
 	if (synaptics_dsx_get_state_safe(rmi4_data) == state)
 		return;
 
@@ -1370,6 +1430,229 @@ static ssize_t synaptics_rmi4_poweron_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", rmi4_data->poweron);
 }
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+static int synaptics_rmi4_wake_gesture_set_enabled(
+		struct synaptics_rmi4_data *rmi4_data, bool enable)
+{
+	int current_state;
+	int retval;
+
+	if (!rmi4_data->wake_gesture.supported) {
+		dev_err(&rmi4_data->i2c_client->dev,
+			"%s: Sensor not supported\n",
+			__func__);
+		return -EPERM;
+	}
+
+	if (rmi4_data->wake_gesture.enabled == enable)
+		return 0;
+
+	/*
+	 * Make sure the touchscreen is active before changing the state
+	 */
+	current_state = synaptics_dsx_get_state_safe(rmi4_data);
+	if (current_state != STATE_ACTIVE && current_state != STATE_SUSPEND) {
+		dev_err(&rmi4_data->i2c_client->dev,
+			"%s: Sensor must be active or suspended\n",
+			__func__);
+		return -EPERM;
+	}
+
+	if (current_state != STATE_ACTIVE) {
+		retval = synaptics_rmi4_resume(&rmi4_data->i2c_client->dev);
+		if (retval < 0) {
+			dev_err(&rmi4_data->i2c_client->dev,
+				"%s: Could not resume sensor\n",
+				__func__);
+			return retval;
+		}
+	}
+
+	rmi4_data->wake_gesture.enabled = enable;
+
+	if (current_state != STATE_ACTIVE)
+		synaptics_rmi4_suspend(&rmi4_data->i2c_client->dev);
+
+	return 0;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_supported_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%d\n",
+			rmi4_data->wake_gesture.supported);
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_enabled_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int enable;
+	int retval;
+
+	if (sscanf(buf, "%u", &enable) != 1)
+		return -EINVAL;
+
+	retval = synaptics_rmi4_wake_gesture_set_enabled(rmi4_data, !!enable);
+	if (retval < 0)
+		return retval;
+
+	return count;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%d\n",
+			rmi4_data->wake_gesture.enabled);
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_x_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int delta_x;
+
+	if (sscanf(buf, "%u", &delta_x) != 1)
+		return -EINVAL;
+	rmi4_data->wake_gesture.delta_x = delta_x;
+
+	return count;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_x_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			rmi4_data->wake_gesture.delta_x);
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_y_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int delta_y;
+
+	if (sscanf(buf, "%u", &delta_y) != 1)
+		return -EINVAL;
+	rmi4_data->wake_gesture.delta_y = delta_y;
+
+	return count;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_delta_y_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			rmi4_data->wake_gesture.delta_y);
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_timeout_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int timeout;
+
+	if (sscanf(buf, "%u", &timeout) != 1)
+		return -EINVAL;
+	rmi4_data->wake_gesture.timeout_jiffies = msecs_to_jiffies(timeout);
+
+	return count;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_timeout_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+		jiffies_to_msecs(rmi4_data->wake_gesture.timeout_jiffies));
+}
+
+
+static ssize_t synaptics_rmi4_wake_gesture_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int mode;
+
+	if (sscanf(buf, "%u", &mode) != 1)
+		return -EINVAL;
+	if (mode == 0)
+		rmi4_data->wake_gesture.mode_suspend = 2;
+	else
+		rmi4_data->wake_gesture.mode_suspend = 3;
+
+	return count;
+}
+
+static ssize_t synaptics_rmi4_wake_gesture_mode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+		rmi4_data->wake_gesture.mode_suspend - 2);
+}
+
+static int synaptics_rmi4_set_reporting_mode(
+		struct synaptics_rmi4_data *rmi4_data, unsigned char mode)
+{
+	unsigned char control0;
+	int retval;
+
+	retval = synaptics_rmi4_i2c_read(rmi4_data,
+			rmi4_data->wake_gesture.f11_ctrl_base,
+			&control0,
+			sizeof(control0));
+	if (retval < 0) {
+		dev_err(&rmi4_data->i2c_client->dev,
+				"%s: Failed to read F11_2D_Ctrl0: %d\n",
+				__func__, retval);
+		return retval;
+	}
+
+	control0 = (control0 & ~MASK_3BIT) | mode;
+
+	retval = synaptics_rmi4_i2c_write(rmi4_data,
+			rmi4_data->wake_gesture.f11_ctrl_base,
+			&control0,
+			sizeof(control0));
+	if (retval < 0) {
+		dev_err(&rmi4_data->i2c_client->dev,
+				"%s: Failed to write F11_2D_Ctrl0: %d\n",
+				__func__, retval);
+		return retval;
+	}
+
+	return 0;
+}
+
+static int synaptics_rmi4_get_reporting_mode(
+		struct synaptics_rmi4_data *rmi4_data, unsigned char *mode)
+{
+	unsigned char control0;
+	int retval;
+
+	retval = synaptics_rmi4_i2c_read(rmi4_data,
+			rmi4_data->wake_gesture.f11_ctrl_base,
+			&control0,
+			sizeof(control0));
+	if (retval < 0) {
+		dev_err(&rmi4_data->i2c_client->dev,
+				"%s:Failed to read F11_2D_Ctrl0: %d\n",
+				__func__, retval);
+		return retval;
+	}
+
+	*mode = control0 & MASK_3BIT;
+
+	return 0;
+}
+#endif
+
  /**
  * synaptics_rmi4_set_page()
  *
@@ -1690,6 +1973,61 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			num_of_finger_status_regs);
 	if (retval < 0)
 		return 0;
+
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	if (atomic_read(&rmi4_data->wake_gesture.active_state)) {
+		/*
+		 * It is assumed that the reporting mode is either
+		 * finger-presence change or finger-state change.
+		 */
+		bool finger_down = !!(finger_status_reg[0] & MASK_2BIT);
+		unsigned long timeout = rmi4_data->wake_gesture.jiffies +
+				rmi4_data->wake_gesture.timeout_jiffies;
+		long delta_x;
+		long delta_y;
+
+		/*
+		 * Required for finger-state change reporting mode.
+		 * If the status of the finger didn't change, then there
+		 * are multiple fingers on the screen. If that's the case,
+		 * ignore the next tap of finger 0.
+		 */
+		if (rmi4_data->wake_gesture.finger_down == finger_down) {
+			rmi4_data->wake_gesture.jiffies = 0;
+			return 0;
+		}
+
+		data_offset = data_addr + num_of_finger_status_regs;
+		retval = synaptics_rmi4_i2c_read(rmi4_data,
+				data_offset,
+				data,
+				data_reg_blk_size);
+		if (retval < 0)
+			return 0;
+
+		x = (data[0] << 4) | (data[2] & MASK_4BIT);
+		y = (data[1] << 4) | ((data[2] >> 4) & MASK_4BIT);
+
+		delta_x = abs(x - rmi4_data->wake_gesture.x);
+		delta_y = abs(y - rmi4_data->wake_gesture.y);
+		if (finger_down && jiffies < timeout &&
+				delta_x < rmi4_data->wake_gesture.delta_x &&
+				delta_y < rmi4_data->wake_gesture.delta_y) {
+			input_report_key(rmi4_data->input_dev, KEY_POWER, 1);
+			input_report_key(rmi4_data->input_dev, KEY_POWER, 0);
+			input_sync(rmi4_data->input_dev);
+		}
+
+		if (finger_down) {
+			rmi4_data->wake_gesture.jiffies = jiffies;
+			rmi4_data->wake_gesture.x = x;
+			rmi4_data->wake_gesture.y = y;
+		}
+		rmi4_data->wake_gesture.finger_down = finger_down;
+
+		return 0;
+	}
+#endif
 
 	if (atomic_read(&rmi4_data->panel_off_flag)) {
 		synaptics_dsx_resumeinfo_ignore(rmi4_data);
@@ -2280,6 +2618,17 @@ static int synaptics_rmi4_f11_init(struct synaptics_rmi4_data *rmi4_data,
 			ABS_MT_TRACKING_ID, 0,
 			rmi4_data->num_of_fingers - 1, 0, 0);
 	input_set_events_per_packet(rmi4_data->input_dev, 64);
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	rmi4_data->wake_gesture.supported = true;
+	rmi4_data->wake_gesture.mode_suspend = 3;
+	input_set_capability(rmi4_data->input_dev, EV_KEY, KEY_POWER);
+	rmi4_data->wake_gesture.f11_ctrl_base = fhandler->full_addr.ctrl_base;
+	rmi4_data->wake_gesture.delta_x = WAKEGESTURE_DELTA_X;
+	rmi4_data->wake_gesture.delta_y = WAKEGESTURE_DELTA_Y;
+	rmi4_data->wake_gesture.timeout_jiffies =
+			msecs_to_jiffies(WAKEGESTURE_TIMEOUT_MS);
 #endif
 
 	return retval;
@@ -3351,6 +3700,10 @@ static int __devexit synaptics_rmi4_remove(struct i2c_client *client)
 	const struct synaptics_dsx_platform_data *platform_data =
 			rmi4_data->board;
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	synaptics_rmi4_wake_gesture_set_enabled(rmi4_data, false);
+#endif
+
 	rmi = &(rmi4_data->rmi4_mod_info);
 
 	if (exp_fn_ctrl.inited) {
@@ -3676,6 +4029,27 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	const struct synaptics_dsx_platform_data *platform_data =
 			rmi4_data->board;
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	if (!atomic_read(&rmi4_data->wake_gesture.active_state) &&
+			rmi4_data->wake_gesture.enabled) {
+		unsigned char mode;
+		int retval;
+
+		atomic_set(&rmi4_data->wake_gesture.active_state, 1);
+
+		retval = synaptics_rmi4_get_reporting_mode(rmi4_data,
+				&mode);
+		if (!retval)
+			rmi4_data->wake_gesture.mode_resume = mode;
+		synaptics_rmi4_set_reporting_mode(rmi4_data,
+				rmi4_data->wake_gesture.mode_suspend);
+
+		enable_irq_wake(rmi4_data->irq);
+
+		return 0;
+	}
+#endif
+
 	synaptics_dsx_sensor_state(rmi4_data, STATE_SUSPEND);
 	rmi4_data->poweron = false;
 
@@ -3714,6 +4088,18 @@ static int synaptics_rmi4_suspend(struct device *dev)
 static int synaptics_rmi4_resume(struct device *dev)
 {
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	if (atomic_read(&rmi4_data->wake_gesture.active_state) &&
+			rmi4_data->wake_gesture.enabled) {
+		atomic_set(&rmi4_data->wake_gesture.active_state, 0);
+		disable_irq_wake(rmi4_data->irq);
+		synaptics_rmi4_set_reporting_mode(rmi4_data,
+				rmi4_data->wake_gesture.mode_resume);
+
+		return 0;
+	}
+#endif
 
 	synaptics_dsx_resumeinfo_start(rmi4_data);
 

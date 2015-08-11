@@ -199,6 +199,33 @@ struct synaptics_rmi4_device_info {
 	struct list_head support_fn_list;
 };
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+
+#define WAKEGESTURE_TIMEOUT_MS 200
+#define WAKEGESTURE_DELTA_X 250
+#define WAKEGESTURE_DELTA_Y 250
+
+struct synaptics_rmi4_wake_gesture_data {
+	bool supported;
+
+	unsigned long jiffies;
+	int x;
+	int y;
+	bool finger_down;
+
+	unsigned int delta_x;
+	unsigned int delta_y;
+	unsigned long timeout_jiffies;
+
+	bool enabled;
+	atomic_t active_state;
+
+	unsigned short f11_ctrl_base;
+	unsigned char mode_suspend;
+	unsigned char mode_resume;
+};
+#endif
+
 /*
  * struct synaptics_rmi4_data - rmi4 device instance data
  * @i2c_client: pointer to associated i2c client
@@ -295,6 +322,10 @@ struct synaptics_rmi4_data {
 	int number_irq;
 	int last_irq;
 	struct synaptics_rmi4_irq_info *irq_info;
+
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	struct synaptics_rmi4_wake_gesture_data wake_gesture;
+#endif
 };
 
 struct f34_properties {

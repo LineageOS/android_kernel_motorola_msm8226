@@ -560,6 +560,18 @@ config TOUCHSCREEN_SYNAPTICS_DSX_I2C
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_dsx_i2c.
 
+config TOUCHSCREEN_SYNAPTICS_DSX_I2C_WAKEGESTURE
+	tristate "Double-tap wake gesture for Synaptics DSX I2C touchscreen"
+	depends on TOUCHSCREEN_SYNAPTICS_DSX_I2C
+	help
+	  Say Y here if you want to include the support for the double-tap
+	  to wake gesture.
+
+	  The feature is disabled by default even when this option is selected.
+	  When enabled, the touchscreen is kept active when the device is
+	  suspended to register touches. If a double-tap gesture is detected,
+	  an input event is sent to userspace.
+
 config TOUCHSCREEN_SYNAPTICS_DSX_RMI_DEV
 	tristate "Synaptics DSX touchscreen char device"
 	depends on TOUCHSCREEN_SYNAPTICS_DSX_I2C
