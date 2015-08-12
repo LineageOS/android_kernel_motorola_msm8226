@@ -3039,7 +3039,8 @@ static void readjust_fcc_table(struct qpnp_bms_chip *chip)
 
 	old = chip->adjusted_fcc_temp_lut;
 	chip->adjusted_fcc_temp_lut = temp;
-	devm_kfree(chip->dev, old);
+	if (old)
+		devm_kfree(chip->dev, old);
 }
 
 static int read_fcc_data_from_backup(struct qpnp_bms_chip *chip)
