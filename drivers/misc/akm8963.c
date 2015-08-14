@@ -36,7 +36,6 @@
 #include <linux/slab.h>
 #include <linux/suspend.h>
 #include <linux/uaccess.h>
-#include <linux/workqueue.h>
 #include <linux/akm8963.h>
 #include <linux/regulator/consumer.h>
 
@@ -55,7 +54,6 @@ struct akm8963_data {
 	struct input_dev	*input;
 	struct device		*class_dev;
 	struct class		*compass;
-	struct work_struct	work;
 
 	wait_queue_head_t	drdy_wq;
 	wait_queue_head_t	open_wq;
@@ -1254,10 +1252,9 @@ static int akm8963_input_init(
 
 /***** akm functions ************************************************/
 
-static void akm8963_work(struct work_struct *work)
+static irqreturn_t akm8963_irq(int irq, void *handle)
 {
-	struct akm8963_data *akm = container_of(
-		work, struct akm8963_data, work);
+	struct akm8963_data *akm = handle;
 	char buffer[SENSOR_DATA_SIZE];
 	int err;
 
@@ -1279,19 +1276,9 @@ static void akm8963_work(struct work_struct *work)
 	akm->drdy_flag = 1;
 	akm->busy_flag = 0;
 	mutex_unlock(&akm->sensor_mutex);
+	wake_up(&akm->drdy_wq);
 
 work_func_end:
-	wake_up(&akm->drdy_wq);
-	enable_irq(akm->irq);
-}
-
-static irqreturn_t akm8963_irq(int irq, void *handle)
-{
-	struct akm8963_data *akm = handle;
-
-	disable_irq_nosync(akm->irq);
-	schedule_work(&akm->work);
-
 	return IRQ_HANDLED;
 }
 
@@ -1492,7 +1479,7 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				s_akm->irq,
 				NULL,
 				akm8963_irq,
-				IRQF_TRIGGER_RISING,
+				IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 				dev_name(&client->dev),
 				s_akm);
 		if (err < 0) {
@@ -1501,8 +1488,6 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			goto exit_irq_fail;
 		}
 	}
-
-	INIT_WORK(&s_akm->work, akm8963_work);
 
 	/***** misc *****/
 	err = misc_register(&akm8963_dev);
