@@ -820,10 +820,12 @@ static ssize_t akm8963_sysfs_enable_store(
 		if (akm->active_flag == 1) {
 			akm->active_flag = 0;
 			wake_up(&akm->open_wq);
+			disable_irq(akm->irq);
 			dev_dbg(akm->class_dev, "%s: Deactivated", __func__);
 		}
 	} else {
 		if (akm->active_flag == 0) {
+			enable_irq(akm->irq);
 			akm->active_flag = 1;
 			wake_up(&akm->open_wq);
 			dev_dbg(akm->class_dev, "%s: Activated", __func__);
@@ -1301,7 +1303,8 @@ static int akm8963_suspend(struct device *dev)
 
 	dev_info(&akm->i2c->dev, "%s: Suspend\n", __func__);
 
-	disable_irq(akm->irq);
+	if (akm->active_flag)
+		disable_irq(akm->irq);
 
 	mutex_lock(&akm->state_mutex);
 	akm->suspend_flag = 1;
@@ -1328,7 +1331,8 @@ static int akm8963_resume(struct device *dev)
 	akm->suspend_flag = 0;
 	mutex_unlock(&akm->state_mutex);
 
-	enable_irq(akm->irq);
+	if (akm->active_flag)
+		enable_irq(akm->irq);
 
 	wake_up(&akm->open_wq);
 
