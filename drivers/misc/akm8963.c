@@ -79,8 +79,6 @@ struct akm8963_data {
 	char	outbit;
 	int	irq;
 	int	rstn;
-
-	struct notifier_block pm_notifier;
 };
 
 static struct akm8963_data *s_akm;
@@ -1295,8 +1293,12 @@ static irqreturn_t akm8963_irq(int irq, void *handle)
 	return IRQ_HANDLED;
 }
 
-static int akm8963_suspend(struct akm8963_data *akm)
+#ifdef CONFIG_PM
+static int akm8963_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
+	struct akm8963_data *akm = i2c_get_clientdata(client);
+
 	dev_info(&akm->i2c->dev, "%s: Suspend\n", __func__);
 
 	disable_irq(akm->irq);
@@ -1313,8 +1315,11 @@ static int akm8963_suspend(struct akm8963_data *akm)
 	return 0;
 }
 
-static int akm8963_resume(struct akm8963_data *akm)
+static int akm8963_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
+	struct akm8963_data *akm = i2c_get_clientdata(client);
+
 	dev_info(&akm->i2c->dev, "%s: Resume\n", __func__);
 
 	mutex_lock(&akm->state_mutex);
@@ -1329,24 +1334,8 @@ static int akm8963_resume(struct akm8963_data *akm)
 
 	return 0;
 }
-
-static int akm8963_pm_event(struct notifier_block *this,
-	unsigned long event, void *ptr)
-{
-	struct akm8963_data *akm = container_of(this,
-		struct akm8963_data, pm_notifier);
-
-	switch (event) {
-	case PM_SUSPEND_PREPARE:
-		akm8963_suspend(akm);
-		break;
-	case PM_POST_SUSPEND:
-		akm8963_resume(akm);
-		break;
-	}
-
-	return NOTIFY_DONE;
-}
+#endif
+static SIMPLE_DEV_PM_OPS(akm8963_pm, akm8963_suspend, akm8963_resume);
 
 #ifdef CONFIG_OF
 static struct akm8963_platform_data *
@@ -1527,18 +1516,9 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto exit_sfs_fail;
 	}
 
-	s_akm->pm_notifier.notifier_call = akm8963_pm_event;
-	err = register_pm_notifier(&s_akm->pm_notifier);
-	if (err < 0) {
-		pr_err("%s:Register_pm_notifier failed: %d\n", __func__, err);
-		goto exit_pm_fail;
-	}
-
 	dev_info(&client->dev, "%s: success", __func__);
 	return 0;
 
-exit_pm_fail:
-	remove_sysfs_interfaces(s_akm);
 exit_sfs_fail:
 	misc_deregister(&akm8963_dev);
 exit_register_fail:
@@ -1567,7 +1547,6 @@ static int akm8963_remove(struct i2c_client *client)
 		regulator_put(akm->vdd);
 	}
 
-	unregister_pm_notifier(&akm->pm_notifier);
 	remove_sysfs_interfaces(akm);
 	if (misc_deregister(&akm8963_dev) < 0)
 		dev_err(&client->dev, "%s: misc deregister failed.", __func__);
@@ -1600,6 +1579,7 @@ static struct i2c_driver akm8963_driver = {
 	.driver = {
 		.name	= AKM8963_I2C_NAME,
 		.of_match_table = of_match_ptr(akm8963_match_tbl),
+		.pm	= &akm8963_pm,
 	},
 };
 
