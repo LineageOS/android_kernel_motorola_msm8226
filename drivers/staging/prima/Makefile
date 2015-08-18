@@ -4,7 +4,7 @@ WLAN_ROOT := drivers/staging/prima
 # Feature flags which are not (currently) configurable via Kconfig
 
 #Whether to build debug version
-BUILD_DEBUG_VERSION := 1
+BUILD_DEBUG_VERSION := 0
 
 #Enable this flag to build driver in diag version
 BUILD_DIAG_VERSION := 1
@@ -628,7 +628,7 @@ CDEFINES += -DEXISTS_MSM_SMD
 CDEFINES += -DEXISTS_MSM_SMSM
 
 # Fix build for GCC 4.7
-EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function
+EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 
