@@ -101,7 +101,7 @@
 #include "sme_Api.h"
 #include "vos_trace.h"
 #include "wlan_hdd_assoc.h"
-
+#include <linux/ratelimit.h>
 #ifdef DEBUG_ROAM_DELAY
 #include "vos_utils.h"
 #endif
@@ -371,7 +371,7 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
 #define WLAN_ADAPTER 0
 #define P2P_ADAPTER  1
 
-#define HDD_IOCTL_RATELIMIT_INTERVAL 20*HZ
+#define HDD_IOCTL_RATELIMIT_INTERVAL (20*HZ)
 #define HDD_IOCTL_RATELIMIT_BURST 1
 
 static DEFINE_RATELIMIT_STATE(hdd_ioctl_timeout_rs, \
