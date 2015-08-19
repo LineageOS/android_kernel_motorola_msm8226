@@ -56,6 +56,9 @@
 #define WLAN_HO_CFG_FILE           "wlan/wlan_ho_config"
 #endif // MSM_PLATFORM
 
+#ifdef WLAN_NV_OTA_UPGRADE
+#define WLAN_FACTORY_NV_FILE       "wlan/prima/WCNSS_qcom_wlan_factory_nv.bin"
+#endif
 
 VOS_STATUS hdd_request_firmware(char *pfileName,v_VOID_t *pCtx,v_VOID_t **ppfw_data, v_SIZE_t *pSize);
 
