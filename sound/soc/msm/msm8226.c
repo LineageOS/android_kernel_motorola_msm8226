@@ -1279,7 +1279,11 @@ void *def_tapan_mbhc_cal(void)
 	btn_low[6] = 229;
 	btn_high[6] = 269;
 	btn_low[7] = 270;
+#ifndef CONFIG_MMI_TITAN_DTB
 	btn_high[7] = 500;
+#else
+	btn_high[7] = 580;
+#endif
 	n_ready = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_N_READY);
 	n_ready[0] = 80;
 	n_ready[1] = 12;
