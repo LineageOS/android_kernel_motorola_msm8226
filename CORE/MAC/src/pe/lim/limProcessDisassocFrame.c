@@ -215,6 +215,10 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
                 (psessionEntry->limSmeState != eLIM_SME_WT_ASSOC_STATE)  &&
                 (psessionEntry->limSmeState != eLIM_SME_WT_REASSOC_STATE) ))
     {
+        PELOGE(limLog(pMac, LOGE,
+               FL("received Disassoc with reason code= %d disassoc frame rssi = "
+                "%d from "MAC_ADDRESS_STR), reasonCode,
+                (uint)abs((tANI_S8)WDA_GET_RX_RSSI_DB(pRxPacketInfo)),MAC_ADDR_ARRAY(pHdr->sa));)
         switch (reasonCode)
         {
             case eSIR_MAC_UNSPEC_FAILURE_REASON:

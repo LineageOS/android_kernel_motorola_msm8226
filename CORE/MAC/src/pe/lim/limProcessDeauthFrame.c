@@ -142,6 +142,8 @@ limProcessDeauthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession p
         limMlmStateStr(psessionEntry->limMlmState), psessionEntry->limSmeState,
         psessionEntry->limSystemRole, reasonCode,
         MAC_ADDR_ARRAY(pHdr->sa));)
+
+    PELOGE(limLog(pMac, LOGE,FL(" Deauth frame rssi = %d"), (uint)abs((tANI_S8)WDA_GET_RX_RSSI_DB(pRxPacketInfo)));)
       
     if (limCheckDisassocDeauthAckPending(pMac, (tANI_U8*)pHdr->sa))
     {
