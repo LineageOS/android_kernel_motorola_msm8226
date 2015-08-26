@@ -856,12 +856,12 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 
 static u32 get_frame_size_nv12(int plane, u32 height, u32 width)
 {
-	return VENUS_BUFFER_SIZE(COLOR_FMT_NV12, width, height);
+	return VENUS_BUFFER_SIZE_EXTRADATA(COLOR_FMT_NV12, width, height);
 }
 
 static u32 get_frame_size_nv21(int plane, u32 height, u32 width)
 {
-	return VENUS_BUFFER_SIZE(COLOR_FMT_NV21, width, height);
+	return VENUS_BUFFER_SIZE_EXTRADATA(COLOR_FMT_NV21, width, height);
 }
 
 static u32 get_frame_size_compressed(int plane, u32 height, u32 width)
