@@ -526,7 +526,7 @@ typedef enum
    WLAN_HAL_DISABLE_MONITOR_MODE_REQ        = 304,
    WLAN_HAL_DISABLE_MONITOR_MODE_RSP        = 305,
    WLAN_HAL_SET_RTS_CTS_HTVHT_IND           = 306,
-
+   WLAN_HAL_LOST_LINK_PARAMETERS_IND        = 312,
    WLAN_HAL_MSG_MAX = WLAN_HAL_MSG_TYPE_MAX_ENUM_SIZE
 }tHalHostMsgType;
 
@@ -8343,6 +8343,27 @@ typedef PACKED_PRE struct PACKED_POST
     tHalMsgHeader         header;
     tMacSpoofedScanResp tMacSpoofedScanRespParams;
 }  tMacSpoofedScanRespMsg,  * tpMacSpoofedScanRespMsg;
+
+/*---------------------------------------------------------------------------
+  * WLAN_HAL_LOST_LINK_PARAMETERS_IND
+  *-------------------------------------------------------------------------*/
+typedef PACKED_PRE struct PACKED_POST
+{
+    tANI_U8  bssIdx;
+    tANI_U8  rssi;
+    tSirMacAddr selfMacAddr;
+    tANI_U32 linkFlCnt;
+    tANI_U32 linkFlTx;
+    tANI_U32 lastDataRate;
+    tANI_U32 rsvd1;
+    tANI_U32 rsvd2;
+}tHalLostLinkParametersIndParams, *tpHalLostLinkParametersIndParams;
+
+typedef PACKED_PRE struct PACKED_POST
+{
+    tHalMsgHeader header;
+    tHalLostLinkParametersIndParams lostLinkParameters;
+}tHalLostLinkParametersIndMsg, *tpHalLostLinkParametersIndMsg;
 
 #if defined(__ANI_COMPILER_PRAGMA_PACK_STACK)
 #pragma pack(pop)
