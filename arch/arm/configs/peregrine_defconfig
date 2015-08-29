@@ -1177,9 +1177,6 @@ CONFIG_CFG80211_WEXT=y
 # CONFIG_NET_9P is not set
 # CONFIG_CAIF is not set
 # CONFIG_CEPH_LIB is not set
-# CONFIG_NFC is not set
-CONFIG_PN544=y
-CONFIG_NFC_QNCI=y
 # CONFIG_BCM2079X is not set
 
 #
