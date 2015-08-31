@@ -1086,6 +1086,11 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 	int ret;
 
 	mdss_fb_pan_idle(mfd);
+
+	/* Blanking the fb while the panel is on causes problems */
+	if (mfd->panel_power_on && blank_mode == FB_BLANK_NORMAL)
+		return -EPERM;
+
 	if (mfd->op_enable == 0) {
 		if (blank_mode == FB_BLANK_UNBLANK)
 			mfd->suspend.panel_power_on = true;
