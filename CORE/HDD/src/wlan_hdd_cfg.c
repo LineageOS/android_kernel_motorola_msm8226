@@ -5463,6 +5463,7 @@ VOS_STATUS hdd_set_sme_config( hdd_context_t *pHddCtx )
    smeConfig->csrConfig.enableTxLdpc = pConfig->enableTxLdpc;
 
    smeConfig->csrConfig.isAmsduSupportInAMPDU = pConfig->isAmsduSupportInAMPDU;
+   smeConfig->csrConfig.ignorePeerErpInfo = pConfig->ignorePeerErpInfo;
    if(pConfig->nBandCapability != eCSR_BAND_24)
    {
        smeConfig->csrConfig.nSelect5GHzMargin = pConfig->nSelect5GHzMargin;
