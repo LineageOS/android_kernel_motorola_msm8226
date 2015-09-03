@@ -1251,6 +1251,7 @@ get_eRoamCmdStatus_str(eRoamCmdStatus val)
         CASE_RETURN_STR(eCSR_ROAM_SHOULD_ROAM);
         CASE_RETURN_STR(eCSR_ROAM_SCAN_FOUND_NEW_BSS);
         CASE_RETURN_STR(eCSR_ROAM_LOSTLINK);
+        CASE_RETURN_STR(eCSR_ROAM_LOST_LINK_PARAMS_IND);
     default:
         return "unknown";
     }

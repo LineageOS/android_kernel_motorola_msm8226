@@ -455,6 +455,5 @@ void* wlan_hdd_change_country_code_callback(void *pAdapter);
 
 int hdd_setBand(struct net_device *dev, u8 ui_band);
 int hdd_setBand_helper(struct net_device *dev, const char *command);
-
 #endif // __WEXT_IW_H__
 

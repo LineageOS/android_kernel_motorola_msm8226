@@ -803,6 +803,7 @@ WDI_RspProcFuncType  pfnRspProcTbl[WDI_MAX_RESP] =
   NULL,
 #endif
   WDI_delBaInd,                             /* WDI_HAL_DEL_BA_IND*/
+  WDI_Process_LostLinkParamInd,             /* WDI_HAL_LOST_LINK_PARAMS_IND*/
 };
 
 
@@ -24193,7 +24194,8 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
 #endif /* WLAN_FEATURE_EXTSCAN */
   case WLAN_HAL_MAC_SPOOFED_SCAN_RSP:
        return WDI_SPOOF_MAC_ADDR_RSP;
-
+  case WLAN_HAL_LOST_LINK_PARAMETERS_IND:
+       return WDI_HAL_LOST_LINK_PARAMS_IND;
   default:
     return eDRIVER_TYPE_MAX;
   }
@@ -33491,6 +33493,61 @@ WDI_ProcessSpoofMacAddrRsp
           &wdiSpoofMacAddrRsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
+}
+
+WDI_Status
+WDI_Process_LostLinkParamInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+)
+{
+  WDI_LowLevelIndType  wdiInd;
+  tHalLostLinkParametersIndParams halLostLinkParamInd;
+  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  /*-------------------------------------------------------------------------
+     Sanity check
+    -------------------------------------------------------------------------*/
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  /*-------------------------------------------------------------------------
+    Extract indication and send it to UMAC
+   -------------------------------------------------------------------------*/
+  wpalMemoryCopy( (void *)&halLostLinkParamInd,
+                   pEventData->pEventData,
+                   sizeof(tHalLostLinkParametersIndParams));
+
+
+  /*Fill in the indication parameters*/
+  wdiInd.wdiIndicationType = WDI_LOST_LINK_PARAMS_IND;
+  wpalMemoryCopy((void *)&wdiInd.wdiIndicationData.wdiLostLinkParamsInd,
+                 (void *)&halLostLinkParamInd,
+                 sizeof(WDI_LostLinkParamsIndType));
+  WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+          "%s: bssIdx %d, rssi : %d, selfMacAddr: " MAC_ADDRESS_STR", linkFlCnt: %d,"
+          "linkFlTx : %d,lastDataRate : %d", __func__,
+           wdiInd.wdiIndicationData.wdiLostLinkParamsInd.bssIdx,
+           wdiInd.wdiIndicationData.wdiLostLinkParamsInd.rssi,
+           MAC_ADDR_ARRAY(wdiInd.wdiIndicationData.wdiLostLinkParamsInd.selfMacAddr),
+           wdiInd.wdiIndicationData.wdiLostLinkParamsInd.linkFlCnt,
+           wdiInd.wdiIndicationData.wdiLostLinkParamsInd.linkFlTx,
+           wdiInd.wdiIndicationData.wdiLostLinkParamsInd.lastDataRate);
+  /*Notify UMAC*/
+  if (pWDICtx->wdiLowLevelIndCB)
+  {
+    pWDICtx->wdiLowLevelIndCB(&wdiInd, pWDICtx->pIndUserData);
+  }
+
+  return WDI_STATUS_SUCCESS;
+
 }
 
 WDI_Status
