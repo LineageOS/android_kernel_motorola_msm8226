@@ -4860,7 +4860,8 @@ static int __iw_setint_getnone(struct net_device *dev,
                 set_value = 0;
                 startChannel = 1;
                 //BEGIN MOT a19110 IKJBXLINE-2149 MHS frequency band support
-                endChannel   = 14;
+                //Motorola jmng34 IKSWM-2195-Restrict mhs 2.4 ghz channels to FCC
+                endChannel   = 11;
                 //END IKJBXLINE-2149
             }
 
