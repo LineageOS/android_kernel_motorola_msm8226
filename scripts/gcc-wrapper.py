@@ -42,6 +42,7 @@ import subprocess
 allowed_warnings = set([
     "return_address.c:62",
     "workqueue.c:480"
+    "ene_ub6250.c:2118",
  ])
 
 # Capture the name of the object file, can find it.
