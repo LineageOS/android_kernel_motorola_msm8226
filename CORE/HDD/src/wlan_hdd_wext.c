@@ -836,7 +836,7 @@ VOS_STATUS wlan_hdd_get_rssi(hdd_adapter_t *pAdapter, v_S7_t *rssi_value)
 
    if (eConnectionState_Associated != pHddStaCtx->conn_info.connState)
    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s:Not associated, rssi on Disconnect : %d",
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s:Not associated, rssi on Disconnect : %d",
                     __func__, pAdapter->rssi_on_disconnect);
        *rssi_value = pAdapter->rssi_on_disconnect;
        return VOS_STATUS_SUCCESS;

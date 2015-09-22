@@ -3006,7 +3006,7 @@ eHalStatus hdd_smeRoamCallback( void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U3
                  * adding the 100 value.
                  */
                 pAdapter->rssi_on_disconnect = pRoamInfo->u.pLostLinkParams->rssi - 100;
-                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                     "%s : Rssi on Disconnect : %d",
                     __func__, pAdapter->rssi_on_disconnect);
                 break;
