@@ -658,18 +658,6 @@ static int vfp_hotplug(struct notifier_block *b, unsigned long action,
 	return NOTIFY_OK;
 }
 
-#ifdef CONFIG_PROC_FS
-static int vfp_bounce_show(struct seq_file *m, void *v)
-{
-	seq_printf(m, "%llu\n", atomic64_read(&vfp_bounce_count));
-	return 0;
-}
-
-static int vfp_bounce_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, vfp_bounce_show, NULL);
-}
-
 #ifdef CONFIG_KERNEL_MODE_NEON
 
 /*
@@ -715,6 +703,18 @@ void kernel_neon_end(void)
 EXPORT_SYMBOL(kernel_neon_end);
 
 #endif /* CONFIG_KERNEL_MODE_NEON */
+
+#ifdef CONFIG_PROC_FS
+static int vfp_bounce_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%llu\n", atomic64_read(&vfp_bounce_count));
+	return 0;
+}
+
+static int vfp_bounce_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, vfp_bounce_show, NULL);
+}
 
 static const struct file_operations vfp_bounce_fops = {
 	.open		= vfp_bounce_open,
