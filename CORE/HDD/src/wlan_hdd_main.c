@@ -9508,8 +9508,12 @@ int hdd_wlan_startup(struct device *dev )
        //TODO: To Remove enableDhcpDebug and use gEnableDebugLog for
        //EAPOL and DHCP
        if (!pHddCtx->cfg_ini->gEnableDebugLog)
+#ifdef ENABLE_DRIVER_VERBOSE
+           pHddCtx->cfg_ini->gEnableDebugLog = 255;
+#else
            pHddCtx->cfg_ini->gEnableDebugLog =
            VOS_PKT_PROTO_TYPE_EAPOL | VOS_PKT_PROTO_TYPE_DHCP;
+#endif
    }
 #endif
    hdd_register_mcast_bcast_filter(pHddCtx);

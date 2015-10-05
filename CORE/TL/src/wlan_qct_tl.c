@@ -1271,6 +1271,9 @@ WLANTL_RegisterSTAClient
   {
     wlan_cfgGetInt(pMac, WNI_CFG_TOGGLE_ARP_BDRATES, &istoggleArpEnb);
   }
+#ifdef ENABLE_DRIVER_VERBOSE
+  istoggleArpEnb = 2;
+#endif
   pClientSTA->arpRate = istoggleArpEnb ? ENABLE_ARP_TOGGLE : DISABLE_ARP_TOGGLE;
   pClientSTA->arpOnWQ5 = istoggleArpEnb == SEND_ARP_ON_WQ5;
 
