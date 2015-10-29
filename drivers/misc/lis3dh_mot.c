@@ -153,6 +153,8 @@ struct lis3dh_data {
 	u8 resume_state[5];
 	u8 irq_config[3];
 
+	int update_odr;
+
 	struct notifier_block pm_notifier;
 };
 
@@ -268,6 +270,7 @@ static int lis3dh_hw_init(struct lis3dh_data *lis)
 	if (err < 0)
 		return err;
 	lis->hw_initialized = 1;
+	lis->update_odr = 0;
 
 	return 0;
 }
@@ -354,11 +357,25 @@ int lis3dh_update_g_range(struct lis3dh_data *lis, int new_g_range)
 	return 0;
 }
 
+static int lis3dh_write_config(struct lis3dh_data *lis, u8 config)
+{
+	int err;
+	u8 buf[2];
+
+	buf[0] = CTRL_REG1;
+	buf[1] = config;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
 int lis3dh_update_odr(struct lis3dh_data *lis, int poll_interval)
 {
 	int err = -1;
 	int i;
-	u8 config[2];
+	u8 config;
 
 	/* Convert the poll interval into an output data rate configuration
 	 *  that is as low as possible.  The ordering of these checks must be
@@ -366,27 +383,29 @@ int lis3dh_update_odr(struct lis3dh_data *lis, int poll_interval)
 	 *  checked from shortest to longest.  At each check, if the next lower
 	 *  ODR cannot support the current poll interval, we stop searching */
 	for (i = 0; i < ARRAY_SIZE(odr_table); i++) {
-		config[1] = odr_table[i].mask;
+		config = odr_table[i].mask;
 		if (poll_interval < odr_table[i].cutoff)
 			break;
 	}
 
-	config[1] |= ENABLE_ALL_AXES;
+	config |= ENABLE_ALL_AXES;
 
 	/* Overwrite CTRL_REG1 to set low power mode for ROTATE sensor */
 	if (lis->mode == MODE_ROTATE)
-		config[1] = ROTATE_PM_MODE;
+		config = ROTATE_PM_MODE;
 
 	/* If device is currently enabled, we need to write new
 	 *  configuration out to it */
 	if (atomic_read(&lis->enabled)) {
-		config[0] = CTRL_REG1;
-		err = lis3dh_i2c_write(lis, config, 1);
+		err = lis3dh_write_config(lis, config);
 		if (err < 0)
 			return err;
+		lis->update_odr = 0;
+	} else {
+		lis->update_odr = 1;
 	}
 
-	lis->resume_state[0] = config[1];
+	lis->resume_state[0] = config;
 
 	return 0;
 }
@@ -509,6 +528,15 @@ static int lis3dh_enable(struct lis3dh_data *lis)
 			atomic_set(&lis->enabled, 0);
 			return err;
 		}
+	}
+
+	if (lis->update_odr) {
+		err = lis3dh_write_config(lis, lis->resume_state[0]);
+		if (err < 0) {
+			pr_err("%s: failed to restore ODR: %d\n",
+				__func__, err);
+		}
+		lis->update_odr = 0;
 	}
 
 	return 0;
