@@ -91,9 +91,9 @@
 #define ENABLE_D4D_INT1		0x04
 
 #define MODE_OFF		0
-#define MODE_ACCEL		1
-#define MODE_ROTATE		2
-#define MODE_ALL		3
+#define MODE_ACCEL		(1 << 0)
+#define MODE_ROTATE		(1 << 1)
+#define MODE_ACCEL_ROTATE	(MODE_ACCEL | MODE_ROTATE)
 
 #define TYPE_UNKNOWN		-1
 #define TYPE_PORTRAIT		0
@@ -452,6 +452,9 @@ static void lis3dh_report_rotate(struct lis3dh_data *lis, int flat)
 
 static int lis3dh_enable_pull(struct lis3dh_data *lis)
 {
+	if (lis->mode & MODE_ACCEL)
+		return 0;
+
 	schedule_delayed_work(&lis->input_work,
 				msecs_to_jiffies(lis->pdata->poll_interval));
 	return 0;
@@ -481,6 +484,9 @@ static int lis3dh_enable_irq(struct lis3dh_data *lis)
 {
 	int err;
 	u8 buf[2];
+
+	if (lis->mode & MODE_ROTATE)
+		return 0;
 
 	if (atomic_read(&lis->enabled)) {
 		buf[0] = CTRL_REG4;
@@ -546,6 +552,9 @@ static int lis3dh_disable_irq(struct lis3dh_data *lis)
 {
 	int err;
 
+	if (!(lis->mode & MODE_ROTATE))
+		return 0;
+
 	disable_irq_nosync(lis->irq);
 	err = lis3dh_update_g_range(lis, lis->pdata->g_range);
 
@@ -554,6 +563,9 @@ static int lis3dh_disable_irq(struct lis3dh_data *lis)
 
 static int lis3dh_disable_pull(struct lis3dh_data *lis)
 {
+	if (!(lis->mode & MODE_ACCEL))
+		return 0;
+
 	cancel_delayed_work_sync(&lis->input_work);
 	return 0;
 }
@@ -575,6 +587,46 @@ static int lis3dh_misc_open(struct inode *inode, struct file *file)
 		return err;
 
 	file->private_data = lis3dh_misc_data;
+
+	return 0;
+}
+
+static int lis3dh_set_mode(struct lis3dh_data *lis, int mode)
+{
+	if (lis->mode == mode)
+		return 0;
+
+	switch (mode) {
+	case MODE_OFF:
+		lis3dh_disable_irq(lis);
+		lis3dh_disable_pull(lis);
+		lis3dh_disable(lis);
+		break;
+
+	case MODE_ACCEL:
+		lis3dh_enable(lis);
+		lis3dh_disable_irq(lis);
+		lis3dh_enable_pull(lis);
+		break;
+
+	case MODE_ROTATE:
+		lis3dh_enable(lis);
+		lis3dh_disable_pull(lis);
+		lis3dh_enable_irq(lis);
+		break;
+
+	case MODE_ACCEL_ROTATE:
+		lis3dh_enable(lis);
+		lis3dh_enable_irq(lis);
+		lis3dh_enable_pull(lis);
+		break;
+
+	default:
+		dev_err(&lis->client->dev, "unknown mode: %d\n", mode);
+		return -EINVAL;
+	}
+
+	lis->mode = mode;
 
 	return 0;
 }
@@ -613,48 +665,11 @@ static long lis3dh_misc_ioctl(struct file *file, unsigned int cmd,
 	case LIS3DH_IOCTL_SET_ENABLE:
 		if (copy_from_user(&interval, argp, sizeof(interval)))
 			return -EFAULT;
-		if (interval < MODE_OFF || interval > MODE_ALL)
-			return -EINVAL;
 
-		switch (interval) {
-		case MODE_OFF:  /* ALL OFF */
-			if (lis->mode & MODE_ROTATE)
-					lis3dh_disable_irq(lis);
-			if (lis->mode & MODE_ACCEL)
-					lis3dh_disable_pull(lis);
-			lis3dh_disable(lis);
-			break;
+		err = lis3dh_set_mode(lis, interval);
+		if (err < 0)
+			return err;
 
-		case MODE_ACCEL: /* ACCEL ON & ROTATE OFF */
-
-			if (!atomic_read(&lis->enabled)) {
-				lis3dh_enable(lis);
-			} else
-				if (lis->mode & MODE_ROTATE)
-						lis3dh_disable_irq(lis);
-			if (!(lis->mode & MODE_ACCEL))
-				lis3dh_enable_pull(lis);
-			break;
-		case MODE_ROTATE: /* ACCEL OFF & ROTATE 0N */
-
-			if (!atomic_read(&lis->enabled)) {
-				lis3dh_enable(lis);
-			} else
-				if (lis->mode & MODE_ACCEL)
-					lis3dh_disable_pull(lis);
-			if (!(lis->mode & MODE_ROTATE))
-				lis3dh_enable_irq(lis);
-
-			break;
-		case MODE_ALL: /* ACCEL ON & ROTATE 0N */
-			lis3dh_enable(lis);
-			if (!(lis->mode & MODE_ROTATE))
-				lis3dh_enable_irq(lis);
-			if (!(lis->mode & MODE_ACCEL))
-				lis3dh_enable_pull(lis);
-			break;
-		}
-			lis->mode = interval;
 		break;
 
 	case LIS3DH_IOCTL_GET_ENABLE:
