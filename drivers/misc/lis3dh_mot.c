@@ -493,11 +493,14 @@ static int lis3dh_enable_irq(struct lis3dh_data *lis)
 		err = lis3dh_i2c_read(lis, buf, 1);
 		if (err < 0)
 			return err;
-		buf[1] = (buf[0] & ~G_16G) & BLK_UPDATE;
+		buf[1] = (buf[0] & ~G_16G) | BLK_UPDATE;
 		buf[0] = CTRL_REG4;
 		err = lis3dh_i2c_write(lis, buf, 1);
 		if (err < 0)
 			return err;
+
+		lis->resume_state[3] = buf[1];
+		lis->shift_adj = SHIFT_ADJ_2G;
 
 		buf[0] = CTRL_REG5;
 		err = lis3dh_i2c_read(lis, buf, 1);
@@ -513,9 +516,6 @@ static int lis3dh_enable_irq(struct lis3dh_data *lis)
 				INT_CFG_INIT_THRESHOLD);
 		if (err < 0)
 			return err;
-
-		lis->resume_state[3] = buf[1];
-		lis->shift_adj = SHIFT_ADJ_2G;
 	}
 
 	enable_irq(lis->irq);
