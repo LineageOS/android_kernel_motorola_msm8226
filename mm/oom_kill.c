@@ -40,9 +40,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/memkill.h>
-
 int sysctl_panic_on_oom;
 int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
@@ -398,7 +395,7 @@ static struct task_struct *select_bad_process(unsigned int *ppoints,
  *
  * Call with tasklist_lock read-locked.
  */
-static void dump_tasks(const struct mem_cgroup *memcg, const nodemask_t *nodemask)
+void dump_tasks(const struct mem_cgroup *memcg, const nodemask_t *nodemask)
 {
 	struct task_struct *p;
 	struct task_struct *task;
@@ -509,11 +506,6 @@ static void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 		task_pid_nr(victim), victim->comm, K(victim->mm->total_vm),
 		K(get_mm_counter(victim->mm, MM_ANONPAGES)),
 		K(get_mm_counter(victim->mm, MM_FILEPAGES)));
-	trace_oom_kill(
-		task_pid_nr(victim), victim->comm, K(victim->mm->total_vm),
-		K(get_mm_counter(victim->mm, MM_ANONPAGES)),
-		K(get_mm_counter(victim->mm, MM_FILEPAGES)),
-		victim->signal->oom_score_adj, order, victim_points);
 	task_unlock(victim);
 
 	/*
@@ -533,8 +525,6 @@ static void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 
 			task_lock(p);	/* Protect ->comm from prctl() */
 			pr_err("Kill process %d (%s) sharing same memory\n",
-				task_pid_nr(p), p->comm);
-			trace_oom_kill_shared(
 				task_pid_nr(p), p->comm);
 			task_unlock(p);
 			do_send_sig_info(SIGKILL, SEND_SIG_FORCED, p, true);
