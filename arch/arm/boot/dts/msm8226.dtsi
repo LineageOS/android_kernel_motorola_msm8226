@@ -46,6 +46,67 @@
 	};
 
 	soc: soc { };
+
+	cpus {
+		#size-cells = <0>;
+		#address-cells = <1>;
+
+		CPU0: cpu@0 {
+			device_type = "cpu";
+			reg = <0x0>;
+			// The currents(uA) correspond to the frequencies in the
+			// frequency table.
+			current = < 54000    //300000 kHz
+				    57000    //384000 kHz
+				    71000    //600000 kHz
+				    83000    //787200 kHz
+				    96000    //998400 kHz
+				    103000   //1094400 kHz
+				    115000>; //1190400 kHz
+		};
+
+		CPU1: cpu@1 {
+			device_type = "cpu";
+			reg = <0x0>;
+			// The currents(uA) correspond to the frequencies in the
+			// frequency table.
+			current = < 54000    //300000 kHz
+				    57000    //384000 kHz
+				    71000    //600000 kHz
+				    83000    //787200 kHz
+				    96000    //998400 kHz
+				    103000   //1094400 kHz
+				    115000>; //1190400 kHz
+		};
+
+		CPU2: cpu@2 {
+			device_type = "cpu";
+			reg = <0x0>;
+			// The currents(uA) correspond to the frequencies in the
+			// frequency table.
+			current = < 54000    //300000 kHz
+				    57000    //384000 kHz
+				    71000    //600000 kHz
+				    83000    //787200 kHz
+				    96000    //998400 kHz
+				    103000   //1094400 kHz
+				    115000>; //1190400 kHz
+		};
+
+		CPU3: cpu@3 {
+			device_type = "cpu";
+			reg = <0x0>;
+			// The currents(uA) correspond to the frequencies in the
+			// frequency table.
+			current = < 54000    //300000 kHz
+				    57000    //384000 kHz
+				    71000    //600000 kHz
+				    83000    //787200 kHz
+				    96000    //998400 kHz
+				    103000   //1094400 kHz
+				    115000>; //1190400 kHz
+		};
+	};
 };
 
 /include/ "msm8226-ion.dtsi"
