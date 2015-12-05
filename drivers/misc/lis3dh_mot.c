@@ -145,6 +145,7 @@ struct lis3dh_data {
 
 	struct regulator *vdd;
 	int irq;
+	int irq_enabled;
 	int mode;
 	int hw_initialized;
 	atomic_t enabled;
@@ -482,43 +483,46 @@ static int lis3dh_set_threshold(struct lis3dh_data *lis, u8 config,
 
 static int lis3dh_enable_irq(struct lis3dh_data *lis)
 {
+	if (!lis->irq_enabled) {
+		lis->irq_enabled = 1;
+		enable_irq(lis->irq);
+	}
+
+	return 0;
+}
+
+static int lis3dh_configure_rotate(struct lis3dh_data *lis)
+{
 	int err;
 	u8 buf[2];
 
-	if (lis->mode & MODE_ROTATE)
-		return 0;
+	buf[0] = CTRL_REG4;
+	err = lis3dh_i2c_read(lis, buf, 1);
+	if (err < 0)
+		return err;
+	buf[1] = (buf[0] & ~G_16G) | BLK_UPDATE;
+	buf[0] = CTRL_REG4;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
 
-	if (atomic_read(&lis->enabled)) {
-		buf[0] = CTRL_REG4;
-		err = lis3dh_i2c_read(lis, buf, 1);
-		if (err < 0)
-			return err;
-		buf[1] = (buf[0] & ~G_16G) | BLK_UPDATE;
-		buf[0] = CTRL_REG4;
-		err = lis3dh_i2c_write(lis, buf, 1);
-		if (err < 0)
-			return err;
+	lis->resume_state[3] = buf[1];
+	lis->shift_adj = SHIFT_ADJ_2G;
 
-		lis->resume_state[3] = buf[1];
-		lis->shift_adj = SHIFT_ADJ_2G;
+	buf[0] = CTRL_REG5;
+	err = lis3dh_i2c_read(lis, buf, 1);
+	if (err < 0)
+		return err;
+	buf[1] = (buf[0] | 0x4);
+	buf[0] = CTRL_REG5;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
 
-		buf[0] = CTRL_REG5;
-		err = lis3dh_i2c_read(lis, buf, 1);
-		if (err < 0)
-			return err;
-		buf[1] = (buf[0] | 0x4);
-		buf[0] = CTRL_REG5;
-		err = lis3dh_i2c_write(lis, buf, 1);
-		if (err < 0)
-			return err;
-
-		err = lis3dh_set_threshold(lis, lis->irq_config[0],
-				INT_CFG_INIT_THRESHOLD);
-		if (err < 0)
-			return err;
-	}
-
-	enable_irq(lis->irq);
+	err = lis3dh_set_threshold(lis, lis->irq_config[0],
+			INT_CFG_INIT_THRESHOLD);
+	if (err < 0)
+		return err;
 
 	return 0;
 }
@@ -550,13 +554,13 @@ static int lis3dh_enable(struct lis3dh_data *lis)
 
 static int lis3dh_disable_irq(struct lis3dh_data *lis)
 {
-	int err;
+	int err = 0;
 
-	if (!(lis->mode & MODE_ROTATE))
-		return 0;
-
-	disable_irq_nosync(lis->irq);
-	err = lis3dh_update_g_range(lis, lis->pdata->g_range);
+	if (lis->irq_enabled) {
+		lis->irq_enabled = 0;
+		disable_irq_nosync(lis->irq);
+		err = lis3dh_update_g_range(lis, lis->pdata->g_range);
+	}
 
 	return err;
 }
@@ -613,12 +617,14 @@ static int lis3dh_set_mode(struct lis3dh_data *lis, int mode)
 		lis3dh_enable(lis);
 		lis3dh_disable_pull(lis);
 		lis3dh_enable_irq(lis);
+		lis3dh_configure_rotate(lis);
 		break;
 
 	case MODE_ACCEL_ROTATE:
 		lis3dh_enable(lis);
 		lis3dh_enable_irq(lis);
 		lis3dh_enable_pull(lis);
+		lis3dh_configure_rotate(lis);
 		break;
 
 	default:
