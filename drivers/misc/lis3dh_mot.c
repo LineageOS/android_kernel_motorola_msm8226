@@ -72,7 +72,8 @@
 #define ODR400		0x70
 #define ODR1250		0x90
 
-#define ROTATE_PM_MODE	(PM_LOW|ODR100|ENABLE_ALL_AXES)
+#define ROTATE_PM_MODE		(PM_LOW|ODR100|ENABLE_ALL_AXES)
+#define MOVEMENT_PM_MODE	(PM_LOW|ODR10|ENABLE_ALL_AXES)
 
 #define G_2G		0x00
 #define G_4G		0x10
@@ -93,7 +94,9 @@
 #define MODE_OFF		0
 #define MODE_ACCEL		(1 << 0)
 #define MODE_ROTATE		(1 << 1)
+#define MODE_MOVEMENT		(1 << 2)
 #define MODE_ACCEL_ROTATE	(MODE_ACCEL | MODE_ROTATE)
+#define MODE_ACCEL_MOVEMENT	(MODE_ACCEL | MODE_MOVEMENT)
 
 #define TYPE_UNKNOWN		-1
 #define TYPE_PORTRAIT		0
@@ -117,6 +120,13 @@
 #define INT_CFG_INIT_THRESHOLD	0x2D
 #define INT_CFG_THRESHOLD	0x20
 #define INT_CFG_DURATION	0x05
+
+#define HP_CONFIG_MOVEMENT	0x1
+#define INT1_CFG_MOVEMENT	(INT_XH_BIT | INT_YH_BIT | INT_ZH_BIT)
+#define INT1_THS_MOVEMENT	0x1
+
+/* The exact duration depends on the select ODR */
+#define MOVEMENT_DURATION_MS	3000 /* milliseconds */
 
 static struct {
 	unsigned int cutoff;
@@ -157,6 +167,8 @@ struct lis3dh_data {
 	int update_odr;
 
 	struct notifier_block pm_notifier;
+
+	int mode_before_suspend;
 };
 
 /*
@@ -227,6 +239,52 @@ static int lis3dh_i2c_write(struct lis3dh_data *lis, u8 * buf, int len)
 	}
 
 	return err;
+}
+
+static int duration_to_lsb(struct lis3dh_data *lis, int duration_ms, u8 *lsb)
+{
+	int odr = lis->resume_state[0] & 0xF0;
+	int hz;
+
+	switch (odr) {
+	case ODR_OFF:
+		hz = 0;
+		break;
+	case ODR1:
+		hz = 1;
+		break;
+	case ODR10:
+		hz = 10;
+		break;
+	case ODR25:
+		hz = 25;
+		break;
+	case ODR50:
+		hz = 50;
+		break;
+	case ODR100:
+		hz = 100;
+		break;
+	case ODR400:
+		hz = 400;
+		break;
+	case ODR1250:
+		/*
+		 * NOTE: In this case the frequency depends on the current
+		 * power mode. However, this ODR is selected only when the
+		 * current mode comprises includes MODE_ACCEL, which puts
+		 * the sensor in normal power mode.
+		 */
+		hz = 1250;
+		break;
+	default:
+		dev_err(&lis->client->dev, "Unknown ODR value: %x\n", odr);
+		return -EINVAL;
+	}
+
+	*lsb = DIV_ROUND_UP(duration_ms * hz, 1000);
+
+	return 0;
 }
 
 static int lis3dh_read_int_data(struct lis3dh_data *lis)
@@ -369,6 +427,14 @@ static int lis3dh_write_config(struct lis3dh_data *lis, u8 config)
 	if (err < 0)
 		return err;
 
+	buf[0] = INT1_DURATION;
+	err = duration_to_lsb(lis, MOVEMENT_DURATION_MS, &buf[1]);
+	if (err < 0)
+		return err;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
+
 	return 0;
 }
 
@@ -394,6 +460,8 @@ int lis3dh_update_odr(struct lis3dh_data *lis, int poll_interval)
 	/* Overwrite CTRL_REG1 to set low power mode for ROTATE sensor */
 	if (lis->mode == MODE_ROTATE)
 		config = ROTATE_PM_MODE;
+	else if (lis->mode == MODE_MOVEMENT)
+		config = MOVEMENT_PM_MODE;
 
 	/* If device is currently enabled, we need to write new
 	 *  configuration out to it */
@@ -451,6 +519,12 @@ static void lis3dh_report_rotate(struct lis3dh_data *lis, int flat)
 	input_sync(lis->input_dev);
 }
 
+static void lis3dh_report_movement(struct lis3dh_data *lis)
+{
+	input_event(lis->input_dev, EV_MSC, MSC_GESTURE, 1);
+	input_sync(lis->input_dev);
+}
+
 static int lis3dh_enable_pull(struct lis3dh_data *lis)
 {
 	if (lis->mode & MODE_ACCEL)
@@ -496,6 +570,13 @@ static int lis3dh_configure_rotate(struct lis3dh_data *lis)
 	int err;
 	u8 buf[2];
 
+	buf[0] = CTRL_REG2;
+	buf[1] = 0;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
+	lis->resume_state[1] = buf[1];
+
 	buf[0] = CTRL_REG4;
 	err = lis3dh_i2c_read(lis, buf, 1);
 	if (err < 0)
@@ -523,6 +604,46 @@ static int lis3dh_configure_rotate(struct lis3dh_data *lis)
 			INT_CFG_INIT_THRESHOLD);
 	if (err < 0)
 		return err;
+
+	return 0;
+}
+
+static int lis3dh_configure_movement(struct lis3dh_data *lis)
+{
+	int err;
+	u8 buf[2];
+
+	buf[0] = CTRL_REG2;
+	buf[1] = HP_CONFIG_MOVEMENT;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
+	lis->resume_state[1] = buf[1];
+
+	buf[0] = CTRL_REG4;
+	err = lis3dh_i2c_read(lis, buf, 1);
+	if (err < 0)
+		return err;
+	buf[1] = (buf[0] & ~G_16G) | BLK_UPDATE;
+	buf[0] = CTRL_REG4;
+	err = lis3dh_i2c_write(lis, buf, 1);
+	if (err < 0)
+		return err;
+
+	lis->resume_state[3] = buf[1];
+	lis->shift_adj = SHIFT_ADJ_2G;
+
+	err = lis3dh_write_config(lis, lis->resume_state[0]);
+	if (err < 0)
+		return err;
+
+	err = lis3dh_set_threshold(lis, INT1_CFG_MOVEMENT, INT1_THS_MOVEMENT);
+	if (err < 0)
+		return err;
+
+	/* Reset internal high-pass filter */
+	buf[0] = CTRL_REG2;
+	err = lis3dh_i2c_read(lis, buf, 1);
 
 	return 0;
 }
@@ -600,6 +721,10 @@ static int lis3dh_set_mode(struct lis3dh_data *lis, int mode)
 	if (lis->mode == mode)
 		return 0;
 
+	if ((mode & MODE_ROTATE) && (mode & MODE_MOVEMENT))
+		/* ROTATE and MOVEMENT are mutually exclusive */
+		return -EINVAL;
+
 	switch (mode) {
 	case MODE_OFF:
 		lis3dh_disable_irq(lis);
@@ -620,11 +745,25 @@ static int lis3dh_set_mode(struct lis3dh_data *lis, int mode)
 		lis3dh_configure_rotate(lis);
 		break;
 
+	case MODE_MOVEMENT:
+		lis3dh_enable(lis);
+		lis3dh_disable_pull(lis);
+		lis3dh_enable_irq(lis);
+		lis3dh_configure_movement(lis);
+		break;
+
 	case MODE_ACCEL_ROTATE:
 		lis3dh_enable(lis);
 		lis3dh_enable_irq(lis);
 		lis3dh_enable_pull(lis);
 		lis3dh_configure_rotate(lis);
+		break;
+
+	case MODE_ACCEL_MOVEMENT:
+		lis3dh_enable(lis);
+		lis3dh_enable_irq(lis);
+		lis3dh_enable_pull(lis);
+		lis3dh_configure_movement(lis);
 		break;
 
 	default:
@@ -739,13 +878,10 @@ void lis3dh_input_close(struct input_dev *dev)
 }
 #endif
 
-static void lis3dh_irq_work(struct work_struct *work)
+static void lis3dh_irq_handle_rotation(struct lis3dh_data *lis, int irq_data)
 {
-	int irq_data = 0, flat = TYPE_UNKNOWN;
-	struct lis3dh_data *lis = container_of(work, struct lis3dh_data,
-						  irq_work);
-	mutex_lock(&lis->lock);
-	irq_data = lis3dh_read_int_data(lis);
+	int flat = TYPE_UNKNOWN;
+
 	switch (irq_data & INT_4D_BITS) {
 	case INT_XL_BIT:
 		flat = TYPE_PORTRAIT;
@@ -765,8 +901,21 @@ static void lis3dh_irq_work(struct work_struct *work)
 
 	lis3dh_set_threshold(lis, INT_CFG_XYZ, lis->irq_config[1]);
 	lis3dh_report_rotate(lis, flat);
-	mutex_unlock(&lis->lock);
+}
 
+static void lis3dh_irq_work(struct work_struct *work)
+{
+	int irq_data = 0;
+	struct lis3dh_data *lis = container_of(work, struct lis3dh_data,
+						  irq_work);
+	mutex_lock(&lis->lock);
+	irq_data = lis3dh_read_int_data(lis);
+
+	if (lis->mode & MODE_ROTATE)
+		lis3dh_irq_handle_rotation(lis, irq_data);
+	else if (lis->mode & MODE_MOVEMENT)
+		lis3dh_report_movement(lis);
+	mutex_unlock(&lis->lock);
 }
 
 static irqreturn_t lis3dh_isr(int irq, void *data)
@@ -813,6 +962,7 @@ static int lis3dh_input_init(struct lis3dh_data *lis)
 	input_set_abs_params(lis->input_dev, ABS_Y, -G_MAX, G_MAX, FUZZ, FLAT);
 	input_set_abs_params(lis->input_dev, ABS_Z, -G_MAX, G_MAX, FUZZ, FLAT);
 	input_set_capability(lis->input_dev, EV_MSC, MSC_RAW);
+	input_set_capability(lis->input_dev, EV_MSC, MSC_GESTURE);
 
 	lis->input_dev->name = "accelerometer";
 
@@ -842,6 +992,17 @@ static int lis3dh_resume(struct lis3dh_data *lis)
 {
 	int err;
 
+	/* The sensor is already enabled */
+	if (lis->mode & MODE_MOVEMENT) {
+		disable_irq_wake(lis->irq);
+		if (lis->mode_before_suspend != lis->mode) {
+			err = lis3dh_set_mode(lis, lis->mode_before_suspend);
+			if (err < 0)
+				return err;
+		}
+		return 0;
+	}
+
 	if (lis->on_before_suspend) {
 		err = lis3dh_enable(lis);
 		if (err < 0)
@@ -854,6 +1015,18 @@ static int lis3dh_resume(struct lis3dh_data *lis)
 static int lis3dh_suspend(struct lis3dh_data *lis)
 {
 	int err;
+
+	/* Keep the sensor enabled for movement detection */
+	if (lis->mode & MODE_MOVEMENT) {
+		enable_irq_wake(lis->irq);
+		lis->mode_before_suspend = lis->mode;
+		if (lis->mode != MODE_MOVEMENT) {
+			err = lis3dh_set_mode(lis, MODE_MOVEMENT);
+			if (err < 0)
+				return err;
+		}
+		return 0;
+	}
 
 	lis->on_before_suspend =
 		atomic_read(&lis->enabled);
