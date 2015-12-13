@@ -507,6 +507,12 @@ static int lis3dh_get_acceleration_data(struct lis3dh_data *lis, int *xyz)
 
 static void lis3dh_report_values(struct lis3dh_data *lis, int *xyz)
 {
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
 	input_report_abs(lis->input_dev, ABS_X, xyz[0]);
 	input_report_abs(lis->input_dev, ABS_Y, xyz[1]);
 	input_report_abs(lis->input_dev, ABS_Z, xyz[2]);
@@ -515,12 +521,24 @@ static void lis3dh_report_values(struct lis3dh_data *lis, int *xyz)
 
 static void lis3dh_report_rotate(struct lis3dh_data *lis, int flat)
 {
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
 	input_event(lis->input_dev, EV_MSC, MSC_RAW, flat);
 	input_sync(lis->input_dev);
 }
 
 static void lis3dh_report_movement(struct lis3dh_data *lis)
 {
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(lis->input_dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
 	input_event(lis->input_dev, EV_MSC, MSC_GESTURE, 1);
 	input_sync(lis->input_dev);
 }
