@@ -803,6 +803,21 @@ config SENSORS_BMA2X2
 	  If you say yes here you get support for Bosch Sensortec's
 	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
 
+config SENSORS_BMA2X2_DOUBLE_TAP
+	tristate "Enable Double Tap To Wake support"
+	depends on SENSORS_BMA2X2
+	default n
+
+config SENSORS_BMA2X2_SCREEN_ROT
+        tristate "Enable Screen Rotation support"
+        depends on SENSORS_BMA2X2
+        default n
+
+config SENSORS_BMA2X2_SIG_MOTION
+	tristate "Enable Sig Motion support"
+	depends on SENSORS_BMA2X2
+	default n
+
 config SENSORS_BMG
 	tristate "Bosch Gyroscope Sensor Driver"
 	default n
