@@ -54,7 +54,6 @@
 
 #define ACC_NAME  "ACC"
 #define BMA2X2_ENABLE_INT1
-#define ENABLE_SCREEN_ROT
 #define DISABLE_FIFO_WM
 
 #define SENSOR_NAME                 "bma2x2"
