@@ -15,7 +15,7 @@
  * This file contains all function implementations for the BMA2X2 in linux
 */
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 #undef CONFIG_HAS_EARLYSUSPEND
 #endif
 #include <linux/module.h>
@@ -54,7 +54,6 @@
 
 #define ACC_NAME  "ACC"
 #define BMA2X2_ENABLE_INT1
-#define ENABLE_SCREEN_ROT
 #define DISABLE_FIFO_WM
 
 #define SENSOR_NAME                 "bma2x2"
@@ -1240,7 +1239,7 @@
 #define MAX_FIFO_F_BYTES 6
 #define BMA_MAX_RETRY_I2C_XFER (100)
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 #define DEFAULT_TAP_JUDGE_PERIOD 1000    /* default judge in 1 second */
 #endif
 
@@ -1400,7 +1399,7 @@ struct bma2x2_data {
 	int ref_count;
 	struct input_dev *dev_for_interrupt;
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	struct class *g_sensor_class;
 	struct device *g_sensor_dev;
 
@@ -1408,7 +1407,7 @@ struct bma2x2_data {
 	atomic_t en_sig_motion;
 #endif
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	struct class *g_sensor_class_doubletap;
 	struct device *g_sensor_dev_doubletap;
 	atomic_t en_double_tap;
@@ -1417,7 +1416,7 @@ struct bma2x2_data {
 	struct timer_list	tap_timer;
 	int tap_time_period;
 #endif
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	struct class *g_sensor_class_screenrot;
 	struct device *g_sensor_dev_screenrot;
 	atomic_t en_disp_rotation;
@@ -2002,7 +2001,7 @@ static int bma2x2_get_HIGH_sign(struct i2c_client *client, unsigned char
 	return comres;
 }
 
-#ifndef ENABLE_SIG_MOTION
+#ifndef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 static int bma2x2_get_slope_first(struct i2c_client *client, unsigned char
 	param, unsigned char *intstatus)
 {
@@ -5810,7 +5809,7 @@ static ssize_t bma2x2_offset_z_store(struct device *dev,
 	return count;
 }
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 static int bma2x2_set_en_slope_int(struct bma2x2_data *bma2x2,
 		int en)
 {
@@ -5896,7 +5895,7 @@ static ssize_t bma2x2_en_sig_motion_store(struct device *dev,
 }
 #endif
 
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 static ssize_t bma2x2_en_disp_rotation_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -5961,7 +5960,7 @@ static ssize_t bma2x2_en_disp_rotation_store(struct device *dev,
 }
 #endif
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 static int bma2x2_set_en_single_tap_int(struct bma2x2_data *bma2x2, int en)
 {
 	int err;
@@ -6187,17 +6186,17 @@ static DEVICE_ATTR(temperature, S_IRUGO,
 		bma2x2_temperature_show, NULL);
 static DEVICE_ATTR(place, S_IRUGO,
 		bma2x2_place_show, NULL);
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 static DEVICE_ATTR(en_sig_motion, S_IRUGO|S_IWUSR|S_IWGRP,
 		bma2x2_en_sig_motion_show, bma2x2_en_sig_motion_store);
 #endif
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 static DEVICE_ATTR(tap_time_period, S_IRUGO|S_IWUSR|S_IWGRP,
 		bma2x2_tap_time_period_show, bma2x2_tap_time_period_store);
 static DEVICE_ATTR(en_double_tap, S_IRUGO|S_IWUSR|S_IWGRP,
 		bma2x2_en_double_tap_show, bma2x2_en_double_tap_store);
 #endif
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 static DEVICE_ATTR(en_disp_rotation, S_IRUGO|S_IWUSR|S_IWGRP,
 		bma2x2_en_disp_rotation_show, bma2x2_en_disp_rotation_store);
 #endif
@@ -6251,13 +6250,13 @@ static struct attribute *bma2x2_attributes[] = {
 	&dev_attr_softreset.attr,
 	&dev_attr_temperature.attr,
 	&dev_attr_place.attr,
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	&dev_attr_en_sig_motion.attr,
 #endif
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	&dev_attr_en_double_tap.attr,
 #endif
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	&dev_attr_en_disp_rotation.attr,
 #endif
 
@@ -6268,7 +6267,7 @@ static struct attribute_group bma2x2_attribute_group = {
 	.attrs = bma2x2_attributes
 };
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 static struct attribute *bma2x2_sig_motion_attributes[] = {
 	&dev_attr_slope_duration.attr,
 	&dev_attr_slope_threshold.attr,
@@ -6280,7 +6279,7 @@ static struct attribute_group bma2x2_sig_motion_attribute_group = {
 };
 #endif
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 static struct attribute *bma2x2_double_tap_attributes[] = {
 	&dev_attr_tap_threshold.attr,
 	&dev_attr_tap_duration.attr,
@@ -6296,7 +6295,7 @@ static struct attribute_group bma2x2_double_tap_attribute_group = {
 };
 #endif
 
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 static struct attribute *bma2x2_disp_rotation_attributes[] = {
 	&dev_attr_en_disp_rotation.attr,
 	NULL
@@ -6320,7 +6319,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 {
 	struct bma2x2_data *bma2x2 = container_of((struct work_struct *)work,
 			struct bma2x2_data, irq_work);
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	struct i2c_client *client = bma2x2->bma2x2_client;
 #endif
 
@@ -6354,7 +6353,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 	bma2x2_get_interruptstatus1(bma2x2->bma2x2_client, &status);
 	printk(KERN_INFO "bma2x2_irq_work_func, status = 0x%x\n", status);
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	if (status & 0x04)	{
 		if (atomic_read(&bma2x2->en_sig_motion) == 1) {
 			printk(KERN_INFO "Significant motion interrupt happened\n");
@@ -6369,7 +6368,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 	}
 #endif
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	if (status & 0x20) {
 		if (atomic_read(&bma2x2->en_double_tap) == 1) {
 			printk(KERN_INFO "single tap interrupt happened\n");
@@ -6395,7 +6394,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 	}
 #endif
 
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	if (status & 0x40) {
 		bma2x2_get_orient_status(bma2x2->bma2x2_client,
 				    &first_value);
@@ -6511,7 +6510,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 		}
 		   break;
 
-#ifndef ENABLE_SIG_MOTION
+#ifndef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	case 0x04:
 		for (i = 0; i < 3; i++) {
 			bma2x2_get_slope_first(bma2x2->bma2x2_client, i,
@@ -6587,7 +6586,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 			SLOW_NO_MOTION_INTERRUPT_HAPPENED);
 		break;
 
-#ifndef ENABLE_DOUBLE_TAP
+#ifndef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	case 0x10:
 		printk(KERN_INFO "double tap interrupt happened\n");
 		input_report_rel(bma2x2->dev_for_interrupt,
@@ -6603,7 +6602,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 #endif
 
 	case 0x40:
-#ifndef ENABLE_SCREEN_ROT
+#ifndef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 		bma2x2_get_orient_status(bma2x2->bma2x2_client,
 				    &first_value);
 		printk(KERN_INFO "orient interrupt happened,%s\n",
@@ -6643,7 +6642,7 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 #endif
 		break;
 	case 0x80:
-#ifndef ENABLE_SCREEN_ROT
+#ifndef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 		bma2x2_get_orient_flat_status(bma2x2->bma2x2_client,
 				    &sign_value);
 		printk(KERN_INFO "flat interrupt happened,flat status is %d\n",
@@ -6774,7 +6773,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	mutex_init(&data->enable_mutex);
 	bma2x2_set_bandwidth(client, BMA2X2_BW_SET);
 	bma2x2_set_range(client, BMA2X2_RANGE_SET);
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	bma2x2_set_theta_blocking(client, 31);
 	bma2x2_set_theta_flat(client, 31);
 	bma2x2_set_orient_blocking(client, 3);
@@ -6852,7 +6851,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	data->IRQ = client->irq;
 	err = request_irq(data->IRQ, bma2x2_irq_handler, IRQF_TRIGGER_RISING,
 			"bma2x2", data);
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	enable_irq_wake(data->IRQ);
 #endif
 	if (err)
@@ -6916,7 +6915,7 @@ static int bma2x2_probe(struct i2c_client *client,
 		ORIENT_INTERRUPT);
 	input_set_capability(dev_for_interrupt, EV_ABS,
 		FLAT_INTERRUPT);
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	input_set_capability(dev_for_interrupt, EV_MSC, MSC_RAW);
 #endif
 	input_set_drvdata(dev_for_interrupt, data);
@@ -6928,7 +6927,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	data->dev_for_interrupt = dev_for_interrupt;
 	data->input = dev;
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	data->g_sensor_class = class_create(THIS_MODULE, "sig_sensor");
 	if (IS_ERR(data->g_sensor_class)) {
 		err = PTR_ERR(data->g_sensor_class);
@@ -6955,7 +6954,7 @@ static int bma2x2_probe(struct i2c_client *client,
 		goto error_sysfs;
 #endif
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	data->g_sensor_class_doubletap =
 		class_create(THIS_MODULE, "dtap_sensor");
 	if (IS_ERR(data->g_sensor_class_doubletap)) {
@@ -6984,7 +6983,7 @@ static int bma2x2_probe(struct i2c_client *client,
 		goto error_sysfs;
 #endif
 
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	data->g_sensor_class_screenrot =
 		class_create(THIS_MODULE, "srot_sensor");
 	if (IS_ERR(data->g_sensor_class_screenrot)) {
@@ -7072,10 +7071,10 @@ static int bma2x2_probe(struct i2c_client *client,
 	data->ref_count = 0;
 	data->fifo_datasel = 0;
 	data->fifo_count = 0;
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 	atomic_set(&data->en_sig_motion, 0);
 #endif
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 	atomic_set(&data->en_double_tap, 0);
 	data->tap_times = 0;
 	data->tap_time_period = DEFAULT_TAP_JUDGE_PERIOD;
@@ -7083,7 +7082,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	setup_timer(&data->tap_timer, bma2x2_tap_timeout_handle,
 			(unsigned long)data);
 #endif
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 	atomic_set(&data->en_disp_rotation, 0);
 #endif
 	data->calib_status = 0;
@@ -7100,23 +7099,24 @@ bst_free_acc_exit:
 error_sysfs:
 	input_unregister_device(data->input);
 
-#ifdef ENABLE_DOUBLE_TAP
+#ifdef CONFIG_SENSORS_BMA2X2_DOUBLE_TAP
 err_create_g_sensor_device_double_tap:
 	class_destroy(data->g_sensor_class_doubletap);
 #endif
 
-#ifdef ENABLE_SIG_MOTION
+#ifdef CONFIG_SENSORS_BMA2X2_SIG_MOTION
 err_create_g_sensor_device:
 	class_destroy(data->g_sensor_class);
 #endif
 
-#ifdef ENABLE_SCREEN_ROT
+#ifdef CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION
 err_create_g_sensor_device_screen_rot:
 	class_destroy(data->g_sensor_class_screenrot);
 #endif
 
-#if defined(ENABLE_SIG_MOTION) || defined(ENABLE_DOUBLE_TAP) || \
-	defined(ENABLE_SCREEN_ROT)
+#if defined(CONFIG_SENSORS_BMA2X2_SIG_MOTION) || \
+	defined(CONFIG_SENSORS_BMA2X2_DOUBLE_TAP) || \
+	defined(CONFIG_SENSORS_BMA2X2_SCREEN_ROTATION)
 err_create_class:
 	input_unregister_device(data->dev_for_interrupt);
 #endif
