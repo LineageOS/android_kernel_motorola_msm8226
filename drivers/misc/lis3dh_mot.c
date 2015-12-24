@@ -467,13 +467,13 @@ static int lis3dh_set_threshold(struct lis3dh_data *lis, u8 config,
 	int err = -1;
 	u8 buf[6];
 
-	buf[0] = INT1_CFG;
-	buf[1] = config;
+	buf[0] = INT1_THS;
+	buf[1] = threshold;
 	err = lis3dh_i2c_write(lis, buf, 1);
 	if (err < 0)
 		return err;
-	buf[0] = INT1_THS;
-	buf[1] = threshold;
+	buf[0] = INT1_CFG;
+	buf[1] = config;
 	err = lis3dh_i2c_write(lis, buf, 1);
 	if (err < 0)
 		return err;
