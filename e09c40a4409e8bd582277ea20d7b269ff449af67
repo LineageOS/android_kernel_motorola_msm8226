@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7f7f9b97_36b56def",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 2594,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2015-12-24T23:34:10Z",
+      "side": 0,
+      "message": "And I\u0027d keep this one as well.",
+      "range": {
+        "startLine": 2594,
+        "startChar": 0,
+        "endLine": 2594,
+        "endChar": 22
+      },
+      "revId": "e09c40a4409e8bd582277ea20d7b269ff449af67",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}

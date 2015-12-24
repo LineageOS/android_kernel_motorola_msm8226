@@ -1,0 +1,96 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7f7f9b97_b6ef3de8",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 760,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2015-12-24T23:34:10Z",
+      "side": 1,
+      "message": "This does nothing. I don\u0027t know why we have the Kconfig, but there\u0027s nothing other than that.",
+      "range": {
+        "startLine": 760,
+        "startChar": 0,
+        "endLine": 760,
+        "endChar": 21
+      },
+      "revId": "fb2391278f247d91f7e69b0d7d449e9d741476f0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7f7f9b97_d6ec39f5",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 1280,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2015-12-24T23:34:10Z",
+      "side": 1,
+      "message": "I\u0027m not sure about this, 4096 seems to be enough.",
+      "range": {
+        "startLine": 1280,
+        "startChar": 0,
+        "endLine": 1280,
+        "endChar": 28
+      },
+      "revId": "fb2391278f247d91f7e69b0d7d449e9d741476f0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7f7f9b97_96c00153",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 1751,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2015-12-24T23:34:10Z",
+      "side": 1,
+      "message": "I tried this once and gave me troubles with mobile data, which randomly stopped working. Maybe things have changed since then, but I\u0027d keep it enabled, just to be safe.\n\nPlus, not even Google is disabling these.",
+      "range": {
+        "startLine": 1748,
+        "startChar": 0,
+        "endLine": 1751,
+        "endChar": 31
+      },
+      "revId": "fb2391278f247d91f7e69b0d7d449e9d741476f0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7f7f9b97_f6ce1582",
+        "filename": "arch/arm/configs/falcon_defconfig",
+        "patchSetId": 1
+      },
+      "lineNbr": 3405,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2015-12-24T23:34:10Z",
+      "side": 1,
+      "message": "This should be useful with sane_schedstat or when collecting stats in general, but it adds some overhead according to the Kconfig description, so I\u0027d probably keep this disabled.",
+      "range": {
+        "startLine": 3405,
+        "startChar": 0,
+        "endLine": 3405,
+        "endChar": 19
+      },
+      "revId": "fb2391278f247d91f7e69b0d7d449e9d741476f0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
