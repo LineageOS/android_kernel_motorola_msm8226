@@ -719,20 +719,18 @@ static int __init cpufreq_stats_init(void)
 	int ret;
 	unsigned int cpu;
 
-	create_all_freq_table();
-
 	spin_lock_init(&cpufreq_stats_lock);
 	ret = cpufreq_register_notifier(&notifier_policy_block,
 				CPUFREQ_POLICY_NOTIFIER);
 	if (ret)
-		goto out;
+		return ret;
 
 	ret = cpufreq_register_notifier(&notifier_trans_block,
 				CPUFREQ_TRANSITION_NOTIFIER);
 	if (ret) {
 		cpufreq_unregister_notifier(&notifier_policy_block,
 				CPUFREQ_POLICY_NOTIFIER);
-		goto out;
+		return ret;
 	}
 
 	register_hotcpu_notifier(&cpufreq_stat_cpu_notifier);
@@ -740,6 +738,7 @@ static int __init cpufreq_stats_init(void)
 		cpufreq_update_policy(cpu);
 	}
 
+	create_all_freq_table();
 	ret = sysfs_create_file(cpufreq_global_kobject,
 			&_attr_all_time_in_state.attr);
 	if (ret)
@@ -751,10 +750,6 @@ static int __init cpufreq_stats_init(void)
 		pr_warn("Cannot create sysfs file for cpufreq current stats\n");
 
 	return 0;
-
-out:
-	kfree(all_freq_table);
-	return ret;
 }
 
 static void __exit cpufreq_stats_exit(void)
