@@ -112,7 +112,7 @@ static const struct tpa6165_regs tpa6165_reg_defaults[] = {
 },
 {
 	.reg = TPA6165_HPH_VOL_CTL_REG1,
-	.value = 0xb9,
+	.value = 0xb0,
 },
 {
 	.reg = TPA6165_HPH_VOL_CTL_REG2,
