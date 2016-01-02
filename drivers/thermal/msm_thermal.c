@@ -36,6 +36,7 @@
 #include <mach/rpm-regulator-smd.h>
 #include <linux/regulator/consumer.h>
 #include <linux/msm_thermal_ioctl.h>
+#include <linux/sched.h>
 
 #define MAX_CURRENT_UA 1000000
 #define MAX_RAILS 5
@@ -899,10 +900,12 @@ static __ref int do_hotplug(void *data)
 {
 	int ret = 0;
 	uint32_t cpu = 0, mask = 0;
+	struct sched_param param = {.sched_priority = MAX_RT_PRIO-2};
 
 	if (!core_control_enabled)
 		return -EINVAL;
 
+	sched_setscheduler(current, SCHED_FIFO, &param);
 	while (!kthread_should_stop()) {
 		wait_for_completion(&hotplug_notify_complete);
 		INIT_COMPLETION(hotplug_notify_complete);
@@ -1344,7 +1347,9 @@ static __ref int do_freq_mitigation(void *data)
 {
 	int ret = 0;
 	uint32_t cpu = 0, max_freq_req = 0, min_freq_req = 0;
+	struct sched_param param = {.sched_priority = MAX_RT_PRIO-1};
 
+	sched_setscheduler(current, SCHED_FIFO, &param);
 	while (!kthread_should_stop()) {
 		wait_for_completion(&freq_mitigation_complete);
 		INIT_COMPLETION(freq_mitigation_complete);

@@ -433,7 +433,7 @@
 			qcom,vbatdet-delta-mv = <150>;
 			qcom,ibatmax-ma = <2000>;
 			qcom,ibatterm-ma = <100>;
-			qcom,ibatsafe-ma = <3250>;
+			qcom,ibatsafe-ma = <2000>;
 			qcom,thermal-mitigation = <1500 700 600 325>;
 			qcom,resume-soc = <99>;
 			qcom,tchg-mins = <150>;
@@ -616,7 +616,7 @@
 	qcom,vbatdet-delta-mv = <150>;
 	qcom,ibatmax-ma = <1500>;
 	qcom,ibatterm-ma = <100>;
-	qcom,ibatsafe-ma = <3250>;
+	qcom,ibatsafe-ma = <2000>;
 	qcom,thermal-mitigation = <1500 700 600 325>;
 	qcom,tchg-mins = <512>;
 	qcom,warm-bat-decidegc = <450>;
@@ -724,8 +724,10 @@
 	qcom,dsi-pref-prim-pan = <&mot_tianma_qhd_vid_v0>;
 	vddio_disp-supply = <&vddio_disp_vreg>;
 	lcd_vci-supply = <&lcd_vci_vreg>;
-	/delete-property/ vdd-supply;
-	/delete-node/ qcom,platform-supply-entry1;
+	/delete-property/ vddio-supply;
+	/delete-property/ vdda-supply;
+	/delete-node/ qcom,platform-supply-entry2;
+	/delete-node/ qcom,platform-supply-entry3;
 };
 
 &mot_tianma_qhd_vid_v0 {

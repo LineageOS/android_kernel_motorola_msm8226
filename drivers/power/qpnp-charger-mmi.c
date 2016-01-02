@@ -467,6 +467,7 @@ struct qpnp_chg_chip {
 	char				battery_info[255];
 	bool				demo_mode;
 	bool                            usblpm_dropbox_sent;
+	bool				demo_suspend_usb;
 };
 
 static struct qpnp_chg_chip *the_chip;
@@ -1163,9 +1164,34 @@ switch_parallel_ovp_mode(struct qpnp_chg_chip *chip, bool enable)
 static int
 qpnp_chg_usb_suspend_enable(struct qpnp_chg_chip *chip, int enable)
 {
+	if (chip->demo_mode)
+		return 0;
+
 	/* Turn off DC OVP FET when going into USB suspend */
 	if (chip->parallel_ovp_mode && enable)
 		switch_parallel_ovp_mode(chip, 0);
+
+	return qpnp_chg_masked_write(chip,
+			chip->usb_chgpth_base + CHGR_USB_USB_SUSP,
+			USB_SUSPEND_BIT,
+			enable ? USB_SUSPEND_BIT : 0, 1);
+}
+
+static int
+qpnp_chg_demo_usb_suspend_enable(struct qpnp_chg_chip *chip, int enable)
+{
+	if ((!chip->demo_mode) ||
+	    (chip->demo_suspend_usb && enable) ||
+	    (!chip->demo_suspend_usb && !enable))
+		return 0;
+
+	/* Turn off DC OVP FET when going into USB suspend */
+	if (chip->parallel_ovp_mode && enable)
+		switch_parallel_ovp_mode(chip, 0);
+	else if (chip->parallel_ovp_mode && !enable)
+		switch_parallel_ovp_mode(chip, 1);
+
+	chip->demo_suspend_usb = enable;
 
 	return qpnp_chg_masked_write(chip,
 			chip->usb_chgpth_base + CHGR_USB_USB_SUSP,
@@ -1553,7 +1579,7 @@ qpnp_chg_set_appropriate_vddmax(struct qpnp_chg_chip *chip)
 	if (chip->demo_mode) {
 		qpnp_chg_vddmax_and_trim_set(chip, 4000,
 					     chip->delta_vddmax_mv);
-		ir_comp = 0x84;
+		ir_comp = 0x00;
 	} else if (chip->bat_is_cool &&
 		 !chip->out_of_temp &&
 		 !chip->ext_hi_temp) {
@@ -2546,8 +2572,10 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 		charger_in = qpnp_chg_is_usb_chg_plugged_in(chip) ||
 			qpnp_chg_is_dc_chg_plugged_in(chip);
 
-		if (ret.intval < chip->soc_resume_limit)
+		if (soc <= chip->soc_resume_limit) {
 			chip->maint_chrg = false;
+			chip->chg_done = false;
+		}
 
 		if (battery_status != POWER_SUPPLY_STATUS_CHARGING
 				&& bms_status != POWER_SUPPLY_STATUS_CHARGING
@@ -3454,14 +3482,15 @@ qpnp_chg_regulator_boost_enable(struct regulator_dev *rdev)
 			pr_err("failed to write SEC_ACCESS rc=%d\n", rc);
 			return rc;
 		}
-
-		rc = qpnp_chg_masked_write(chip,
-			chip->usb_chgpth_base + COMP_OVR1,
-			0xFF,
-			0x2F, 1);
-		if (rc) {
-			pr_err("failed to write COMP_OVR1 rc=%d\n", rc);
-			return rc;
+		if (chip->type != SMBBP) {
+			rc = qpnp_chg_masked_write(chip,
+				chip->usb_chgpth_base + COMP_OVR1,
+				0xFF,
+				0x2F, 1);
+			if (rc) {
+				pr_err("failed to write COMP_OVR1 rc=%d\n", rc);
+				return rc;
+			}
 		}
 	}
 
@@ -3546,16 +3575,16 @@ qpnp_chg_regulator_boost_disable(struct regulator_dev *rdev)
 			pr_err("failed to write SEC_ACCESS rc=%d\n", rc);
 			return rc;
 		}
-
-		rc = qpnp_chg_masked_write(chip,
-			chip->usb_chgpth_base + COMP_OVR1,
-			0xFF,
-			0x00, 1);
-		if (rc) {
-			pr_err("failed to write COMP_OVR1 rc=%d\n", rc);
-			return rc;
+		if (chip->type != SMBBP) {
+			rc = qpnp_chg_masked_write(chip,
+				chip->usb_chgpth_base + COMP_OVR1,
+				0xFF,
+				0x00, 1);
+			if (rc) {
+				pr_err("failed to write COMP_OVR1 rc=%d\n", rc);
+				return rc;
+			}
 		}
-
 		usleep(1000);
 
 		qpnp_chg_usb_suspend_enable(chip, 0);
@@ -3911,9 +3940,6 @@ qpnp_eoc_work(struct work_struct *work)
 	get_monotonic_boottime(&bootup_time);
 	float_timestamp = bootup_time.tv_sec;
 	pm_stay_awake(chip->dev);
-
-	if (chip->demo_mode)
-		pr_warn("Battery in Demo Mode charging Limited\n");
 
 	if ((chip->step_charge_mv < chip->max_voltage_mv) &&
 	    (chip->step_charge_mv > chip->cutoff_mv) &&
@@ -4300,6 +4326,8 @@ qpnp_chg_adc_notification(enum qpnp_tm_state state, void *ctx)
  *
  */
 #define UPDATE_HEARTBEAT_MS		60000
+#define DEMO_MODE_MAX_SOC 35
+#define DEMO_MODE_HYS_SOC 5
 static void update_heartbeat(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -4308,6 +4336,17 @@ static void update_heartbeat(struct work_struct *work)
 	int temp = 0;
 	int usb_present, host_mode;
 	union power_supply_propval ret = {1,};
+
+	if (chip->demo_mode) {
+		pr_warn("Battery in Demo Mode charging Limited\n");
+		if (!chip->demo_suspend_usb &&
+		    (get_prop_capacity(chip) >= DEMO_MODE_MAX_SOC))
+			qpnp_chg_demo_usb_suspend_enable(chip, true);
+		else if (chip->demo_suspend_usb &&
+			 (get_prop_capacity(chip) <=
+			  (DEMO_MODE_MAX_SOC - DEMO_MODE_HYS_SOC)))
+			qpnp_chg_demo_usb_suspend_enable(chip, false);
+	}
 
 	/*
 	 * In pm8110/pm8226 there is automated BTM which takes care of
@@ -5599,6 +5638,11 @@ static ssize_t force_demo_mode_store(struct device *dev,
 		return -ENODEV;
 	}
 
+	if (mode)
+		pr_warn("Battery in Demo Mode charging Limited\n");
+	else
+		pr_warn("Battery in Demo mode DISABLED\n");
+
 	the_chip->demo_mode = (mode) ? true : false;
 
 	return r ? r : count;
@@ -5705,6 +5749,7 @@ qpnp_charger_probe(struct spmi_device *spmi)
 	chip->float_timer_start = false;
 	chip->bat_hotspot_thrs = 50000;
 	chip->demo_mode = false;
+	chip->demo_suspend_usb = false;
 
 	strlcpy(chip->battery_info, "UNKNOWN", sizeof(chip->battery_info));
 	chip->usb_psy = power_supply_get_by_name("usb");

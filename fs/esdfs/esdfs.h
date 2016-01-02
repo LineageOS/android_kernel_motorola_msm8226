@@ -41,14 +41,19 @@
 /* mount options */
 #define ESDFS_MOUNT_DERIVE_LEGACY	0x00000001
 #define ESDFS_MOUNT_DERIVE_UNIFIED	0x00000002
-#define ESDFS_MOUNT_DERIVE_SPLIT	0x00000004
+#define ESDFS_MOUNT_DERIVE_MULTI	0x00000004
+#define ESDFS_MOUNT_DERIVE_PUBLIC	0x00000008
+#define ESDFS_MOUNT_DERIVE_CONFINE	0x00000010
 
 #define clear_opt(sbi, option)	(sbi->options &= ~ESDFS_MOUNT_##option)
 #define set_opt(sbi, option)	(sbi->options |= ESDFS_MOUNT_##option)
 #define test_opt(sbi, option)	(sbi->options & ESDFS_MOUNT_##option)
 
 #define ESDFS_DERIVE_PERMS(sbi)	(test_opt(sbi, DERIVE_UNIFIED) || \
-					 test_opt(sbi, DERIVE_LEGACY))
+				 test_opt(sbi, DERIVE_LEGACY))
+#define ESDFS_RESTRICT_PERMS(sbi) (ESDFS_DERIVE_PERMS(sbi) && \
+				   !test_opt(sbi, DERIVE_PUBLIC) && \
+				   !test_opt(sbi, DERIVE_MULTI))
 
 /* from android_filesystem_config.h */
 #define AID_ROOT             0
@@ -68,8 +73,6 @@ enum {
 	ESDFS_TREE_ROOT_LEGACY,		/* root for legacy emulated storage */
 	ESDFS_TREE_ROOT,		/* root for a user */
 	ESDFS_TREE_MEDIA,		/* per-user basic permissions */
-	ESDFS_TREE_MEDIA_PICS,		/* .../DCIM, Pictures */
-	ESDFS_TREE_MEDIA_AV,		/* .../Alarm, Movies, etc */
 	ESDFS_TREE_ANDROID,		/* .../Android */
 	ESDFS_TREE_ANDROID_DATA,	/* .../Android/data */
 	ESDFS_TREE_ANDROID_OBB,		/* .../Android/obb */

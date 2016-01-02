@@ -666,9 +666,8 @@ static ssize_t bmg_store_enable(struct device *dev,
 	if (data != client_data->enable) {
 		if (data) {
 			queue_delayed_work(client_data->work_queue,
-					&client_data->work,
-					msecs_to_jiffies(atomic_read(
-							&client_data->delay)));
+				&client_data->work,
+				msecs_to_jiffies(BMG160_HW_STARTUP_DELAY));
 		} else {
 			cancel_delayed_work_sync(&client_data->work);
 		}
@@ -712,6 +711,15 @@ static ssize_t bmg_store_delay(struct device *dev,
 		data = BMG_DELAY_MIN;
 
 	atomic_set(&client_data->delay, data);
+
+	if (data < 11)
+		BMG_CALL_API(set_bw)(C_BMG160_BW_47Hz_U8X);
+	else if (data < 16)
+		BMG_CALL_API(set_bw)(C_BMG160_BW_32Hz_U8X);
+	else if (data < 22)
+		BMG_CALL_API(set_bw)(C_BMG160_BW_23Hz_U8X);
+	else
+		BMG_CALL_API(set_bw)(C_BMG160_BW_12Hz_U8X);
 
 	return count;
 }
@@ -1398,7 +1406,6 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	if (err < 0)
 		goto exit_err_sysfs;
-
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	client_data->early_suspend_handler.suspend = bmg_early_suspend;

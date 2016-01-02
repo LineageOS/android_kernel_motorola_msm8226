@@ -64,6 +64,7 @@ unsigned short stml0xx_g_acc2_delay;
 unsigned short stml0xx_g_mag_delay;
 unsigned short stml0xx_g_gyro_delay;
 unsigned short stml0xx_g_baro_delay;
+unsigned short stml0xx_g_als_delay;
 unsigned long stml0xx_g_nonwake_sensor_state;
 unsigned long stml0xx_g_wake_sensor_state;
 unsigned short stml0xx_g_algo_state;
@@ -84,16 +85,16 @@ unsigned char *stml0xx_boot_readbuff;
 
 /* per algo config, request, and event registers */
 const struct stml0xx_algo_info_t stml0xx_algo_info[STML0XX_NUM_ALGOS] = {
-	{M_ALGO_MODALITY, ALGO_CFG_MODALITY, ALGO_REQ_MODALITY,
+	{M_ALGO_MODALITY, 0, ALGO_REQ_MODALITY,
 	 ALGO_EVT_MODALITY, STML0XX_EVT_SZ_TRANSITION},
-	{M_ALGO_ORIENTATION, ALGO_CFG_ORIENTATION, ALGO_REQ_ORIENTATION,
+	{M_ALGO_ORIENTATION, 0, ALGO_REQ_ORIENTATION,
 	 ALGO_EVT_ORIENTATION, STML0XX_EVT_SZ_TRANSITION},
-	{M_ALGO_STOWED, ALGO_CFG_STOWED, ALGO_REQ_STOWED,
+	{M_ALGO_STOWED, 0, ALGO_REQ_STOWED,
 	 ALGO_EVT_STOWED, STML0XX_EVT_SZ_TRANSITION},
 	{M_ALGO_ACCUM_MODALITY, ALGO_CFG_ACCUM_MODALITY,
 	 ALGO_REQ_ACCUM_MODALITY, ALGO_EVT_ACCUM_MODALITY,
 	 STML0XX_EVT_SZ_ACCUM_STATE},
-	{M_ALGO_ACCUM_MVMT, ALGO_CFG_ACCUM_MVMT, ALGO_REQ_ACCUM_MVMT,
+	{M_ALGO_ACCUM_MVMT, 0, ALGO_REQ_ACCUM_MVMT,
 	 ALGO_EVT_ACCUM_MVMT, STML0XX_EVT_SZ_ACCUM_MVMT}
 };
 
@@ -386,6 +387,10 @@ static struct stml0xx_platform_data *stml0xx_of_init(struct spi_device *spi)
 	of_property_read_u32(np, "bslen_pin_active_value",
 			     &pdata->bslen_pin_active_value);
 
+	pdata->reset_hw_type = 0;
+	of_property_read_u32(np, "reset_hw_type",
+		&pdata->reset_hw_type);
+
 	of_get_property(np, "stml0xx_fw_version", &len);
 	if (!of_property_read_string(np, "stml0xx_fw_version", &name))
 		strlcpy(pdata->fw_version, name, FW_VERSION_SIZE);
@@ -396,7 +401,8 @@ static struct stml0xx_platform_data *stml0xx_of_init(struct spi_device *spi)
 	pdata->ct406_detect_threshold = 0x00C8;
 	pdata->ct406_undetect_threshold = 0x00A5;
 	pdata->ct406_recalibrate_threshold = 0x0064;
-	pdata->ct406_pulse_count = 0x04;
+	pdata->ct406_pulse_count = 0x02;
+	pdata->ct406_prox_gain = 0x02;
 	of_property_read_u32(np, "ct406_detect_threshold",
 			     &pdata->ct406_detect_threshold);
 	of_property_read_u32(np, "ct406_undetect_threshold",
@@ -405,6 +411,30 @@ static struct stml0xx_platform_data *stml0xx_of_init(struct spi_device *spi)
 			     &pdata->ct406_recalibrate_threshold);
 	of_property_read_u32(np, "ct406_pulse_count",
 			     &pdata->ct406_pulse_count);
+	of_property_read_u32(np, "ct406_prox_gain",
+			     &pdata->ct406_prox_gain);
+	pdata->ct406_als_lux1_c0_mult = 0x294;
+	pdata->ct406_als_lux1_c1_mult = 0x55A;
+	pdata->ct406_als_lux1_div = 0x64;
+	pdata->ct406_als_lux2_c0_mult = 0xDA;
+	pdata->ct406_als_lux2_c1_mult = 0x186;
+	pdata->ct406_als_lux2_div = 0x64;
+	of_property_read_u32(np, "ct406_als_lux1_c0_mult",
+			     &pdata->ct406_als_lux1_c0_mult);
+	of_property_read_u32(np, "ct406_als_lux1_c1_mult",
+			     &pdata->ct406_als_lux1_c1_mult);
+	of_property_read_u32(np, "ct406_als_lux1_div",
+			     &pdata->ct406_als_lux1_div);
+	of_property_read_u32(np, "ct406_als_lux2_c0_mult",
+			     &pdata->ct406_als_lux2_c0_mult);
+	of_property_read_u32(np, "ct406_als_lux2_c1_mult",
+			     &pdata->ct406_als_lux2_c1_mult);
+	of_property_read_u32(np, "ct406_als_lux2_div",
+			     &pdata->ct406_als_lux2_div);
+
+	pdata->dsp_iface_enable = 0;
+	of_property_read_u32(np, "dsp_iface_enable",
+				&pdata->dsp_iface_enable);
 
 	pdata->headset_detect_enable = 0;
 	pdata->headset_hw_version = 0;
@@ -497,9 +527,14 @@ static int stml0xx_gpio_init(struct stml0xx_platform_data *pdata,
 			"stml0xx reset gpio_request failed: %d", err);
 		goto free_int;
 	}
-	gpio_direction_output(pdata->gpio_reset, 1);
-	gpio_set_value(pdata->gpio_reset, 1);
-	err = gpio_export(pdata->gpio_reset, 0);
+	if (pdata->reset_hw_type == 0) {
+		gpio_direction_output(pdata->gpio_reset, 1);
+		gpio_set_value(pdata->gpio_reset, 1);
+		err = gpio_export(pdata->gpio_reset, 0);
+	} else {
+		gpio_direction_input(pdata->gpio_reset);
+		err = gpio_export(pdata->gpio_reset, 1);
+	}
 	if (err) {
 		dev_err(&stml0xx_misc_data->spi->dev,
 			"reset gpio_export failed: %d", err);
@@ -951,6 +986,10 @@ static int stml0xx_probe(struct spi_device *spi)
 
 	switch_stml0xx_mode(NORMALMODE);
 
+#ifdef CONFIG_MMI_HALL_NOTIFICATIONS
+	ps_stml0xx->hall_data = mmi_hall_init();
+#endif
+
 	mutex_unlock(&ps_stml0xx->lock);
 
 	dev_dbg(&spi->dev, "probed finished");
@@ -1040,7 +1079,7 @@ static int stml0xx_remove(struct spi_device *spi)
 static int stml0xx_resume(struct device *dev)
 {
 	static struct timespec ts;
-	static struct stml0xx_work_struct *stm_ws;
+	static struct stml0xx_delayed_work_struct *stm_ws;
 	struct stml0xx_data *ps_stml0xx = spi_get_drvdata(to_spi_device(dev));
 
 	get_monotonic_boottime(&ts);
@@ -1052,17 +1091,17 @@ static int stml0xx_resume(struct device *dev)
 
 	if (ps_stml0xx->pending_wake_work) {
 		stm_ws = kmalloc(
-			sizeof(struct stml0xx_work_struct),
+			sizeof(struct stml0xx_delayed_work_struct),
 			GFP_ATOMIC);
 		if (!stm_ws) {
 			dev_err(dev, "stml0xx_resume: unable to allocate work struct");
 			return 0;
 		}
-		INIT_WORK((struct work_struct *)stm_ws,
+		INIT_DELAYED_WORK((struct delayed_work *)stm_ws,
 			stml0xx_irq_wake_work_func);
 		stm_ws->ts_ns = ts_to_ns(ts);
-		queue_work(ps_stml0xx->irq_work_queue,
-			(struct work_struct *)stm_ws);
+		queue_delayed_work(ps_stml0xx->irq_work_queue,
+			(struct delayed_work *)stm_ws, 0);
 		ps_stml0xx->pending_wake_work = false;
 	}
 

@@ -214,12 +214,20 @@
 	/include/ "batterydata-ft40-lishen.dtsi"
 };
 
+&i2c {
+	/delete-node/ qcom,camera@6c;
+};
+
 &i2c_3 {
 	status = "disabled";
 };
 
 &soc {
 	/delete-node/ fan5646;
+
+	/delete-node/ vddio_disp_vreg;
+
+	/delete-node/ lcd_vci_vreg;
 
 	sound {
 		/delete-property/ qcom,ext-spk-amp-gpio;
@@ -248,6 +256,12 @@
 	usb@f9a55000 {
 		qcom,hsusb-otg-phy-init-seq =
 			<0x44 0x80 0x49 0x81 0x36 0x82 0x3C 0x83 0xffffffff>;
+	};
+
+	i2c_1: i2c@f9923000 { /* BLSP-1 QUP-1 */
+		synaptics_dsx_i2c@20 {
+			/delete-property/ touch_vdd-supply;
+		};
 	};
 
 	i2c_2: i2c@f9924000 { /* BLSP-1 QUP-2 */
@@ -329,21 +343,29 @@
 			ct406_detect_threshold = <0x00C8>;
 			ct406_undetect_threshold = <0x00A5>;
 			ct406_recalibrate_threshold = <0x0064>;
-			ct406_pulse_count = <0x04>;
+			ct406_pulse_count = <0x02>;
+			ct406_prox_gain = <0x02>;
+			ct406_als_lux1_c0_mult = <0x294>;
+			ct406_als_lux1_c1_mult = <0x55A>;
+			ct406_als_lux1_div = <0x64>;
+			ct406_als_lux2_c0_mult = <0xDA>;
+			ct406_als_lux2_c1_mult = <0x186>;
+			ct406_als_lux2_div = <0x64>;
 			headset_detect_enable = <1>;
 			headset_hw_version = <2>;
 			headset_insertion_debounce = <0x01F4>;
 			headset_removal_debounce = <0x0080>;
 			headset_button_down_debounce = <0x0032>;
 			headset_button_up_debounce = <0x0032>;
-			headset_button_0-1_threshold = <0x00B6>;
-			headset_button_1-2_threshold = <0x015B>;
-			headset_button_2-3_threshold = <0x021D>;
-			headset_button_3-upper_threshold = <0x0384>;
+			headset_button_0-1_threshold = <0x009D>;
+			headset_button_1-2_threshold = <0x0145>;
+			headset_button_2-3_threshold = <0x0201>;
+			headset_button_3-upper_threshold = <0x03B0>;
 			headset_button_1_keycode = <0xE2>;  /* KEY_MEDIA        */
 			headset_button_2_keycode = <0x246>; /* KEY_VOICECOMMAND */
 			headset_button_3_keycode = <0x73>;  /* KEY_VOLUMEUP     */
 			headset_button_4_keycode = <0x72>;  /* KEY_VOLUMEDOWN   */
+			reset_hw_type = <0>;
 			sensor1-supply = <&pm8110_l6>;
 			sensor2-supply = <&pm8110_l14>;
 			sensor3-supply = <&pm8110_l19>;

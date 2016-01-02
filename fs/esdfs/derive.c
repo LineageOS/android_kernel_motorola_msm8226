@@ -297,6 +297,7 @@ void esdfs_derive_perms(struct dentry *dentry)
 	switch (inode_i->tree) {
 	case ESDFS_TREE_ROOT_LEGACY:
 		inode_i->tree = ESDFS_TREE_ROOT;
+		ret = kstrtou32(dentry->d_name.name, 0, &inode_i->userid);
 		if (!strncasecmp(dentry->d_name.name,
 					"obb",
 					dentry->d_name.len))
@@ -305,7 +306,6 @@ void esdfs_derive_perms(struct dentry *dentry)
 
 	case ESDFS_TREE_ROOT:
 		inode_i->tree = ESDFS_TREE_MEDIA;
-		ret = kstrtou32(dentry->d_name.name, 0, &inode_i->userid);
 		if (!strncasecmp(dentry->d_name.name,
 				 "Android",
 				 dentry->d_name.len))
@@ -325,8 +325,8 @@ void esdfs_derive_perms(struct dentry *dentry)
 					"media",
 					dentry->d_name.len))
 			inode_i->tree = ESDFS_TREE_ANDROID_MEDIA;
-		else if (test_opt(ESDFS_SB(dentry->d_sb), DERIVE_UNIFIED) &&
-			   !strncasecmp(dentry->d_name.name,
+		else if (ESDFS_RESTRICT_PERMS(ESDFS_SB(dentry->d_sb)) &&
+			 !strncasecmp(dentry->d_name.name,
 					"user",
 					dentry->d_name.len))
 			inode_i->tree = ESDFS_TREE_ANDROID_USER;
@@ -362,54 +362,70 @@ void esdfs_set_derived_perms(struct inode *inode)
 {
 	struct esdfs_sb_info *sbi = ESDFS_SB(inode->i_sb);
 	struct esdfs_inode_info *inode_i = ESDFS_I(inode);
+	gid_t gid = sbi->upper_perms.gid;
 
 	inode->i_uid = sbi->upper_perms.uid;
-	inode->i_gid = sbi->upper_perms.gid;
 	inode->i_mode &= S_IFMT;
+	if (ESDFS_RESTRICT_PERMS(sbi))
+		inode->i_gid = gid;
+	else {
+		if (gid == AID_SDCARD_RW)
+			inode->i_gid = AID_SDCARD_RW;
+		else
+			inode->i_gid = inode_i->userid * PKG_APPID_PER_USER +
+				       (gid % PKG_APPID_PER_USER);
+		inode->i_mode |= sbi->upper_perms.dmask;
+	}
 
 	switch (inode_i->tree) {
 	case ESDFS_TREE_ROOT_LEGACY:
-		inode->i_mode |= sbi->upper_perms.dmask;
+		if (ESDFS_RESTRICT_PERMS(sbi))
+			inode->i_mode |= sbi->upper_perms.dmask;
+		else if (test_opt(sbi, DERIVE_MULTI)) {
+			inode->i_mode &= S_IFMT;
+			inode->i_mode |= 0711;
+		}
 		break;
 
 	case ESDFS_TREE_NONE:
 	case ESDFS_TREE_ROOT:
-		inode->i_gid = AID_SDCARD_R;
-		inode->i_mode |= sbi->upper_perms.dmask;
+		if (ESDFS_RESTRICT_PERMS(sbi)) {
+			inode->i_gid = AID_SDCARD_R;
+			inode->i_mode |= sbi->upper_perms.dmask;
+		} else if (test_opt(sbi, DERIVE_PUBLIC)) {
+			inode->i_mode &= S_IFMT;
+			inode->i_mode |= 0771;
+		}
 		break;
 
 	case ESDFS_TREE_MEDIA:
-		inode->i_gid = AID_SDCARD_R;
-		inode->i_mode |= 0770;
-		break;
-
-	case ESDFS_TREE_MEDIA_PICS:
-		inode->i_gid = AID_SDCARD_PICS;
-		inode->i_mode |= 0770;
-		break;
-
-	case ESDFS_TREE_MEDIA_AV:
-		inode->i_gid = AID_SDCARD_AV;
-		inode->i_mode |= 0770;
+		if (ESDFS_RESTRICT_PERMS(sbi)) {
+			inode->i_gid = AID_SDCARD_R;
+			inode->i_mode |= 0770;
+		}
 		break;
 
 	case ESDFS_TREE_ANDROID:
 	case ESDFS_TREE_ANDROID_DATA:
 	case ESDFS_TREE_ANDROID_OBB:
 	case ESDFS_TREE_ANDROID_MEDIA:
-		inode->i_mode |= 0771;
+		if (ESDFS_RESTRICT_PERMS(sbi))
+			inode->i_mode |= 0771;
 		break;
 
 	case ESDFS_TREE_ANDROID_APP:
 		if (inode_i->appid)
 			inode->i_uid = inode_i->userid * PKG_APPID_PER_USER +
 				       (inode_i->appid % PKG_APPID_PER_USER);
-		inode->i_mode |= 0770;
+		if (ESDFS_RESTRICT_PERMS(sbi))
+			inode->i_mode |= 0770;
 		break;
 
 	case ESDFS_TREE_ANDROID_USER:
-		inode->i_gid = AID_SDCARD_ALL;
-		inode->i_mode |= 0770;
+		if (ESDFS_RESTRICT_PERMS(sbi)) {
+			inode->i_gid = AID_SDCARD_ALL;
+			inode->i_mode |= 0770;
+		}
 		break;
 	}
 
@@ -505,6 +521,14 @@ int esdfs_check_derived_permission(struct inode *inode, int mask)
 	uid_t appid;
 	unsigned access = 0;
 
+	/*
+	 * If we don't need to restrict access based on app GIDs and confine
+	 * writes to outside of the Android/... tree, we can skip all of this.
+	 */
+	if (!ESDFS_RESTRICT_PERMS(ESDFS_SB(inode->i_sb)) &&
+	    !test_opt(ESDFS_SB(inode->i_sb), DERIVE_CONFINE))
+			return 0;
+
 	cred = current_cred();
 	appid = cred->uid % PKG_APPID_PER_USER;
 
@@ -523,12 +547,22 @@ int esdfs_check_derived_permission(struct inode *inode, int mask)
 			       access_node, appid) {
 		if (package->appid == appid) {
 			pr_debug("esdfs: %s: found appid %lu, access: %u\n",
-				__func__, package->appid, package->access);
+				__func__, package->appid,
+				package->access);
 			access = package->access;
 			break;
 		}
 	}
 	mutex_unlock(&package_list_lock);
+
+	/*
+	 * If we aren't restricting based on GID, always grant what was formerly
+	 * "sdcard_rw".  The storage view containment has already effectively
+	 * done the check for read-only SD card access, so we know that this app
+	 * has write access.
+	 */
+	if (!ESDFS_RESTRICT_PERMS(ESDFS_SB(inode->i_sb)))
+		access |= HAS_SDCARD_RW;
 
 	/*
 	 * Grant access to media_rw holders (they can access the source anyway).
@@ -539,7 +573,7 @@ int esdfs_check_derived_permission(struct inode *inode, int mask)
 	/*
 	 * Grant access to sdcard_rw holders, unless we are in unified mode
 	 * and we are trying to write to the protected /Android tree or to
-	 * create files in the root.
+	 * create files in the root (aka, "confined" access).
 	 */
 	if ((access & HAS_SDCARD_RW) &&
 	    (!test_opt(ESDFS_SB(inode->i_sb), DERIVE_UNIFIED) ||

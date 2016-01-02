@@ -47,11 +47,18 @@ void stml0xx_reset(struct stml0xx_platform_data *pdata)
 {
 	dev_err(&stml0xx_misc_data->spi->dev, "stml0xx_reset");
 	stml0xx_g_booted = 0;
+
+	if (pdata->reset_hw_type != 0)
+		gpio_direction_output(pdata->gpio_reset, 1);
+
 	msleep(stml0xx_spi_retry_delay);
 	gpio_set_value(pdata->gpio_reset, 0);
 	msleep(stml0xx_spi_retry_delay);
 	gpio_set_value(pdata->gpio_reset, 1);
 	msleep(STML0XX_RESET_DELAY);
+
+	if (pdata->reset_hw_type != 0)
+		gpio_direction_input(pdata->gpio_reset);
 }
 
 void stml0xx_initialize_work_func(struct work_struct *work)
@@ -101,6 +108,13 @@ void stml0xx_initialize_work_func(struct work_struct *work)
 		ret_err = err;
 
 	stml0xx_spi_retry_delay = 10;
+
+	buf[0] = stml0xx_g_als_delay >> 8;
+	buf[1] = stml0xx_g_als_delay & 0xFF;
+	err = stml0xx_spi_send_write_reg_reset(ALS_UPDATE_RATE, buf,
+			2, RESET_NOT_ALLOWED);
+	if (err < 0)
+		ret_err = err;
 
 	buf[0] = stml0xx_g_nonwake_sensor_state & 0xFF;
 	buf[1] = (stml0xx_g_nonwake_sensor_state >> 8) & 0xFF;
@@ -161,11 +175,33 @@ void stml0xx_initialize_work_func(struct work_struct *work)
 	buf[4] = (pdata->ct406_recalibrate_threshold >> 8) & 0xff;
 	buf[5] = pdata->ct406_recalibrate_threshold & 0xff;
 	buf[6] = pdata->ct406_pulse_count & 0xff;
+	buf[7] = pdata->ct406_prox_gain & 0xff;
+	buf[8] = (pdata->ct406_als_lux1_c0_mult >> 8) & 0xff;
+	buf[9] = pdata->ct406_als_lux1_c0_mult & 0xff;
+	buf[10] = (pdata->ct406_als_lux1_c1_mult >> 8) & 0xff;
+	buf[11] = pdata->ct406_als_lux1_c1_mult & 0xff;
+	buf[12] = (pdata->ct406_als_lux1_div >> 8) & 0xff;
+	buf[13] = pdata->ct406_als_lux1_div & 0xff;
+	buf[14] = (pdata->ct406_als_lux2_c0_mult >> 8) & 0xff;
+	buf[15] = pdata->ct406_als_lux2_c0_mult & 0xff;
+	buf[16] = (pdata->ct406_als_lux2_c1_mult >> 8) & 0xff;
+	buf[17] = pdata->ct406_als_lux2_c1_mult & 0xff;
+	buf[18] = (pdata->ct406_als_lux2_div >> 8) & 0xff;
+	buf[19] = pdata->ct406_als_lux2_div & 0xff;
 	err = stml0xx_spi_send_write_reg_reset(PROX_SETTINGS, buf,
-			7, RESET_NOT_ALLOWED);
+			20, RESET_NOT_ALLOWED);
 	if (err < 0) {
 		dev_err(&ps_stml0xx->spi->dev,
 			"unable to write proximity settings %d", err);
+		ret_err = err;
+	}
+
+	buf[0] = pdata->dsp_iface_enable & 0xff;
+	err = stml0xx_spi_send_write_reg_reset(DSP_CONTROL, buf,
+		1, RESET_NOT_ALLOWED);
+	if (err < 0) {
+		dev_err(&ps_stml0xx->spi->dev,
+			"Unable to write dsp interface enable");
 		ret_err = err;
 	}
 
