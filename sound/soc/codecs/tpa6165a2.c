@@ -863,25 +863,66 @@ static int tpa6165_get_hs_acc_type(struct tpa6165_data *tpa6165)
 	return acc_type;
 }
 
+static int tpa6165_get_micr(struct tpa6165_data *tpa6165, int *micr)
+{
+	int ret;
+	u8 data;
+
+	ret = tpa6165_reg_read(tpa6165, TPA6165_MICB_CTL_REG, &data);
+	if (ret < 0) {
+		pr_err("%s: Could not read micbias register\n", __func__);
+		return ret;
+	}
+
+	data = (data & 0x1C) >> 2;
+	switch (data) {
+	case 0:
+		*micr = 2200;
+		break;
+	case 1:
+		*micr = 2600;
+		break;
+	case 2:
+		*micr = 3000;
+		break;
+	case 3:
+		*micr = 0;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int tpa6165_detect_multi_button(struct tpa6165_data *tpa6165,
 				       enum snd_jack_types *button)
 {
 	int resistance;
-	u8 keyscan;
+	int keydata;
+	int micr;
+	u8 data;
+	int div;
 	int ret;
 	int i;
 
-	ret = tpa6165_reg_read(tpa6165, TPA6165_MB_KEYSCAN_REG, &keyscan);
+	ret = tpa6165_get_micr(tpa6165, &micr);
+	if (ret < 0) {
+		pr_err("%s: Could not get micr\n", __func__);
+		return ret;
+	}
+
+	ret = tpa6165_reg_read(tpa6165, TPA6165_MB_KEYSCAN_REG, &data);
 	if (ret < 0) {
 		pr_err("%s: Could not read keyscan data register\n", __func__);
 		return ret;
 	}
 
-	resistance = keyscan & 0x7F;
-	if (keyscan & BIT(7))
-		resistance *= 4;
+	keydata = data & 0x7F;
+	div = (data & BIT(7)) ? 768 : 3072;
+	resistance = DIV_ROUND_CLOSEST(micr * keydata, div - keydata);
 
-	pr_debug("%s: Measured resistance: %d\n", __func__, resistance);
+	pr_debug("%s: Keydata=%x R=%d\n", __func__, data, resistance);
 
 	for (i = 0; i < ARRAY_SIZE(multi_buttons); i++) {
 		if (resistance >= multi_buttons[i].min_r &&
