@@ -774,6 +774,9 @@ static int32_t stk3x1x_enable_ps(struct stk3x1x_data *ps_data, uint8_t enable)
 		if (!(ps_data->als_enabled))
 			enable_irq(ps_data->irq);
 		ps_data->ps_enabled = true;
+
+		/* Set out range value to send next valid value immediately */
+		input_abs_set_val(ps_data->ps_input_dev, ABS_DISTANCE, -1);
 	} else {
 		if (!(ps_data->als_enabled))
 			disable_irq(ps_data->irq);
