@@ -27,7 +27,7 @@
 #define QPNP_VIB_EN_CTL(base)		(base + 0x46)
 
 #define QPNP_VIB_MAX_LEVEL		31
-#define QPNP_VIB_MIN_LEVEL		12
+#define QPNP_VIB_MIN_LEVEL		0
 
 #define QPNP_VIB_DEFAULT_TIMEOUT	15000
 #define QPNP_VIB_DEFAULT_VTG_LVL	3100
