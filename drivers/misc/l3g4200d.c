@@ -321,6 +321,12 @@ static int l3g4200d_get_gyro_data(struct l3g4200d_data *gyro,
 static void l3g4200d_report_values(struct l3g4200d_data *gyro,
 					 struct gyro_val *data)
 {
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(gyro->input_dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(gyro->input_dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
 	input_report_rel(gyro->input_dev, REL_RX, data->x);
 	input_report_rel(gyro->input_dev, REL_RY, data->y);
 	input_report_rel(gyro->input_dev, REL_RZ, data->z);
