@@ -315,6 +315,7 @@ static void AKECS_SetYPR(
 	int *rbuf)
 {
 	uint32_t ready;
+	ktime_t timestamp = ktime_get_boottime();
 	dev_vdbg(&akm->i2c->dev, "%s: flag =0x%X",
 		 __func__, rbuf[0]);
 	dev_vdbg(&akm->input->dev, "%s: Acceleration[LSB]: %6d,%6d,%6d stat=%d",
@@ -330,6 +331,12 @@ static void AKECS_SetYPR(
 	}
 
 	ready = (akm->enable_flag & (uint32_t)rbuf[0]);
+
+	/* Report event timestamp */
+	input_event(akm->input, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(akm->input, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
 
 	/* Report acceleration sensor information */
 	if (ready & ACC_DATA_READY) {
