@@ -881,6 +881,17 @@ static int ct406_disable_prox(struct ct406_data *ct)
 	return 0;
 }
 
+static void ct406_report_prox_event(struct ct406_data *ct, int value)
+{
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(ct->dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(ct->dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
+	input_event(ct->dev, EV_MSC, MSC_RAW, value);
+	input_sync(ct->dev);
+}
 
 static void ct406_report_prox(struct ct406_data *ct)
 {
@@ -922,30 +933,22 @@ static void ct406_report_prox(struct ct406_data *ct)
 			ct406_enable_prox(ct);
 		}
 		if (pdata > ct->prox_high_threshold) {
-			input_event(ct->dev, EV_MSC, MSC_RAW,
-				CT406_PROXIMITY_NEAR);
-			input_sync(ct->dev);
+			ct406_report_prox_event(ct, CT406_PROXIMITY_NEAR);
 			ct406_prox_mode_covered(ct);
 		}
 		break;
 	case CT406_PROX_MODE_COVERED:
 		if (pdata < ct->prox_low_threshold) {
-			input_event(ct->dev, EV_MSC, MSC_RAW,
-				CT406_PROXIMITY_FAR);
-			input_sync(ct->dev);
+			ct406_report_prox_event(ct, CT406_PROXIMITY_FAR);
 			ct406_prox_mode_uncovered(ct);
 		}
 		break;
 	case CT406_PROX_MODE_STARTUP:
 		if (pdata < (ct->prox_noise_floor + ct->prox_covered_offset)) {
-			input_event(ct->dev, EV_MSC, MSC_RAW,
-				CT406_PROXIMITY_FAR);
-			input_sync(ct->dev);
+			ct406_report_prox_event(ct, CT406_PROXIMITY_FAR);
 			ct406_prox_mode_uncovered(ct);
 		} else {
-			input_event(ct->dev, EV_MSC, MSC_RAW,
-				CT406_PROXIMITY_NEAR);
-			input_sync(ct->dev);
+			ct406_report_prox_event(ct, CT406_PROXIMITY_NEAR);
 			ct406_prox_mode_covered(ct);
 		}
 		break;
@@ -955,6 +958,19 @@ static void ct406_report_prox(struct ct406_data *ct)
 	}
 
 	ct406_clear_prox_flag(ct);
+}
+
+static void ct406_report_als_event(struct ct406_data *ct, int value)
+{
+	ktime_t timestamp = ktime_get_boottime();
+
+	input_event(ct->dev, EV_SYN, SYN_TIME_SEC,
+		ktime_to_timespec(timestamp).tv_sec);
+	input_event(ct->dev, EV_SYN, SYN_TIME_NSEC,
+		ktime_to_timespec(timestamp).tv_nsec);
+
+	input_event(ct->dev, EV_LED, LED_MISC, value);
+	input_sync(ct->dev);
 }
 
 static void ct406_report_als(struct ct406_data *ct)
@@ -1061,8 +1077,7 @@ static void ct406_report_als(struct ct406_data *ct)
 	/* input.c filters consecutive LED_MISC values <=1. */
 	lux1 = (lux1 >= 2) ? lux1 : 2;
 
-	input_event(ct->dev, EV_LED, LED_MISC, lux1);
-	input_sync(ct->dev);
+	ct406_report_als_event(ct, lux1);
 
 	if (ct->als_first_report == 0) {
 		/* write ALS interrupt persistence */
