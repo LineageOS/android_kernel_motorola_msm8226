@@ -36,6 +36,8 @@
 #define QPNP_VIB_VTG_SET_MASK		0x1F
 #define QPNP_VIB_LOGIC_SHIFT		4
 
+#define QPNP_HAPTIC_THRESHOLD		60
+
 struct qpnp_vib {
 	struct spmi_device *spmi;
 	struct hrtimer vib_timer;
@@ -47,7 +49,10 @@ struct qpnp_vib {
 	u16 base;
 	int state;
 	int vtg_level;
+	int vtg_level_normal;
+	int vtg_level_haptic;
 	int timeout;
+	int haptic_threshold;
 	int boot_up_vibe;
 	struct mutex lock;
 };
@@ -62,7 +67,7 @@ static ssize_t qpnp_vib_level_show(struct device *dev,
 	struct qpnp_vib *vib = container_of(tdev, struct qpnp_vib,
 					    timed_dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n", vib->vtg_level);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", vib->vtg_level_normal);
 }
 
 
@@ -92,7 +97,7 @@ static ssize_t qpnp_vib_level_store(struct device *dev,
 		val = QPNP_VIB_MAX_LEVEL;
 	}
 
-	vib->vtg_level = val;
+	vib->vtg_level_normal = val;
 
 	return strnlen(buf, count);
 }
@@ -218,6 +223,8 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 		value = (value > vib->timeout ?
 				 vib->timeout : value);
 		vib->state = 1;
+		vib->vtg_level = (value < vib->haptic_threshold) ?
+				vib->vtg_level_haptic : vib->vtg_level_normal;
 		hrtimer_start(&vib->vib_timer,
 			      ktime_set(value / 1000, (value % 1000) * 1000000),
 			      HRTIMER_MODE_REL);
@@ -296,17 +303,31 @@ static int __devinit qpnp_vibrator_probe(struct spmi_device *spmi)
 		return rc;
 	}
 
-	vib->vtg_level = QPNP_VIB_DEFAULT_VTG_LVL;
+	vib->vtg_level_normal = QPNP_VIB_DEFAULT_VTG_LVL;
 	rc = of_property_read_u32(spmi->dev.of_node,
 			"qcom,vib-vtg-level-mV", &temp_val);
 	if (!rc) {
-		vib->vtg_level = temp_val;
+		vib->vtg_level_normal = temp_val;
 	} else if (rc != -EINVAL) {
 		dev_err(&spmi->dev, "Unable to read vtg level\n");
 		return rc;
 	}
 
-	vib->vtg_level /= 100;
+	vib->vtg_level_normal /= 100;
+	vib->vtg_level = vib->vtg_level_normal;
+	vib->vtg_level_haptic = vib->vtg_level_normal;
+
+	rc = of_property_read_u32(spmi->dev.of_node,
+			"qcom,vib-vtg-level-mV-haptic", &temp_val);
+	if (!rc)
+		vib->vtg_level_haptic = temp_val/100;
+
+	vib->haptic_threshold = QPNP_HAPTIC_THRESHOLD;
+
+	rc = of_property_read_u32(spmi->dev.of_node,
+			"qcom,vib-haptic-threshold-ms", &temp_val);
+	if (!rc)
+		vib->haptic_threshold = temp_val;
 
 	rc = of_property_read_u32(spmi->dev.of_node,
 			"qcom,vib-boot-up-vibe-ms", &temp_val);
