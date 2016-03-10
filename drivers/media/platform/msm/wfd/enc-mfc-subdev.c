@@ -330,7 +330,7 @@ static long venc_open(struct v4l2_subdev *sd, void *arg)
 				client_ctx->event_status);
 		goto no_free_client;
 	}
-	WFD_MSG_ERR("NOTE: client_ctx = %p\n", client_ctx);
+	WFD_MSG_ERR("NOTE: client_ctx = %pK\n", client_ctx);
 	vmops->cookie = inst;
 	sd->dev_priv = inst;
 no_free_client:
@@ -1937,7 +1937,7 @@ static long venc_set_output_buffer(struct v4l2_subdev *sd, void *arg)
 		rc = -EINVAL;
 		goto err;
 	}
-	WFD_MSG_DBG("size = %u, %p\n", mregion->size, mregion->kvaddr);
+	WFD_MSG_DBG("size = %u, %pK\n", mregion->size, mregion->kvaddr);
 
 	rc = vcd_set_buffer(client_ctx->vcd_handle,
 				    VCD_BUFFER_OUTPUT, (u8 *) mregion->kvaddr,

@@ -349,7 +349,7 @@ static void mpq_int_vid_dec_handle_field_drop(
 			VDEC_MSG_EVT_INFO_FIELD_DROPPED;
 		vdec_msg->vdec_msg_info.msgdata.output_frame.time_stamp
 		= time_stamp;
-		DBG("Send FIELD_DROPPED message to client = %p\n",
+		DBG("Send FIELD_DROPPED message to client = %pK\n",
 						client_ctx);
 	} else {
 		DBG("mpq_int_vid_dec_input_frame_done(): "\
@@ -403,13 +403,13 @@ static void mpq_int_vid_dec_input_frame_done(
 		if (event == VCD_EVT_RESP_INPUT_DONE) {
 			vdec_msg->vdec_msg_info.msgcode =
 			VDEC_MSG_RESP_INPUT_BUFFER_DONE;
-			DBG("Send INPUT_DON message to client = %p\n",
+			DBG("Send INPUT_DON message to client = %pK\n",
 						client_ctx);
 
 		} else if (event == VCD_EVT_RESP_INPUT_FLUSHED) {
 			vdec_msg->vdec_msg_info.msgcode =
 					VDEC_MSG_RESP_INPUT_FLUSHED;
-			DBG("Send INPUT_FLUSHED message to client = %p\n",
+			DBG("Send INPUT_FLUSHED message to client = %pK\n",
 						client_ctx);
 		} else {
 			DBG("mpq_int_vid_dec_input_frame_done(): "\
@@ -1126,7 +1126,7 @@ static int mpq_int_vid_dec_set_h264_mv_buffers(
 		vcd_h264_mv_buffer->dev_addr = (u8 *) iova;
 
 	}
-	DBG("Virt: %p, Phys %p, fd: %d", vcd_h264_mv_buffer->
+	DBG("Virt: %pK, Phys %pK, fd: %d", vcd_h264_mv_buffer->
 		kernel_virtual_addr, vcd_h264_mv_buffer->physical_addr,
 		vcd_h264_mv_buffer->pmem_fd);
 	DBG("Dev addr %p", vcd_h264_mv_buffer->dev_addr);
@@ -1297,7 +1297,7 @@ static int mpq_int_vid_dec_set_buffer(struct mpq_dvb_video_inst *dev_inst,
 		(unsigned long)data_buffer->bufferaddr,
 		&kernel_vaddr, data_buffer->ion_fd,
 		buf_adr_offset, MAX_VIDEO_NUM_OF_BUFF, length)) {
-		ERR("%s() : user_virt_addr = %p cannot be set.",
+		ERR("%s() : user_virt_addr = %pK cannot be set.",
 		    __func__, data_buffer->bufferaddr);
 		return -EINVAL;
 	}
@@ -1339,7 +1339,7 @@ static int mpq_int_vid_dec_free_buffer(struct video_client_ctx *client_ctx,
 	if (!vidc_delete_addr_table(client_ctx, dir_buffer,
 				(unsigned long)data_buffer->bufferaddr,
 				&kernel_vaddr)) {
-		DBG("%s() : user_virt_addr = %p has not been set.",
+		DBG("%s() : user_virt_addr = %pK has not been set.",
 		    __func__, data_buffer->bufferaddr);
 		return 0;
 	}
@@ -1363,11 +1363,11 @@ static int mpq_int_vid_dec_pause_resume(struct video_client_ctx *client_ctx,
 	}
 
 	if (pause) {
-		DBG("msm_vidc_dec: PAUSE command from client = %p\n",
+		DBG("msm_vidc_dec: PAUSE command from client = %pK\n",
 			 client_ctx);
 		vcd_status = vcd_pause(client_ctx->vcd_handle);
 	} else {
-		DBG("msm_vidc_dec: RESUME command from client = %p\n",
+		DBG("msm_vidc_dec: RESUME command from client = %pK\n",
 			 client_ctx);
 		vcd_status = vcd_resume(client_ctx->vcd_handle);
 	}
@@ -1410,7 +1410,7 @@ static int mpq_int_vid_dec_start_stop(struct video_client_ctx *client_ctx,
 
 			wake_up(&client_ctx->msg_wait);
 
-			DBG("Send START_DONE message to client = %p\n",
+			DBG("Send START_DONE message to client = %pK\n",
 			    client_ctx);
 
 		} else {
@@ -1439,7 +1439,7 @@ static int mpq_int_vid_dec_start_stop(struct video_client_ctx *client_ctx,
 			mutex_unlock(&mpq_dvb_video_device->lock);
 			return -EIO;
 		}
-		DBG("Send STOP_DONE message to client = %p\n", client_ctx);
+		DBG("Send STOP_DONE message to client = %pK\n", client_ctx);
 		mutex_unlock(&mpq_dvb_video_device->lock);
 	}
 	return 0;
@@ -1715,7 +1715,7 @@ static int mpq_int_vid_dec_open_client(struct video_client_ctx **vid_clnt_ctx,
 		return -ENOMEM;
 	}
 
-	DBG(" Virtual Address of ioremap is %p\n",
+	DBG(" Virtual Address of ioremap is %pK\n",
 				mpq_dvb_video_device->virt_base);
 	if (!mpq_dvb_video_device->num_clients)
 		if (!vidc_load_firmware())
