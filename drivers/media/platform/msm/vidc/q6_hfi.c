@@ -345,7 +345,7 @@ static void *q6_hfi_get_device(u32 device_id,
 	int rc = 0;
 
 	if (!callback) {
-		dprintk(VIDC_ERR, "%s Invalid params:  %p\n",
+		dprintk(VIDC_ERR, "%s Invalid params:  %pK\n",
 			__func__, callback);
 		return NULL;
 	}
@@ -1224,7 +1224,7 @@ static int q6_hfi_iommu_attach(struct q6_hfi_device *device)
 			rc = IS_ERR(domain) ? PTR_ERR(domain) : -EINVAL;
 			break;
 		}
-		dprintk(VIDC_DBG, "Attaching domain(id:%d) %p to group %p",
+		dprintk(VIDC_DBG, "Attaching domain(id:%d) %pK to group %p",
 				iommu_map->domain, domain, group);
 		rc = iommu_attach_group(domain, group);
 		if (rc) {
@@ -1384,7 +1384,7 @@ int q6_hfi_initialize(struct hfi_device *hdev, u32 device_id,
 	int rc = 0;
 
 	if (!hdev || !res || !callback) {
-		dprintk(VIDC_ERR, "Invalid params: %p %p %p",
+		dprintk(VIDC_ERR, "Invalid params: %pK %pK %p",
 				hdev, res, callback);
 		rc = -EINVAL;
 		goto err_hfi_init;

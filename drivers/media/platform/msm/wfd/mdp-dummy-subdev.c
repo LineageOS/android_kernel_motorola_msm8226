@@ -98,7 +98,7 @@ static int mdp_q_buffer(struct v4l2_subdev *sd, void *arg)
 	list_add_tail(&new_entry->node, &inst->mdp_bufs.node);
 	mutex_unlock(&inst->mutex);
 
-	WFD_MSG_DBG("Queue %p with cookie %p\n",
+	WFD_MSG_DBG("Queue %pK with cookie %pK\n",
 			(void *)binfo->paddr, (void *)binfo->cookie);
 	return rc;
 }
@@ -127,7 +127,7 @@ static int mdp_dq_buffer(struct v4l2_subdev *sd, void *arg)
 	mutex_unlock(&inst->mutex);
 
 	*binfo = head->mdp_buf_info;
-	WFD_MSG_DBG("Dequeue %p with cookie %p\n",
+	WFD_MSG_DBG("Dequeue %pK with cookie %pK\n",
 		(void *)binfo->paddr, (void *)binfo->cookie);
 	return 0;
 

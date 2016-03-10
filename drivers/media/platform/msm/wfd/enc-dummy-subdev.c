@@ -218,7 +218,7 @@ static int venc_map_user_to_kernel(struct venc_inst *inst,
 	mregion->ion_handle = ion_import_dma_buf(venc_ion_client, mregion->fd);
 	if (IS_ERR_OR_NULL(mregion->ion_handle)) {
 		rc = PTR_ERR(mregion->ion_handle);
-		WFD_MSG_ERR("Failed to get handle: %p, %d, %d, %d\n",
+		WFD_MSG_ERR("Failed to get handle: %pK, %d, %d, %d\n",
 			venc_ion_client, mregion->fd, mregion->offset, rc);
 		mregion->ion_handle = NULL;
 		goto venc_map_fail;

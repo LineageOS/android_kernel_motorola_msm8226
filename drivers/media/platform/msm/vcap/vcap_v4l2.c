@@ -2034,7 +2034,7 @@ static ssize_t read_dump_info(struct file *file, char __user *user_buf,
 			"vc_enabled = %d\n", atomic_read(&dev->vc_enabled));
 		tot_size += size;
 		size = scnprintf(str_buf + tot_size, sizeof(str_buf) - tot_size,
-			"vc_client id = %p\n", dev->vc_client);
+			"vc_client id = %pK\n", dev->vc_client);
 		tot_size += size;
 		size = scnprintf(str_buf + tot_size, sizeof(str_buf) - tot_size,
 			"vc_queue_count = %d\n",
@@ -2060,7 +2060,7 @@ static ssize_t read_dump_info(struct file *file, char __user *user_buf,
 			"vp_enabled = %d\n", atomic_read(&dev->vp_enabled));
 		tot_size += size;
 		size = scnprintf(str_buf + tot_size, sizeof(str_buf) - tot_size,
-			"vp_client id = %p\n", dev->vp_client);
+			"vp_client id = %pK\n", dev->vp_client);
 		tot_size += size;
 		size = scnprintf(str_buf + tot_size, sizeof(str_buf) - tot_size,
 			"vp_in_queue_count = %d\n",
