@@ -3280,6 +3280,7 @@ static int tapan_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 #define TAPAN_FORMATS (SNDRV_PCM_FMTBIT_S16_LE)
 #define TAPAN_FORMATS_S16_S24_LE (SNDRV_PCM_FMTBIT_S16_LE | \
 				  SNDRV_PCM_FORMAT_S24_LE)
+#define TAPAN_SLIM_PGD_PORT_INT_TX_EN0 (TAPAN_SLIM_PGD_PORT_INT_EN0 + 2)
 static int tapan_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
@@ -4121,6 +4122,46 @@ static int tapan_codec_enable_slim_chmask(struct wcd9xxx_codec_dai_data *dai,
 	return ret;
 }
 
+static void tapan_codec_enable_int_port(struct wcd9xxx_codec_dai_data *dai,
+					  struct snd_soc_codec *codec)
+{
+	struct wcd9xxx_ch *ch;
+	int port_num = 0;
+	unsigned short reg = 0;
+	u8 val = 0;
+	if (!dai || !codec) {
+		pr_err("%s: Invalid params\n", __func__);
+		return;
+	}
+	list_for_each_entry(ch, &dai->wcd9xxx_ch_list, list) {
+		if (ch->port >= TAPAN_RX_PORT_START_NUMBER) {
+			port_num = ch->port - TAPAN_RX_PORT_START_NUMBER;
+			reg = TAPAN_SLIM_PGD_PORT_INT_EN0 + (port_num / 8);
+			val = wcd9xxx_interface_reg_read(codec->control_data,
+				reg);
+			if (!(val & (1 << (port_num % 8)))) {
+				val |= (1 << (port_num % 8));
+				wcd9xxx_interface_reg_write(
+					codec->control_data, reg, val);
+				val = wcd9xxx_interface_reg_read(
+					codec->control_data, reg);
+			}
+		} else {
+			port_num = ch->port;
+			reg = TAPAN_SLIM_PGD_PORT_INT_TX_EN0 + (port_num / 8);
+			val = wcd9xxx_interface_reg_read(codec->control_data,
+				reg);
+			if (!(val & (1 << (port_num % 8)))) {
+				val |= (1 << (port_num % 8));
+				wcd9xxx_interface_reg_write(codec->control_data,
+					reg, val);
+				val = wcd9xxx_interface_reg_read(
+					codec->control_data, reg);
+			}
+		}
+	}
+}
+
 static int tapan_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				     struct snd_kcontrol *kcontrol,
 				     int event)
@@ -4148,6 +4189,7 @@ static int tapan_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
+		tapan_codec_enable_int_port(dai, codec);
 		(void) tapan_codec_enable_slim_chmask(dai, true);
 		ret = wcd9xxx_cfg_slim_sch_rx(core, &dai->wcd9xxx_ch_list,
 					      dai->rate, dai->bit_width,
@@ -4202,6 +4244,7 @@ static int tapan_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 	dai = &tapan_p->dai[w->shift];
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
+		tapan_codec_enable_int_port(dai, codec);
 		(void) tapan_codec_enable_slim_chmask(dai, true);
 		ret = wcd9xxx_cfg_slim_sch_tx(core, &dai->wcd9xxx_ch_list,
 					      dai->rate, dai->bit_width,
@@ -4804,8 +4847,9 @@ static irqreturn_t tapan_slimbus_irq(int irq, void *data)
 	unsigned long status = 0;
 	int i, j, port_id, k;
 	u32 bit;
-	u8 val;
+	u8 val, int_val = 0;
 	bool tx, cleared;
+	unsigned short reg = 0;
 
 	for (i = TAPAN_SLIM_PGD_PORT_INT_STATUS_RX_0, j = 0;
 	     i <= TAPAN_SLIM_PGD_PORT_INT_STATUS_TX_1; i++, j++) {
@@ -4826,6 +4870,22 @@ static irqreturn_t tapan_slimbus_irq(int irq, void *data)
 			pr_err_ratelimited(
 			    "%s: underflow error on %s port %d, value %x\n",
 			    __func__, (tx ? "TX" : "RX"), port_id, val);
+		if ((val & TAPAN_SLIM_IRQ_OVERFLOW) ||
+			(val & TAPAN_SLIM_IRQ_UNDERFLOW)) {
+			if (!tx)
+				reg = TAPAN_SLIM_PGD_PORT_INT_EN0 +
+					(port_id / 8);
+			else
+				reg = TAPAN_SLIM_PGD_PORT_INT_TX_EN0 +
+					(port_id / 8);
+			int_val = wcd9xxx_interface_reg_read(
+				codec->control_data, reg);
+			if (int_val & (1 << (port_id % 8))) {
+				int_val = int_val ^ (1 << (port_id % 8));
+				wcd9xxx_interface_reg_write(codec->control_data,
+					reg, int_val);
+			}
+		}
 		if (val & TAPAN_SLIM_IRQ_PORT_CLOSED) {
 			/*
 			 * INT SOURCE register starts from RX to TX
