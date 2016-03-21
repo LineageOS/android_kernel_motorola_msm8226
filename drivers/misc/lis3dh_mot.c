@@ -169,6 +169,7 @@ struct lis3dh_data {
 	struct notifier_block pm_notifier;
 
 	int mode_before_suspend;
+	int irq_wake_enabled;
 };
 
 /*
@@ -1010,9 +1011,17 @@ static int lis3dh_resume(struct lis3dh_data *lis)
 {
 	int err;
 
+	if (lis->irq_wake_enabled) {
+		err = disable_irq_wake(lis->irq);
+		if (err)
+			dev_err(&lis->client->dev,
+				"Could not disable irq wake\n");
+		else
+			lis->irq_wake_enabled = 0;
+	}
+
 	/* The sensor is already enabled */
 	if (lis->mode & MODE_MOVEMENT) {
-		disable_irq_wake(lis->irq);
 		if (lis->mode_before_suspend != lis->mode) {
 			err = lis3dh_set_mode(lis, lis->mode_before_suspend);
 			if (err < 0)
@@ -1036,7 +1045,15 @@ static int lis3dh_suspend(struct lis3dh_data *lis)
 
 	/* Keep the sensor enabled for movement detection */
 	if (lis->mode & MODE_MOVEMENT) {
-		enable_irq_wake(lis->irq);
+		if (!lis->irq_wake_enabled) {
+			err = enable_irq_wake(lis->irq);
+			if (err)
+				dev_err(&lis->client->dev,
+					"Could not enable irq wake\n");
+			else
+				lis->irq_wake_enabled = 1;
+		}
+
 		lis->mode_before_suspend = lis->mode;
 		if (lis->mode != MODE_MOVEMENT) {
 			err = lis3dh_set_mode(lis, MODE_MOVEMENT);
