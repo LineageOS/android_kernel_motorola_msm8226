@@ -166,8 +166,6 @@ struct lis3dh_data {
 
 	int update_odr;
 
-	struct notifier_block pm_notifier;
-
 	int mode_before_suspend;
 };
 
@@ -1006,78 +1004,93 @@ static void lis3dh_input_cleanup(struct lis3dh_data *lis)
 	input_free_device(lis->input_dev);
 }
 
-static int lis3dh_resume(struct lis3dh_data *lis)
+#ifdef CONFIG_PM
+static int lis3dh_resume(struct device *dev)
 {
-	int err;
-
-	/* The sensor is already enabled */
-	if (lis->mode & MODE_MOVEMENT) {
-		disable_irq_wake(lis->irq);
-		if (lis->mode_before_suspend != lis->mode) {
-			err = lis3dh_set_mode(lis, lis->mode_before_suspend);
-			if (err < 0)
-				return err;
-		}
-		return 0;
-	}
-
-	if (lis->on_before_suspend) {
-		err = lis3dh_enable(lis);
-		if (err < 0)
-			dev_err(&lis->client->dev,
-				"resume failure\n");
-	}
-	return 0;
-}
-
-static int lis3dh_suspend(struct lis3dh_data *lis)
-{
-	int err;
-
-	/* Keep the sensor enabled for movement detection */
-	if (lis->mode & MODE_MOVEMENT) {
-		enable_irq_wake(lis->irq);
-		lis->mode_before_suspend = lis->mode;
-		if (lis->mode != MODE_MOVEMENT) {
-			err = lis3dh_set_mode(lis, MODE_MOVEMENT);
-			if (err < 0)
-				return err;
-		}
-		return 0;
-	}
-
-	lis->on_before_suspend =
-		atomic_read(&lis->enabled);
-	if (lis->on_before_suspend) {
-		err = lis3dh_disable(lis);
-		if (err < 0)
-			dev_err(&lis->client->dev, "suspend failure\n");
-	}
-
-	return 0;
-}
-
-static int lis3dh_pm_event(struct notifier_block *this,
-	unsigned long event, void *ptr)
-{
-	struct lis3dh_data *lis = container_of(this,
-		struct lis3dh_data, pm_notifier);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct lis3dh_data *lis = i2c_get_clientdata(client);
+	int ret = 0;
 
 	mutex_lock(&lis->lock);
 
-	switch (event) {
-	case PM_SUSPEND_PREPARE:
-		lis3dh_suspend(lis);
-		break;
-	case PM_POST_SUSPEND:
-		lis3dh_resume(lis);
-		break;
+	/* The sensor is already enabled */
+	if (lis->mode & MODE_MOVEMENT) {
+		ret = disable_irq_wake(lis->irq);
+		if (ret < 0) {
+			dev_err(&lis->client->dev,
+				"Could not disable IRQ wake: %d\n", ret);
+			goto err;
+		}
+		if (lis->mode_before_suspend != lis->mode) {
+			ret = lis3dh_set_mode(lis, lis->mode_before_suspend);
+			if (ret < 0) {
+				dev_err(&lis->client->dev,
+					"Could not set mode to %d\n",
+					lis->mode_before_suspend);
+				goto err;
+			}
+		}
+	} else if (lis->on_before_suspend) {
+		ret = lis3dh_enable(lis);
+		if (ret < 0) {
+			dev_err(&lis->client->dev,
+				"resume failure\n");
+			goto err;
+		}
 	}
 
+err:
 	mutex_unlock(&lis->lock);
 
-	return NOTIFY_DONE;
+	return ret;
 }
+
+static int lis3dh_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct lis3dh_data *lis = i2c_get_clientdata(client);
+	int ret = 0;
+
+	mutex_lock(&lis->lock);
+
+	/* Keep the sensor enabled for movement detection */
+	if (lis->mode & MODE_MOVEMENT) {
+		ret = enable_irq_wake(lis->irq);
+		if (ret < 0) {
+			dev_err(&lis->client->dev,
+				"Could not enable IRQ wake: %d\n", ret);
+			goto err;
+		}
+		lis->mode_before_suspend = lis->mode;
+		if (lis->mode != MODE_MOVEMENT) {
+			ret = lis3dh_set_mode(lis, MODE_MOVEMENT);
+			if (ret < 0) {
+				dev_err(&lis->client->dev,
+					"could not set mode to %d\n",
+					MODE_MOVEMENT);
+				goto err;
+			}
+		}
+	} else {
+		lis->on_before_suspend =
+			atomic_read(&lis->enabled);
+		if (lis->on_before_suspend) {
+			ret = lis3dh_disable(lis);
+			if (ret < 0) {
+				dev_err(&lis->client->dev, "suspend failure\n");
+				goto err;
+			}
+		}
+	}
+
+err:
+	mutex_unlock(&lis->lock);
+
+	return ret;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(lis3dh_pm, lis3dh_suspend, lis3dh_resume);
 
 #ifdef CONFIG_OF
 static struct lis3dh_platform_data *
@@ -1250,13 +1263,6 @@ static int lis3dh_probe(struct i2c_client *client,
 
 	lis3dh_device_power_off(lis);
 
-	lis->pm_notifier.notifier_call = lis3dh_pm_event;
-	err = register_pm_notifier(&lis->pm_notifier);
-	if (err < 0) {
-		pr_err("%s:Register_pm_notifier failed: %d\n", __func__, err);
-		goto err5;
-	}
-
 	/* As default, do not report information */
 	atomic_set(&lis->enabled, 0);
 
@@ -1266,8 +1272,6 @@ static int lis3dh_probe(struct i2c_client *client,
 
 	return 0;
 
-err5:
-	misc_deregister(&lis3dh_misc_device);
 err4:
 	lis3dh_input_cleanup(lis);
 err3:
@@ -1295,7 +1299,6 @@ static int __devexit lis3dh_remove(struct i2c_client *client)
 		regulator_put(lis->vdd);
 	}
 
-	unregister_pm_notifier(&lis->pm_notifier);
 	misc_deregister(&lis3dh_misc_device);
 	lis3dh_input_cleanup(lis);
 	lis3dh_device_power_off(lis);
@@ -1324,6 +1327,7 @@ static struct i2c_driver lis3dh_driver = {
 	.driver = {
 		.name = NAME,
 		.of_match_table = of_match_ptr(lis3dh_match_tbl),
+		.pm	= &lis3dh_pm,
 	},
 	.probe = lis3dh_probe,
 	.remove = __devexit_p(lis3dh_remove),
