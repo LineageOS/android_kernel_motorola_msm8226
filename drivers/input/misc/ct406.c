@@ -181,6 +181,7 @@ struct ct406_data {
 	u8 prox_offset;
 	u16 pdata_max;
 	u8 ink_type;
+	int prox_last_value;
 };
 
 static struct ct406_data *ct406_misc_data;
@@ -885,6 +886,11 @@ static void ct406_report_prox_event(struct ct406_data *ct, int value)
 {
 	ktime_t timestamp = ktime_get_boottime();
 
+	if (ct->prox_last_value == value)
+		return;
+
+	ct->prox_last_value = value;
+
 	input_event(ct->dev, EV_SYN, SYN_TIME_SEC,
 		ktime_to_timespec(timestamp).tv_sec);
 	input_event(ct->dev, EV_SYN, SYN_TIME_NSEC,
@@ -932,7 +938,7 @@ static void ct406_report_prox(struct ct406_data *ct)
 			pr_info("%s: Prox mode recalibrate\n", __func__);
 			ct406_enable_prox(ct);
 		}
-		if (pdata > ct->prox_high_threshold) {
+		if (ct->prox_high_threshold && pdata > ct->prox_high_threshold) {
 			ct406_report_prox_event(ct, CT406_PROXIMITY_NEAR);
 			ct406_prox_mode_covered(ct);
 		}
@@ -1194,6 +1200,7 @@ static int ct406_set_prox_enable_param(const char *char_value,
 
 	if (ct406_misc_data->prox_requested) {
 		ct406_misc_data->prox_starting = 1;
+		ct406_misc_data->prox_last_value = -1;
 		queue_work(ct406_misc_data->workqueue,
 			&ct406_misc_data->work_prox_start);
 	} else {
