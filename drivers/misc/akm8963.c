@@ -118,11 +118,11 @@ static int akm8963_i2c_rxdata(
 	} while ((err < 0) && (++tries < I2C_RETRIES));
 
 	if (err < 0) {
-		dev_err(&i2c->dev, "%s: transfer failed.", __func__);
+		dev_err(&i2c->dev, "%s: transfer failed.\n", __func__);
 		return -EIO;
 	}
 
-	dev_vdbg(&i2c->dev, "%s: RxData: len=%02x, addr=%02x, data=%02x",
+	dev_vdbg(&i2c->dev, "%s: RxData: len=%02x, addr=%02x, data=%02x\n",
 		__func__, length, addr, rxData[0]);
 	return 0;
 }
@@ -150,11 +150,11 @@ static int akm8963_i2c_txdata(
 	} while ((err < 0) && (++tries < I2C_RETRIES));
 
 	if (err < 0) {
-		dev_err(&i2c->dev, "%s: transfer failed.", __func__);
+		dev_err(&i2c->dev, "%s: transfer failed.\n", __func__);
 		return -EIO;
 	}
 
-	dev_vdbg(&i2c->dev, "%s: TxData: len=%02x, addr=%02x data=%02x",
+	dev_vdbg(&i2c->dev, "%s: TxData: len=%02x, addr=%02x data=%02x\n",
 		__func__, length, txData[0], txData[1]);
 	return 0;
 }
@@ -170,18 +170,18 @@ static int akm8963_i2c_check_device(
 	err = akm8963_i2c_rxdata(client, buffer, 1);
 	if (err < 0) {
 		dev_err(&client->dev,
-			"%s: Can not read WIA.", __func__);
+			"%s: Can not read WIA.\n", __func__);
 		return err;
 	}
 
 	/* Check read data */
 	if (buffer[0] != 0x48) {
 		dev_err(&client->dev,
-			"%s: The device is not AK8963.", __func__);
+			"%s: The device is not AK8963.\n", __func__);
 		return -ENXIO;
 	}
 
-	dev_info(&client->dev, "%s: AK8973 found", __func__);
+	dev_info(&client->dev, "%s: AK8973 found\n", __func__);
 	return 0;
 }
 
@@ -200,10 +200,10 @@ static int AKECS_Set_CNTL1(
 	buffer[1] = mode;
 	err = akm8963_i2c_txdata(akm->i2c, buffer, 2);
 	if (err < 0) {
-		dev_err(&akm->i2c->dev, "%s: Can not set CNTL1.", __func__);
+		dev_err(&akm->i2c->dev, "%s: Can not set CNTL1.\n", __func__);
 		akm->busy_flag = 0;
 	} else {
-		dev_dbg(&akm->i2c->dev, "%s: Mode is set to (%d).",
+		dev_dbg(&akm->i2c->dev, "%s: Mode is set to (%d).\n",
 			__func__, mode);
 	}
 
@@ -226,9 +226,9 @@ static int AKECS_Reset(
 		err = akm8963_i2c_txdata(akm->i2c, buffer, 2);
 		if (err < 0) {
 			dev_err(&akm->i2c->dev,
-				"%s: Can not set SRST bit.", __func__);
+				"%s: Can not set SRST bit.\n", __func__);
 		} else {
-			dev_dbg(&akm->i2c->dev, "%s: Soft reset is done.",
+			dev_dbg(&akm->i2c->dev, "%s: Soft reset is done.\n",
 				__func__);
 		}
 	}
@@ -251,7 +251,7 @@ static int AKECS_SetMode(
 	case AK8963_MODE_SELF_TEST:
 	case AK8963_MODE_FUSE_ACCESS:
 		if (akm->busy_flag == 1) {
-			dev_err(&akm->i2c->dev, "%s: device is busy.",
+			dev_err(&akm->i2c->dev, "%s: device is busy.\n",
 				__func__);
 			mutex_unlock(&akm->state_mutex);
 			return -EBUSY;
@@ -266,7 +266,7 @@ static int AKECS_SetMode(
 		break;
 	default:
 		dev_err(&akm->i2c->dev,
-			"%s: Unknown mode(%d).", __func__, mode);
+			"%s: Unknown mode(%d).\n", __func__, mode);
 		err = -EINVAL;
 	}
 
@@ -292,14 +292,14 @@ static int AKECS_GetData(
 			AKM8963_DRDY_TIMEOUT);
 	if (err < 0) {
 		dev_err(&akm->i2c->dev,
-			"%s: wait_event failed (%d).", __func__, err);
+			"%s: wait_event failed (%d).\n", __func__, err);
 		return -1;
 	}
 
 	mutex_lock(&akm->sensor_mutex);
 	if (!akm->drdy_flag) {
 		dev_err(&akm->i2c->dev,
-			"%s: DRDY is not set.", __func__);
+			"%s: DRDY is not set.\n", __func__);
 		mutex_unlock(&akm->sensor_mutex);
 		return -1;
 	}
@@ -317,17 +317,17 @@ static void AKECS_SetYPR(
 	uint32_t ready;
 	ktime_t timestamp = ktime_get_boottime();
 
-	dev_vdbg(&akm->i2c->dev, "%s: flag =0x%X",
+	dev_vdbg(&akm->i2c->dev, "%s: flag =0x%X\n",
 		 __func__, rbuf[0]);
-	dev_vdbg(&akm->input->dev, "%s: Acceleration[LSB]: %6d,%6d,%6d stat=%d",
+	dev_vdbg(&akm->input->dev, "%s: Acceleration[LSB]: %6d,%6d,%6d stat=%d\n",
 		__func__, rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
-	dev_vdbg(&akm->input->dev, "%s: Geomagnetism[LSB]: %6d,%6d,%6d stat=%d",
+	dev_vdbg(&akm->input->dev, "%s: Geomagnetism[LSB]: %6d,%6d,%6d stat=%d\n",
 		__func__, rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
-	dev_vdbg(&akm->input->dev, "%s: Orientation[YPR] : %6d,%6d,%6d",
+	dev_vdbg(&akm->input->dev, "%s: Orientation[YPR] : %6d,%6d,%6d\n",
 		__func__, rbuf[9], rbuf[10], rbuf[11]);
 
 	if (!rbuf[0]) {
-		dev_dbg(&akm->i2c->dev, "%s: No events to report", __func__);
+		dev_dbg(&akm->i2c->dev, "%s: No events to report\n", __func__);
 		return;
 	}
 
@@ -410,36 +410,36 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ECS_IOCTL_READ:
 	case ECS_IOCTL_WRITE:
 		if (argp == NULL) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument",
+			dev_err(&akm->i2c->dev, "%s: invalid argument\n",
 				__func__);
 			return -EINVAL;
 		}
 		if (copy_from_user(&i2c_buf, argp, sizeof(i2c_buf))) {
-			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_SET_MODE:
 		if (argp == NULL) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument.",
+			dev_err(&akm->i2c->dev, "%s: invalid argument.\n",
 				__func__);
 			return -EINVAL;
 		}
 		if (copy_from_user(&mode, argp, sizeof(mode))) {
-			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_SET_YPR:
 		if (argp == NULL) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument.",
+			dev_err(&akm->i2c->dev, "%s: invalid argument.\n",
 				__func__);
 			return -EINVAL;
 		}
 		if (copy_from_user(&ypr_buf, argp, sizeof(ypr_buf))) {
-			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_from_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
@@ -453,7 +453,7 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ECS_IOCTL_GET_ACCEL:
 		/* Just check buffer pointer */
 		if (argp == NULL) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument.",
+			dev_err(&akm->i2c->dev, "%s: invalid argument.\n",
 				__func__);
 			return -EINVAL;
 		}
@@ -464,9 +464,9 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ECS_IOCTL_READ:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_READ called.", __func__);
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_READ called.\n", __func__);
 		if ((i2c_buf[0] < 1) || (i2c_buf[0] > (RWBUF_SIZE-1))) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument.",
+			dev_err(&akm->i2c->dev, "%s: invalid argument.\n",
 				__func__);
 			return -EINVAL;
 		}
@@ -475,9 +475,9 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return ret;
 		break;
 	case ECS_IOCTL_WRITE:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_WRITE called.", __func__);
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_WRITE called.\n", __func__);
 		if ((i2c_buf[0] < 2) || (i2c_buf[0] > (RWBUF_SIZE-1))) {
-			dev_err(&akm->i2c->dev, "%s: invalid argument.",
+			dev_err(&akm->i2c->dev, "%s: invalid argument.\n",
 				__func__);
 			return -EINVAL;
 		}
@@ -486,58 +486,58 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return ret;
 		break;
 	case ECS_IOCTL_SET_MODE:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_SET_MODE called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_SET_MODE called.\n",
 			__func__);
 		ret = AKECS_SetMode(akm, mode);
 		if (ret < 0)
 			return ret;
 		break;
 	case ECS_IOCTL_GETDATA:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GETDATA called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GETDATA called.\n",
 			__func__);
 		ret = AKECS_GetData(akm, sensor_buf, SENSOR_DATA_SIZE);
 		if (ret < 0)
 			return ret;
 		break;
 	case ECS_IOCTL_SET_YPR:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_SET_YPR called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_SET_YPR called.\n",
 			__func__);
 		AKECS_SetYPR(akm, ypr_buf);
 		break;
 	case ECS_IOCTL_GET_OPEN_STATUS:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_OPEN_STATUS called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_OPEN_STATUS called.\n",
 			__func__);
 		ret = AKECS_GetOpenStatus(akm);
 		if (ret < 0) {
 			dev_err(&akm->i2c->dev,
-				"%s: Get Open returns error (%d).",
+				"%s: Get Open returns error (%d).\n",
 				__func__, ret);
 		}
 		break;
 	case ECS_IOCTL_GET_CLOSE_STATUS:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_CLOSE_STATUS called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_CLOSE_STATUS called.\n",
 			__func__);
 		ret = AKECS_GetCloseStatus(akm);
 		if (ret < 0) {
 			dev_err(&akm->i2c->dev,
-				"%s: Get Close returns error (%d).",
+				"%s: Get Close returns error (%d).\n",
 				__func__, ret);
 		}
 		break;
 	case ECS_IOCTL_GET_DELAY:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_DELAY called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_DELAY called.\n",
 			__func__);
 		delay[0] = akm->delay[0];
 		delay[1] = akm->delay[1];
 		delay[2] = akm->delay[2];
 		break;
 	case ECS_IOCTL_GET_LAYOUT:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_LAYOUT called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_LAYOUT called.\n",
 			__func__);
 		layout = akm->layout;
 		break;
 	case ECS_IOCTL_GET_OUTBIT:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_OUTBIT called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_OUTBIT called.\n",
 			__func__);
 		outbit = akm->outbit;
 		break;
@@ -547,7 +547,7 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return ret;
 		break;
 	case ECS_IOCTL_GET_ACCEL:
-		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_ACCEL called.",
+		dev_vdbg(&akm->i2c->dev, "%s: IOCTL_GET_ACCEL called.\n",
 			__func__);
 		mutex_lock(&akm->accel_mutex);
 		acc_buf[0] = akm->accel_data[0];
@@ -562,14 +562,14 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case ECS_IOCTL_READ:
 		if (copy_to_user(argp, &i2c_buf, i2c_buf[0]+1)) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_GETDATA:
 		if (copy_to_user(argp, &sensor_buf, sizeof(sensor_buf))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
@@ -578,35 +578,35 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ECS_IOCTL_GET_CLOSE_STATUS:
 		status = akm->active_flag;
 		if (copy_to_user(argp, &status, sizeof(status))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_GET_DELAY:
 		if (copy_to_user(argp, &delay, sizeof(delay))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_GET_LAYOUT:
 		if (copy_to_user(argp, &layout, sizeof(layout))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_GET_OUTBIT:
 		if (copy_to_user(argp, &outbit, sizeof(outbit))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
 		break;
 	case ECS_IOCTL_GET_ACCEL:
 		if (copy_to_user(argp, &acc_buf, sizeof(acc_buf))) {
-			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.",
+			dev_err(&akm->i2c->dev, "%s: copy_to_user failed.\n",
 				__func__);
 			return -EFAULT;
 		}
