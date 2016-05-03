@@ -740,7 +740,7 @@ static int qpnp_wled_set(struct qpnp_led_data *led)
 	}
 
 	if (level != old_level && old_level == 0)
-		dev_info(&led->spmi_dev->dev, "backlight on");
+		dev_info(&led->spmi_dev->dev, "backlight on\n");
 	old_level = level;
 
 	return 0;
