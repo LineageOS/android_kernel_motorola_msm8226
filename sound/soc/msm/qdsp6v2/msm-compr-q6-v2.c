@@ -247,7 +247,7 @@ static void compr_event_handler(uint32_t opcode,
 		break;
 	case ASM_DATA_EVENT_READ_DONE_V2: {
 		pr_debug("ASM_DATA_EVENT_READ_DONE\n");
-		pr_debug("buf = %p, data = 0x%X, *data = %p,\n"
+		pr_debug("buf = %pK, data = 0x%X, *data = %pK,\n"
 			 "prtd->pcm_irq_pos = %d\n",
 				prtd->audio_client->port[OUT].buf,
 			 *(uint32_t *)prtd->audio_client->port[OUT].buf->data,
@@ -257,7 +257,7 @@ static void compr_event_handler(uint32_t opcode,
 		memcpy(prtd->audio_client->port[OUT].buf->data +
 			   prtd->pcm_irq_pos, (ptrmem + READDONE_IDX_SIZE),
 			   COMPRE_CAPTURE_HEADER_SIZE);
-		pr_debug("buf = %p, updated data = 0x%X, *data = %p\n",
+		pr_debug("buf = %pK, updated data = 0x%X, *data = %pK\n",
 				prtd->audio_client->port[OUT].buf,
 			*(uint32_t *)(prtd->audio_client->port[OUT].buf->data +
 				prtd->pcm_irq_pos),
@@ -494,7 +494,7 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 			read_param.paddr = (unsigned long)(buf[i].phys)
 					+ COMPRE_CAPTURE_HEADER_SIZE;
 			pr_debug("Push buffer [%d] to DSP, "\
-					"paddr: %p, vaddr: %p\n",
+					"paddr: %pK, vaddr: %pK\n",
 					i, (void *) read_param.paddr,
 					buf[i].data);
 			q6asm_async_read(prtd->audio_client, &read_param);

@@ -126,7 +126,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		u8 *payload = data->payload;
 		if ((data->payload_size < sizeof(this_afe.calib_data))
 			|| !payload || (data->token >= AFE_MAX_PORTS)) {
-			pr_err("%s size %d payload %p token %d\n",
+			pr_err("%s size %d payload %pK token %d\n",
 			__func__, data->payload_size, payload, data->token);
 			return -EINVAL;
 		}
