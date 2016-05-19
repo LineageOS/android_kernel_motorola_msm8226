@@ -2164,7 +2164,7 @@ static int wm5110_tfa9890_init(struct snd_soc_pcm_runtime *rtd)
 			"Failed to set format for tfa9890 %d\n",
 			ret);
 
-	dev_info(rtd->dev, "Calling HW params with hw params: %p\n",
+	dev_info(rtd->dev, "Calling HW params with hw params: %pK\n",
 		&wm5110_tfa9890_params);
 	dev_info(rtd->dev, "hw params: min/max rate: %d / %d\n",
 		rate->min, rate->max);
@@ -2490,7 +2490,7 @@ static int msm8974_mi2s_quat_startup(struct snd_pcm_substream *substream)
 
 	auxpcm_ctrl = pdata->quat_auxpcm_ctrl;
 
-	pr_info("%s: dai name %s %p\n", __func__, cpu_dai->name, cpu_dai->dev);
+	pr_info("%s: dai name %s %pK\n", __func__, cpu_dai->name, cpu_dai->dev);
 
 	if (atomic_inc_return(&quat_auxpcm_rsc_ref) == 1) {
 		pr_info("%s: acquire mi2s resources\n", __func__);
@@ -2597,7 +2597,7 @@ static int msm8974_mi2s_pri_snd_startup(struct snd_pcm_substream *substream)
 	struct msm_auxpcm_ctrl *auxpcm_ctrl = NULL;
 	auxpcm_ctrl = pdata->pri_auxpcm_ctrl;
 
-	pr_debug("%s: dai name %s %p\n", __func__, cpu_dai->name, cpu_dai->dev);
+	pr_debug("%s: dai name %s %pK\n", __func__, cpu_dai->name, cpu_dai->dev);
 
 	if (atomic_inc_return(&pri_mi2s_rsc_ref) == 1) {
 		pr_debug("%s: acquire mi2s resources\n", __func__);
