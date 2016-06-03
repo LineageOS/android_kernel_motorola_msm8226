@@ -407,7 +407,7 @@ static int signal_session_msg_receipt(enum command_response cmd,
 		struct msm_vidc_inst *inst)
 {
 	if (!inst) {
-		dprintk(VIDC_ERR, "Invalid(%p) instance id\n", inst);
+		dprintk(VIDC_ERR, "Invalid(%pK) instance id\n", inst);
 		return -EINVAL;
 	}
 	complete(&inst->completions[SESSION_MSG_INDEX(cmd)]);
@@ -1021,7 +1021,7 @@ static void handle_session_close(enum command_response cmd, void *data)
 		hdev = inst->core->device;
 		mutex_lock(&inst->lock);
 		if (inst->session) {
-			dprintk(VIDC_DBG, "cleaning up inst: 0x%p", inst);
+			dprintk(VIDC_DBG, "cleaning up inst: 0x%pK", inst);
 			call_hfi_op(hdev, session_clean,
 				(void *) inst->session);
 		}
@@ -1390,7 +1390,7 @@ static void handle_fbd(enum command_response cmd, void *data)
 
 		if (extra_idx && (extra_idx < VIDEO_MAX_PLANES)) {
 			dprintk(VIDC_DBG,
-			"extradata: userptr = %p;  bytesused = %d; length = %d\n",
+			"extradata: userptr = %pK;  bytesused = %d; length = %d\n",
 			(u8 *)vb->v4l2_planes[extra_idx].m.userptr,
 			vb->v4l2_planes[extra_idx].bytesused,
 			vb->v4l2_planes[extra_idx].length);
@@ -2583,7 +2583,7 @@ int msm_comm_qbuf(struct vb2_buffer *vb)
 	}
 	hdev = core->device;
 	if (!hdev) {
-		dprintk(VIDC_ERR, "Invalid input: %p", hdev);
+		dprintk(VIDC_ERR, "Invalid input: %pK", hdev);
 		return -EINVAL;
 	}
 
@@ -3195,7 +3195,7 @@ int msm_comm_flush(struct msm_vidc_inst *inst, u32 flags)
 	}
 	hdev = core->device;
 	if (!hdev) {
-		dprintk(VIDC_ERR, "Invalid device pointer = %p", hdev);
+		dprintk(VIDC_ERR, "Invalid device pointer = %pK", hdev);
 		return -EINVAL;
 	}
 
