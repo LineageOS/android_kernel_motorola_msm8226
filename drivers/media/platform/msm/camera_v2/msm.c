@@ -146,6 +146,32 @@ typedef int (*msm_queue_find_func)(void *d1, void *d2);
 	__ret; \
 })
 
+static struct kobject *msm_server_kobj;
+
+static ssize_t msm_server_ready_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	unsigned long flags;
+	bool ready;
+
+	spin_lock_irqsave(&msm_eventq_lock, flags);
+	ready = msm_eventq != NULL;
+	spin_unlock_irqrestore(&msm_eventq_lock, flags);
+
+	return sprintf(buf, "%d\n", ready);
+}
+
+static DEVICE_ATTR(ready, S_IRUGO, msm_server_ready_show, NULL);
+
+static struct attribute *msm_server_attributes[] = {
+	&dev_attr_ready.attr,
+	NULL,
+};
+
+static const struct attribute_group msm_server_group = {
+	.attrs = msm_server_attributes,
+};
+
 static void msm_init_queue(struct msm_queue_head *qhead)
 {
 	BUG_ON(!qhead);
@@ -1052,8 +1078,25 @@ static int __devinit msm_probe(struct platform_device *pdev)
 	spin_lock_init(&msm_eventq_lock);
 	spin_lock_init(&msm_pid_lock);
 	INIT_LIST_HEAD(&ordered_sd_list);
+
+	msm_server_kobj = kobject_create_and_add("qcamera_server", kernel_kobj);
+	if (msm_server_kobj == NULL) {
+		pr_err("%s: could not create kobject\n", __func__);
+		rc = -ENOMEM;
+		goto session_fail;
+	}
+
+	rc = sysfs_create_group(msm_server_kobj, &msm_server_group);
+	if (rc) {
+		pr_err("%s: could not create kobject group\n", __func__);
+		goto sysfs_fail;
+	}
+
 	goto probe_end;
 
+sysfs_fail:
+	kobject_del(msm_server_kobj);
+	msm_server_kobj = NULL;
 session_fail:
 	video_unregister_device(pvdev->vdev);
 v4l2_fail:
@@ -1098,6 +1141,10 @@ static int __init msm_init(void)
 
 static void __exit msm_exit(void)
 {
+	if (msm_server_kobj) {
+		sysfs_remove_group(msm_server_kobj, &msm_server_group);
+		kobject_del(msm_server_kobj);
+	}
 	platform_driver_unregister(&msm_driver);
 }
 
