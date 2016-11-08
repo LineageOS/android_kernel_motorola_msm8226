@@ -1059,12 +1059,18 @@ static ssize_t store_boostpulse(struct kobject *kobj, struct attribute *attr,
 {
 	int ret;
 	unsigned long val;
+	u64 new_boostpulse_endtime;
+
 
 	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
-	boostpulse_endtime = ktime_to_us(ktime_get()) + boostpulse_duration_val;
+	if (!val)
+		val = boostpulse_duration_val;
+	new_boostpulse_endtime = ktime_to_us(ktime_get()) + val;
+	if (new_boostpulse_endtime > boostpulse_endtime)
+		boostpulse_endtime = new_boostpulse_endtime;
 	trace_cpufreq_interactive_boost("pulse");
 	if (!boosted)
 		cpufreq_interactive_boost();
