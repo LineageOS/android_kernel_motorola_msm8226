@@ -2662,37 +2662,10 @@ static int dvb_dmxdev_section_event_cb(struct dmx_section_filter *filter,
 		}
 		return 0;
 	}
-
-	free = dvb_ringbuffer_free(&dmxdevfilter->buffer);
-
-	if ((DMX_OVERRUN_ERROR == dmx_data_ready->status) ||
-		(dmx_data_ready->data_length > free)) {
-
-		dprintk("dmxdev: buffer overflow\n");
-
-		dmxdevfilter->buffer.error = -EOVERFLOW;
-		dvb_dmxdev_flush_events(&dmxdevfilter->events);
-		event.type = DMX_EVENT_BUFFER_OVERFLOW;
-		dvb_dmxdev_add_event(&dmxdevfilter->events, &event);
-		spin_unlock(&dmxdevfilter->dev->lock);
-		wake_up_all(&dmxdevfilter->buffer.queue);
-		return 0;
-	}
-
-	event.type = DMX_EVENT_NEW_SECTION;
-	event.params.section.base_offset = dmxdevfilter->buffer.pwrite;
-	event.params.section.start_offset = dmxdevfilter->buffer.pwrite;
-	event.params.section.total_length = dmx_data_ready->data_length;
-	event.params.section.actual_length = dmx_data_ready->data_length;
-
-	if (dmx_data_ready->status == DMX_MISSED_ERROR)
-		event.params.section.flags = DMX_FILTER_CC_ERROR;
-	else
-		event.params.section.flags = 0;
-
-	res = dvb_dmxdev_add_event(&dmxdevfilter->events, &event);
-	DVB_RINGBUFFER_PUSH(&dmxdevfilter->buffer, dmx_data_ready->data_length);
-
+	if (ret < 0)
+		dmxdevfilter->buffer.error = ret;
+	if (dmxdevfilter->params.sec.flags & DMX_ONESHOT)
+		dmxdevfilter->state = DMXDEV_STATE_DONE;
 	spin_unlock(&dmxdevfilter->dev->lock);
 	wake_up_all(&dmxdevfilter->buffer.queue);
 
@@ -2824,93 +2797,11 @@ static int dvb_dmxdev_ts_event_cb(struct dmx_ts_feed *feed,
 		wake_up_all(&buffer->queue);
 		return 0;
 	}
-
-	free = dvb_ringbuffer_free(&dmxdevfilter->buffer);
-
-	if ((DMX_OVERRUN_ERROR == dmx_data_ready->status) ||
-		(dmx_data_ready->data_length > free)) {
-
-		/*
-		 * Enter buffer overflow state:
-		 * Set buffer overflow error state, flush all pending demux
-		 * device events to ensure user can receive the overflow event
-		 * and report the event to user
-		 */
-		dprintk("dmxdev: buffer overflow\n");
-
-		buffer->error = -EOVERFLOW;
-		dvb_dmxdev_flush_events(events);
-		event.type = DMX_EVENT_BUFFER_OVERFLOW;
-		dvb_dmxdev_add_event(&dmxdevfilter->events, &event);
-
-		spin_unlock(&dmxdevfilter->dev->lock);
-		return 0;
-	}
-
-	if (dmxdevfilter->params.pes.output == DMX_OUT_TAP) {
-		if ((dmx_data_ready->status == DMX_OK) &&
-			(!events->current_event_data_size)) {
-			events->current_event_start_offset =
-				dmxdevfilter->buffer.pwrite;
-		} else if (dmx_data_ready->status == DMX_OK_PES_END) {
-			event.type = DMX_EVENT_NEW_PES;
-
-			event.params.pes.base_offset =
-				events->current_event_start_offset;
-			event.params.pes.start_offset =
-				events->current_event_start_offset +
-				dmx_data_ready->pes_end.start_gap;
-
-			event.params.pes.actual_length =
-				dmx_data_ready->pes_end.actual_length;
-			event.params.pes.total_length =
-				events->current_event_data_size;
-
-			event.params.pes.flags = 0;
-			if (dmx_data_ready->pes_end.disc_indicator_set)
-				event.params.pes.flags |=
-					DMX_FILTER_DISCONTINUITY_INDICATOR;
-			if (dmx_data_ready->pes_end.pes_length_mismatch)
-				event.params.pes.flags |=
-					DMX_FILTER_PES_LENGTH_ERROR;
-
-			event.params.pes.stc = dmx_data_ready->pes_end.stc;
-			event.params.pes.transport_error_indicator_counter =
-				dmx_data_ready->pes_end.tei_counter;
-			event.params.pes.continuity_error_counter =
-				dmx_data_ready->pes_end.cont_err_counter;
-			event.params.pes.ts_packets_num =
-				dmx_data_ready->pes_end.ts_packets_num;
-
-			dvb_dmxdev_add_event(events, &event);
-
-			events->current_event_data_size = 0;
-		}
-	} else {
-		if (!events->current_event_data_size)
-			events->current_event_start_offset =
-					dmxdevfilter->buffer.pwrite;
-	}
-
-	events->current_event_data_size += dmx_data_ready->data_length;
-	DVB_RINGBUFFER_PUSH(&dmxdevfilter->buffer, dmx_data_ready->data_length);
-
-	if ((dmxdevfilter->params.pes.output == DMX_OUT_TS_TAP) ||
-		(dmxdevfilter->params.pes.output == DMX_OUT_TSDEMUX_TAP)) {
-		if (events->current_event_data_size >=
-			dmxdevfilter->params.pes.rec_chunk_size) {
-			event.type = DMX_EVENT_NEW_REC_CHUNK;
-			event.params.recording_chunk.offset =
-				events->current_event_start_offset;
-
-			event.params.recording_chunk.size =
-				events->current_event_data_size;
-
-			dvb_dmxdev_add_event(events, &event);
-
-			events->current_event_data_size = 0;
-		 }
-	}
+	ret = dvb_dmxdev_buffer_write(buffer, buffer1, buffer1_len);
+	if (ret == buffer1_len)
+		ret = dvb_dmxdev_buffer_write(buffer, buffer2, buffer2_len);
+	if (ret < 0)
+		buffer->error = ret;
 	spin_unlock(&dmxdevfilter->dev->lock);
 	wake_up_all(&buffer->queue);
 	return 0;

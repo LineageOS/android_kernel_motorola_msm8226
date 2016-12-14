@@ -113,17 +113,16 @@ static void tty_buffer_free(struct tty_struct *tty, struct tty_buffer *b)
 
 static void __tty_buffer_flush(struct tty_struct *tty)
 {
-	struct tty_bufhead *buf = &tty->buf;
 	struct tty_buffer *thead;
 
-	if (unlikely(buf->head == NULL))
+	if (tty->buf.head == NULL)
 		return;
-	while ((thead = buf->head->next) != NULL) {
-		tty_buffer_free(tty, buf->head);
-		buf->head = thead;
+	while ((thead = tty->buf.head->next) != NULL) {
+		tty_buffer_free(tty, tty->buf.head);
+		tty->buf.head = thead;
 	}
-	WARN_ON(buf->head != buf->tail);
-	buf->head->read = buf->head->commit;
+	WARN_ON(tty->buf.head != tty->buf.tail);
+	tty->buf.head->read = tty->buf.head->commit;
 }
 
 /**
@@ -440,7 +439,8 @@ static void flush_to_ldisc(struct work_struct *work)
 			flag_buf = head->flag_buf_ptr + head->read;
 			head->read += count;
 			spin_unlock_irqrestore(&tty->buf.lock, flags);
-			disc->ops->receive_buf(tty, char_buf,
+			if (disc->ops->receive_buf)
+				disc->ops->receive_buf(tty, char_buf,
 							flag_buf, count);
 			spin_lock_irqsave(&tty->buf.lock, flags);
 			/* Ldisc or user is trying to flush the buffers.

@@ -3076,14 +3076,52 @@ int snd_soc_bytes_put(struct snd_kcontrol *kcontrol,
 {
 	struct soc_bytes *params = (void *)kcontrol->private_value;
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	int ret;
+	int ret, len;
+	unsigned int val;
+	void *data;
 
-	if (codec->using_regmap)
-		ret = regmap_raw_write(codec->control_data, params->base,
-				       ucontrol->value.bytes.data,
-				       params->num_regs * codec->val_bytes);
-	else
-		ret = -EINVAL;
+	if (!codec->using_regmap || !params->num_regs)
+		return -EINVAL;
+
+	data = ucontrol->value.bytes.data;
+	len = params->num_regs * codec->val_bytes;
+
+	/*
+	 * If we've got a mask then we need to preserve the register
+	 * bits.  We shouldn't modify the incoming data so take a
+	 * copy.
+	 */
+	if (params->mask) {
+		ret = regmap_read(codec->control_data, params->base, &val);
+		if (ret != 0)
+			return ret;
+
+		val &= params->mask;
+
+		data = kmemdup(data, len, GFP_KERNEL);
+		if (!data)
+			return -ENOMEM;
+
+		switch (codec->val_bytes) {
+		case 1:
+			((u8 *)data)[0] &= ~params->mask;
+			((u8 *)data)[0] |= val;
+			break;
+		case 2:
+			((u16 *)data)[0] &= cpu_to_be16(~params->mask);
+			((u16 *)data)[0] |= cpu_to_be16(val);
+			break;
+		case 4:
+			((u32 *)data)[0] &= cpu_to_be32(~params->mask);
+			((u32 *)data)[0] |= cpu_to_be32(val);
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
+
+	ret = regmap_raw_write(codec->control_data, params->base,
+			       data, len);
 
 	return ret;
 }

@@ -829,10 +829,9 @@ int arch_validate_hwbkpt_settings(struct perf_event *bp)
 		 * reports them.
 		 */
 		if (!debug_exception_updates_fsr() &&
-				(info->ctrl.type == ARM_BREAKPOINT_LOAD ||
-				 info->ctrl.type == ARM_BREAKPOINT_STORE))
+		    (info->ctrl.type == ARM_BREAKPOINT_LOAD ||
+		     info->ctrl.type == ARM_BREAKPOINT_STORE))
 			return -EINVAL;
-
 	}
 
 out:
