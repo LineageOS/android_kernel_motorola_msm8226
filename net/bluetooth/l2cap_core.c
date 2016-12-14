@@ -4757,7 +4757,7 @@ static inline int l2cap_information_rsp(struct l2cap_conn *conn,
 	struct l2cap_info_rsp *rsp = (struct l2cap_info_rsp *) data;
 	u16 type, result;
 
-	if (cmd_len != sizeof(*rsp))
+	if (cmd_len < sizeof(*rsp))
 		return -EPROTO;
 
 	type   = __le16_to_cpu(rsp->type);
@@ -4936,13 +4936,16 @@ static inline int l2cap_create_channel_rsp(struct l2cap_conn *conn,
 }
 
 static inline int l2cap_move_channel_req(struct l2cap_conn *conn,
-					struct l2cap_cmd_hdr *cmd, u8 *data)
+			struct l2cap_cmd_hdr *cmd, u16 cmd_len, u8 *data)
 {
 	struct l2cap_move_chan_req *req = (struct l2cap_move_chan_req *) data;
 	struct sock *sk;
 	struct l2cap_pinfo *pi;
 	u16 icid = 0;
 	u16 result = L2CAP_MOVE_CHAN_REFUSED_NOT_ALLOWED;
+
+	if (cmd_len != sizeof(*req))
+		return -EPROTO;
 
 	icid = le16_to_cpu(req->icid);
 
@@ -5026,12 +5029,15 @@ send_move_response:
 }
 
 static inline int l2cap_move_channel_rsp(struct l2cap_conn *conn,
-					struct l2cap_cmd_hdr *cmd, u8 *data)
+			struct l2cap_cmd_hdr *cmd, u16 cmd_len, u8 *data)
 {
 	struct l2cap_move_chan_rsp *rsp = (struct l2cap_move_chan_rsp *) data;
 	struct sock *sk;
 	struct l2cap_pinfo *pi;
 	u16 icid, result;
+
+	if (cmd_len != sizeof(*rsp))
+		return -EPROTO;
 
 	icid = le16_to_cpu(rsp->icid);
 	result = le16_to_cpu(rsp->result);
@@ -5183,12 +5189,15 @@ static inline int l2cap_move_channel_rsp(struct l2cap_conn *conn,
 }
 
 static inline int l2cap_move_channel_confirm(struct l2cap_conn *conn,
-					struct l2cap_cmd_hdr *cmd, u8 *data)
+			struct l2cap_cmd_hdr *cmd, u16 cmd_len, u8 *data)
 {
 	struct l2cap_move_chan_cfm *cfm = (struct l2cap_move_chan_cfm *) data;
 	struct sock *sk;
 	struct l2cap_pinfo *pi;
 	u16 icid, result;
+
+	if (cmd_len != sizeof(*cfm))
+		return -EPROTO;
 
 	icid = le16_to_cpu(cfm->icid);
 	result = le16_to_cpu(cfm->result);
@@ -5243,7 +5252,7 @@ send_move_confirm_response:
 }
 
 static inline int l2cap_move_channel_confirm_rsp(struct l2cap_conn *conn,
-					struct l2cap_cmd_hdr *cmd, u8 *data)
+			struct l2cap_cmd_hdr *cmd, u16 cmd_len, u8 *data)
 {
 	struct l2cap_move_chan_cfm_rsp *rsp =
 		(struct l2cap_move_chan_cfm_rsp *) data;
@@ -5251,6 +5260,9 @@ static inline int l2cap_move_channel_confirm_rsp(struct l2cap_conn *conn,
 	struct l2cap_pinfo *pi;
 
 	u16 icid;
+
+	if (cmd_len < sizeof(*rsp))
+		return -EPROTO;
 
 	icid = le16_to_cpu(rsp->icid);
 
@@ -5304,22 +5316,27 @@ static void l2cap_amp_signal_worker(struct work_struct *work)
 	switch (ampwork->cmd.code) {
 	case L2CAP_MOVE_CHAN_REQ:
 		err = l2cap_move_channel_req(ampwork->conn, &ampwork->cmd,
+						ampwork->cmd_len,
 						ampwork->data);
 		break;
 
 	case L2CAP_MOVE_CHAN_RSP:
 		err = l2cap_move_channel_rsp(ampwork->conn, &ampwork->cmd,
+						ampwork->cmd_len,
 						ampwork->data);
 		break;
 
 	case L2CAP_MOVE_CHAN_CFM:
 		err = l2cap_move_channel_confirm(ampwork->conn, &ampwork->cmd,
+						ampwork->cmd_len,
 						ampwork->data);
 		break;
 
 	case L2CAP_MOVE_CHAN_CFM_RSP:
 		err = l2cap_move_channel_confirm_rsp(ampwork->conn,
-						&ampwork->cmd, ampwork->data);
+						&ampwork->cmd,
+						ampwork->cmd_len,
+						ampwork->data);
 		break;
 
 	default:
@@ -5715,7 +5732,7 @@ int l2cap_destroy_cfm(struct hci_chan *chan, u8 reason)
 }
 
 static int l2cap_sig_amp(struct l2cap_conn *conn, struct l2cap_cmd_hdr *cmd,
-			u8 *data, struct sk_buff *skb)
+			u16 cmd_len, u8 *data, struct sk_buff *skb)
 {
 	struct l2cap_amp_signal_work *amp_work;
 
@@ -5726,6 +5743,7 @@ static int l2cap_sig_amp(struct l2cap_conn *conn, struct l2cap_cmd_hdr *cmd,
 	INIT_WORK(&amp_work->work, l2cap_amp_signal_worker);
 	amp_work->conn = conn;
 	amp_work->cmd = *cmd;
+	amp_work->cmd_len = cmd_len;
 	amp_work->data = data;
 	amp_work->skb = skb_clone(skb, GFP_ATOMIC);
 	if (!amp_work->skb) {
@@ -5872,7 +5890,7 @@ static inline int l2cap_bredr_sig_cmd(struct l2cap_conn *conn,
 	case L2CAP_MOVE_CHAN_RSP:
 	case L2CAP_MOVE_CHAN_CFM:
 	case L2CAP_MOVE_CHAN_CFM_RSP:
-		err = l2cap_sig_amp(conn, cmd, data, skb);
+		err = l2cap_sig_amp(conn, cmd, cmd_len, data, skb);
 		break;
 	default:
 		BT_ERR("Unknown BR/EDR signaling command 0x%2.2x", cmd->code);

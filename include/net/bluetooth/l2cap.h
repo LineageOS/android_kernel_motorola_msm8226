@@ -382,6 +382,7 @@ struct l2cap_amp_signal_work {
 	struct l2cap_cmd_hdr cmd;
 	struct l2cap_conn *conn;
 	struct sk_buff *skb;
+	u16 cmd_len;
 	u8 *data;
 };
 
