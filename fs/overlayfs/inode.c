@@ -68,8 +68,8 @@ int ovl_permission(struct inode *inode, int mask)
 			spin_unlock(&inode->i_lock);
 			return -ENOENT;
 		}
-		alias = list_entry(inode->i_dentry.next,
-				   struct dentry, d_alias);
+		alias = list_entry((union d_u *)inode->i_dentry.next,
+				   struct dentry, d_u);
 		dget(alias);
 		spin_unlock(&inode->i_lock);
 		oe = alias->d_fsdata;
