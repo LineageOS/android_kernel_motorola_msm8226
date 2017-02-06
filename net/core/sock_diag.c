@@ -181,7 +181,7 @@ static void sock_diag_rcv(struct sk_buff *skb)
 
 int sock_diag_destroy(struct sock *sk, int err)
 {
-	if (!capable(CAP_NET_ADMIN))
+	if (!ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
 	if (!sk->sk_prot->diag_destroy)
