@@ -810,7 +810,7 @@ static long lis3dh_misc_ioctl(struct file *file, unsigned int cmd,
 	case LIS3DH_IOCTL_SET_DELAY:
 		if (copy_from_user(&interval, argp, sizeof(interval)))
 			return -EFAULT;
-		if (interval < 0 || interval > 200)
+		if (interval < 0)
 			return -EINVAL;
 
 		if (interval > lis->pdata->min_interval)
