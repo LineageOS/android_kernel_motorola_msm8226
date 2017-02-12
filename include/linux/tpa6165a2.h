@@ -19,10 +19,6 @@
 #ifndef __TPA6165A2_H__
 #define __TPA6165A2_H__
 
-#ifdef CONFIG_SND_SOC_TPA6165A2
-bool tpa6165a2_found(void);
-#endif
-
 struct tpa6165a2_platform_data {
 	int irq_gpio;
 	int alwayson_micbias;
