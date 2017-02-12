@@ -35,6 +35,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/kernel.h>
 #include <linux/gpio.h>
+#include <linux/tpa6165a2.h>
 #include "wcd9306.h"
 #include "wcd9xxx-resmgr.h"
 #include "wcd9xxx-common.h"
@@ -57,6 +58,13 @@
 #define TAPAN_REGISTER_START_OFFSET 0x800
 
 #define CODEC_REG_CFG_MINOR_VER 1
+
+#ifdef CONFIG_SND_SOC_TPA6165A2
+static bool (*tpa6165a2_found_func)(void);
+#define uses_tpa6165a2 (tpa6165a2_found_func && tpa6165a2_found_func())
+#else
+#define uses_tpa6165a2 false
+#endif
 
 static struct regulator *tapan_codec_find_regulator(
 	struct snd_soc_codec *codec,
@@ -1103,12 +1111,12 @@ static int tapan_hph_impedance_get(struct snd_kcontrol *kcontrol,
 
 	pr_debug("%s: tapan_priv: %p\n", __func__, priv);
 
-#ifndef CONFIG_SND_SOC_TPA6165A2
-	wcd9xxx_mbhc_get_impedance(&priv->mbhc, &zl, &zr);
-	pr_debug("%s: zl %u, zr %u\n", __func__, zl, zr);
-#else
-	zr = zl = 0;
-#endif
+	if (!uses_tpa6165a2) {
+		wcd9xxx_mbhc_get_impedance(&priv->mbhc, &zl, &zr);
+		pr_debug("%s: zl %u, zr %u\n", __func__, zl, zr);
+	} else {
+		zr = zl = 0;
+	}
 	ucontrol->value.integer.value[0] = hphr ? zr : zl;
 
 	return 0;
@@ -2303,7 +2311,6 @@ static int tapan_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-#ifndef CONFIG_SND_SOC_TPA6165A2
 /* called under codec_resource_lock acquisition */
 static int tapan_enable_mbhc_micbias(struct snd_soc_codec *codec, bool enable)
 {
@@ -2320,7 +2327,6 @@ static int tapan_enable_mbhc_micbias(struct snd_soc_codec *codec, bool enable)
 	pr_debug("%s: leave ret %d\n", __func__, rc);
 	return rc;
 }
-#endif
 
 static void tx_hpf_corner_freq_callback(struct work_struct *work)
 {
@@ -5700,9 +5706,7 @@ static const struct wcd9xxx_mbhc_intr cdc_intr_ids = {
 static int tapan_post_reset_cb(struct wcd9xxx *wcd9xxx)
 {
 	int ret = 0;
-#ifndef CONFIG_SND_SOC_TPA6165A2
 	int rco_clk_rate;
-#endif
 	struct snd_soc_codec *codec;
 	struct tapan_priv *tapan;
 
@@ -5738,31 +5742,31 @@ static int tapan_post_reset_cb(struct wcd9xxx *wcd9xxx)
 
 	wcd9xxx_resmgr_post_ssr(&tapan->resmgr);
 
-#ifndef CONFIG_SND_SOC_TPA6165A2
-	wcd9xxx_mbhc_deinit(&tapan->mbhc);
+	if (!uses_tpa6165a2) {
+		wcd9xxx_mbhc_deinit(&tapan->mbhc);
 
-	if (TAPAN_IS_1_0(wcd9xxx->version))
-		rco_clk_rate = TAPAN_MCLK_CLK_12P288MHZ;
-	else
-		rco_clk_rate = TAPAN_MCLK_CLK_9P6MHZ;
+		if (TAPAN_IS_1_0(wcd9xxx->version))
+			rco_clk_rate = TAPAN_MCLK_CLK_12P288MHZ;
+		else
+			rco_clk_rate = TAPAN_MCLK_CLK_9P6MHZ;
 
-	ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
-				tapan_enable_mbhc_micbias,
-				&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
-				TAPAN_CDC_ZDET_SUPPORTED);
-	if (ret)
-		pr_err("%s: mbhc init failed %d\n", __func__, ret);
-	else
-		wcd9xxx_mbhc_start(&tapan->mbhc, tapan->mbhc.mbhc_cfg);
+		ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
+					tapan_enable_mbhc_micbias,
+					&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
+					TAPAN_CDC_ZDET_SUPPORTED);
+		if (ret)
+			pr_err("%s: mbhc init failed %d\n", __func__, ret);
+		else
+			wcd9xxx_mbhc_start(&tapan->mbhc, tapan->mbhc.mbhc_cfg);
 
-	tapan_cleanup_irqs(tapan);
-	ret = tapan_setup_irqs(tapan);
-	if (ret)
-		pr_err("%s: Failed to setup irq: %d\n", __func__, ret);
+		tapan_cleanup_irqs(tapan);
+		ret = tapan_setup_irqs(tapan);
+		if (ret)
+			pr_err("%s: Failed to setup irq: %d\n", __func__, ret);
 
-	tapan->machine_codec_event_cb(codec, WCD9XXX_CODEC_EVENT_CODEC_UP);
+		tapan->machine_codec_event_cb(codec, WCD9XXX_CODEC_EVENT_CODEC_UP);
+	}
 
-#endif
 	mutex_unlock(&codec->mutex);
 	return ret;
 }
@@ -5901,6 +5905,10 @@ static int tapan_codec_probe(struct snd_soc_codec *codec)
 	void *ptr = NULL;
 	struct wcd9xxx_core_resource *core_res;
 
+#ifdef CONFIG_SND_SOC_TPA6165A2
+	tpa6165a2_found_func = symbol_request(tpa6165a2_found);
+#endif
+
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	control = codec->control_data;
 
@@ -5955,17 +5963,17 @@ static int tapan_codec_probe(struct snd_soc_codec *codec)
 	else
 		rco_clk_rate = TAPAN_MCLK_CLK_9P6MHZ;
 
-#ifndef CONFIG_SND_SOC_TPA6165A2
-	ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
-				tapan_enable_mbhc_micbias,
-				&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
-				TAPAN_CDC_ZDET_SUPPORTED);
+	if (!uses_tpa6165a2) {
+		ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
+					tapan_enable_mbhc_micbias,
+					&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
+					TAPAN_CDC_ZDET_SUPPORTED);
 
-	if (ret) {
-		pr_err("%s: mbhc init failed %d\n", __func__, ret);
-		return ret;
+		if (ret) {
+			pr_err("%s: mbhc init failed %d\n", __func__, ret);
+			return ret;
+		}
 	}
-#endif
 
 	tapan->codec = codec;
 	for (i = 0; i < COMPANDER_MAX; i++) {
@@ -6081,15 +6089,21 @@ static int tapan_codec_remove(struct snd_soc_codec *codec)
 
 	tapan_cleanup_irqs(tapan);
 
-#ifndef CONFIG_SND_SOC_TPA6165A2
-	/* cleanup MBHC */
-	wcd9xxx_mbhc_deinit(&tapan->mbhc);
-#endif
+	if (!uses_tpa6165a2) {
+		/* cleanup MBHC */
+		wcd9xxx_mbhc_deinit(&tapan->mbhc);
+	}
+
 	/* cleanup resmgr */
 	wcd9xxx_resmgr_deinit(&tapan->resmgr);
 
 	for (index = 0; index < CP_REG_MAX; index++)
 		tapan->cp_regulators[index] = NULL;
+
+#ifdef CONFIG_SND_SOC_TPA6165A2
+	if (tpa6165a2_found_func)
+		symbol_put(tpa6165a2_found_func);
+#endif
 
 	kfree(tapan);
 	return 0;
