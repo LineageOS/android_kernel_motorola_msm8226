@@ -59,6 +59,8 @@ static struct snd_soc_jack button_jack;
 
 static struct i2c_client *tpa6165_client;
 
+static bool tpa6165a2_probed = false;
+
 struct tpa6165_data {
 	struct regulator *vdd;
 	struct regulator *micvdd;
@@ -1570,12 +1572,20 @@ tpa6165_of_init(struct i2c_client *client)
 }
 #endif
 
+bool tpa6165a2_found(void)
+{
+	return tpa6165a2_probed;
+}
+EXPORT_SYMBOL(tpa6165a2_found);
+
 static int __devinit tpa6165_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
 	struct tpa6165_data *tpa6165;
 	struct tpa6165a2_platform_data *tpa6165_pdata;
 	int err;
+
+	tpa6165a2_probed = true;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "check_functionality failed\n");
