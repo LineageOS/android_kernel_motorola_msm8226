@@ -46,6 +46,8 @@ struct mdss_debug_base {
 	struct list_head head;
 };
 
+static DEFINE_MUTEX(mdss_debug_lock);
+
 static int mdss_debug_base_open(struct inode *inode, struct file *file)
 {
 	/* non-seekable */
@@ -92,8 +94,10 @@ static ssize_t mdss_debug_base_offset_write(struct file *file,
 	if (cnt > (dbg->max_offset - off))
 		cnt = dbg->max_offset - off;
 
+	mutex_lock(&mdss_debug_lock);
 	dbg->off = off;
 	dbg->cnt = cnt;
+	mutex_unlock(&mdss_debug_lock);
 
 	pr_debug("offset=%x cnt=%x\n", off, cnt);
 
@@ -113,15 +117,21 @@ static ssize_t mdss_debug_base_offset_read(struct file *file,
 	if (*ppos)
 		return 0;	/* the end */
 
+	mutex_lock(&mdss_debug_lock);
 	len = snprintf(buf, sizeof(buf), "0x%08x %x\n", dbg->off, dbg->cnt);
-	if (len < 0 || len >= sizeof(buf))
+	if (len < 0 || len >= sizeof(buf)) {
+		mutex_unlock(&mdss_debug_lock);
 		return 0;
+	}
 
-	if ((count < sizeof(buf)) || copy_to_user(buff, buf, len))
+	if ((count < sizeof(buf)) || copy_to_user(buff, buf, len)) {
+		mutex_unlock(&mdss_debug_lock);
 		return -EFAULT;
+	}
 
 	*ppos += len;	/* increase offset */
 
+	mutex_unlock(&mdss_debug_lock);
 	return len;
 }
 
@@ -178,6 +188,8 @@ static ssize_t mdss_debug_base_reg_read(struct file *file,
 		return -ENODEV;
 	}
 
+	mutex_lock(&mdss_debug_lock);
+
 	if (!dbg->buf) {
 		char dump_buf[64];
 		char *ptr;
@@ -189,6 +201,7 @@ static ssize_t mdss_debug_base_reg_read(struct file *file,
 
 		if (!dbg->buf) {
 			pr_err("not enough memory to hold reg dump\n");
+			mutex_unlock(&mdss_debug_lock);
 			return -ENOMEM;
 		}
 
@@ -218,17 +231,21 @@ static ssize_t mdss_debug_base_reg_read(struct file *file,
 		dbg->buf_len = tot;
 	}
 
-	if (*ppos >= dbg->buf_len)
+	if (*ppos >= dbg->buf_len) {
+		mutex_unlock(&mdss_debug_lock);
 		return 0; /* done reading */
+	}
 
 	len = min(count, dbg->buf_len - (size_t) *ppos);
 	if (copy_to_user(user_buf, dbg->buf + *ppos, len)) {
 		pr_err("failed to copy to user\n");
+		mutex_unlock(&mdss_debug_lock);
 		return -EFAULT;
 	}
 
 	*ppos += len; /* increase offset */
 
+	mutex_unlock(&mdss_debug_lock);
 	return len;
 }
 
