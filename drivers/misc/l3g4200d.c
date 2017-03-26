@@ -235,17 +235,15 @@ static void l3g4200d_device_power_off(struct l3g4200d_data *gyro)
 	int err;
 	u8 buf[2] = {L3G4200D_CTRL_REG1, 0};
 
-	err = l3g4200d_i2c_read(gyro, buf, 1);
-	if (err < 0) {
-		dev_err(&gyro->client->dev, "read register control_1 failed\n");
-		buf[0] = gyro->pdata->ctrl_reg1;
-	}
-	buf[1] = buf[0] & ~PM_MASK;
+	buf[1] = gyro->pdata->ctrl_reg1 & ~PM_MASK;
 	buf[0] = L3G4200D_CTRL_REG1;
 
 	err = l3g4200d_i2c_write(gyro, buf, 1);
-	if (err < 0)
+	if (err < 0) {
 		dev_err(&gyro->client->dev, "soft power off failed\n");
+		return;
+	}
+	gyro->pdata->ctrl_reg1 = buf[1];
 }
 
 static int l3g4200d_device_power_on(struct l3g4200d_data *gyro)
@@ -261,17 +259,14 @@ static int l3g4200d_device_power_on(struct l3g4200d_data *gyro)
 		}
 	}
 
-	err = l3g4200d_i2c_read(gyro, buf, 1);
-	if (err < 0) {
-		dev_err(&gyro->client->dev, "read register control_1 failed\n");
-		buf[0] = gyro->pdata->ctrl_reg1;
-	}
-
-	buf[1] = buf[0] | PM_MASK;
+	buf[1] = gyro->pdata->ctrl_reg1 | PM_MASK;
 	buf[0] = L3G4200D_CTRL_REG1;
 	err = l3g4200d_i2c_write(gyro, buf, 1);
-	if (err < 0)
+	if (err < 0) {
 		dev_err(&gyro->client->dev, "soft power on failed\n");
+		return err;
+	}
+	gyro->pdata->ctrl_reg1 = buf[1];
 
 	return 0;
 }
@@ -281,22 +276,19 @@ static void l3g4200d_device_suspend(struct l3g4200d_data *gyro, int suspend)
 	int err;
 	u8 buf[2] = {L3G4200D_CTRL_REG1, 0};
 
-	err = l3g4200d_i2c_read(gyro, buf, 1);
-	if (err < 0) {
-		dev_err(&gyro->client->dev, "read register control_1 failed\n");
-		return;
-	}
-
 	if (suspend)
-		buf[1] = buf[0] & ~ENABLE_ALL_AXES;
+		buf[1] = gyro->pdata->ctrl_reg1 & ~ENABLE_ALL_AXES;
 	else
-		buf[1] = buf[0] | ENABLE_ALL_AXES;
+		buf[1] = gyro->pdata->ctrl_reg1 | ENABLE_ALL_AXES;
 
 	buf[0] = L3G4200D_CTRL_REG1;
 
 	err = l3g4200d_i2c_write(gyro, buf, 1);
-	if (err < 0)
+	if (err < 0) {
 		dev_err(&gyro->client->dev, "suspend %d failed\n", suspend);
+		return;
+	}
+	gyro->pdata->ctrl_reg1 = buf[1];
 }
 
 static int l3g4200d_get_gyro_data(struct l3g4200d_data *gyro,
@@ -474,12 +466,12 @@ static int l3g4200d_set_delay(struct l3g4200d_data *gyro, u32 delay_ms)
 	if (odr_value != (gyro->pdata->ctrl_reg1 & ODR_MASK)) {
 		buf[1] = (gyro->pdata->ctrl_reg1 & ~ODR_MASK);
 		buf[1] |= odr_value;
-		gyro->pdata->ctrl_reg1 = buf[1];
 		if (gyro->enabled) {
 			err = l3g4200d_i2c_write(gyro, buf, 1);
 			if (err < 0)
 				goto error;
 		}
+		gyro->pdata->ctrl_reg1 = buf[1];
 	}
 
 	gyro->pdata->poll_interval = delay_us / USEC_PER_MSEC;
