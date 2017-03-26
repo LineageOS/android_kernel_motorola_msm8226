@@ -455,7 +455,8 @@ static int l3g4200d_set_delay(struct l3g4200d_data *gyro, u32 delay_ms)
 	u8 buf[2] = {L3G4200D_CTRL_REG1, 0};
 
 	/* do not report noise during ODR update */
-	disable_irq_nosync(gyro->client->irq);
+	if (gyro->enabled)
+		disable_irq_nosync(gyro->client->irq);
 
 	delay_us = delay_ms * USEC_PER_MSEC;
 	for (i = 0; i < ARRAY_SIZE(gyro_odr_table); i++)
@@ -474,17 +475,22 @@ static int l3g4200d_set_delay(struct l3g4200d_data *gyro, u32 delay_ms)
 		buf[1] = (gyro->pdata->ctrl_reg1 & ~ODR_MASK);
 		buf[1] |= odr_value;
 		gyro->pdata->ctrl_reg1 = buf[1];
-		err = l3g4200d_i2c_write(gyro, buf, 1);
-		if (err < 0)
-			goto error;
+		if (gyro->enabled) {
+			err = l3g4200d_i2c_write(gyro, buf, 1);
+			if (err < 0)
+				goto error;
+		}
 	}
 
 	gyro->pdata->poll_interval = delay_us / USEC_PER_MSEC;
-	/* noisy data upto 6/ODR */
-	msleep((delay_us * 6) / USEC_PER_MSEC);
 
-	l3g4200d_flush_gyro_data(gyro);
-	enable_irq(gyro->client->irq);
+	if (gyro->enabled) {
+		/* noisy data upto 6/ODR */
+		msleep((delay_us * 6) / USEC_PER_MSEC);
+
+		l3g4200d_flush_gyro_data(gyro);
+		enable_irq(gyro->client->irq);
+	}
 
 	return 0;
 
