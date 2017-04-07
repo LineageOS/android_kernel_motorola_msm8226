@@ -2234,6 +2234,12 @@ static int synaptics_rmi4_f11_init(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 	fhandler->intr_reg_num = (intr_count + 7) / 8;
+	if (fhandler->intr_reg_num >= MAX_INTR_REGISTERS) {
+		fhandler->intr_reg_num = 0;
+		fhandler->num_of_data_sources = 0;
+		fhandler->intr_mask = 0;
+		return -EINVAL;
+	}
 	if (fhandler->intr_reg_num != 0)
 		fhandler->intr_reg_num -= 1;
 
@@ -2396,6 +2402,12 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			rmi4_data->num_of_fingers);
 
 	fhandler->intr_reg_num = (intr_count + 7) / 8;
+	if (fhandler->intr_reg_num >= MAX_INTR_REGISTERS) {
+		fhandler->intr_reg_num = 0;
+		fhandler->num_of_data_sources = 0;
+		fhandler->intr_mask = 0;
+		return -EINVAL;
+	}
 	if (fhandler->intr_reg_num != 0)
 		fhandler->intr_reg_num -= 1;
 
@@ -2518,6 +2530,12 @@ static int synaptics_rmi4_f1a_init(struct synaptics_rmi4_data *rmi4_data,
 	fhandler->num_of_data_sources = (fd->intr_src_count  & MASK_3BIT);
 
 	fhandler->intr_reg_num = (intr_count + 7) / 8;
+	if (fhandler->intr_reg_num >= MAX_INTR_REGISTERS) {
+		fhandler->intr_reg_num = 0;
+		fhandler->num_of_data_sources = 0;
+		fhandler->intr_mask = 0;
+		return -EINVAL;
+	}
 	if (fhandler->intr_reg_num != 0)
 		fhandler->intr_reg_num -= 1;
 
