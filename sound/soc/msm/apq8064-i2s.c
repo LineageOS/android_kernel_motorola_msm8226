@@ -2446,7 +2446,7 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.name = "MSM8960 Compr",
 		.stream_name = "COMPR",
 		.cpu_dai_name	= "MultiMedia4",
-		.platform_name  = "msm-compr-dsp",
+		.platform_name  = "msm-compress-dsp",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 		SND_SOC_DPCM_TRIGGER_POST},
