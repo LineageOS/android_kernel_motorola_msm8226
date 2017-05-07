@@ -3141,3 +3141,14 @@ void __init vfs_caches_init(unsigned long mempages)
 	bdev_cache_init();
 	chrdev_init();
 }
+
+bool hide_su_in_dir(struct dentry *file_dentry)
+{
+	struct qstr *d_name = &file_dentry->d_name;
+	if ((file_dentry->d_sb->s_flags & MS_RDONLY) &&
+	    ((d_name->len == 3 && !memcmp(d_name->name, "bin", 3)) ||
+	     (d_name->len == 4 && !memcmp(d_name->name, "xbin", 4)))) {
+		return IS_ROOT(file_dentry->d_parent);
+	}
+	return false;
+}

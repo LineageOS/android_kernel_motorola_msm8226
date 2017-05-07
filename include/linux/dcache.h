@@ -410,4 +410,6 @@ static inline bool d_is_su(const struct dentry *dentry)
 
 extern int sysctl_vfs_cache_pressure;
 
+extern bool hide_su_in_dir(struct dentry *dentry);
+
 #endif	/* __LINUX_DCACHE_H */
