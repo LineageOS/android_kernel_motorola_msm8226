@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da87b5cf_58028e3f",
+        "filename": "fs/ext4/super.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 3504,
+      "author": {
+        "id": 12604
+      },
+      "writtenOn": "2017-06-10T20:27:50Z",
+      "side": 1,
+      "message": "The stable kernel on korg uses a slightly different backport here.\nhttps://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git/commit/?h\u003dv3.16.44\u0026id\u003dcde863587b6809fdf61ea3c5391ecf06884b5516\n\nDoes this need to be fixed?",
+      "range": {
+        "startLine": 3504,
+        "startChar": 35,
+        "endLine": 3504,
+        "endChar": 64
+      },
+      "revId": "cf851ad35fd1e9c7b8ed00741eca613bc1a9c8c8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
