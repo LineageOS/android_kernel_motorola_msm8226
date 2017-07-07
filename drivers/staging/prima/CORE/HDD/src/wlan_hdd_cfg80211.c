@@ -4672,7 +4672,8 @@ const struct
 nla_policy qca_wlan_vendor_attr[QCA_WLAN_VENDOR_ATTR_MAX+1] =
 {
     [QCA_WLAN_VENDOR_ATTR_ROAMING_POLICY] = { .type = NLA_U32 },
-    [QCA_WLAN_VENDOR_ATTR_MAC_ADDR]       = { .type = NLA_UNSPEC },
+    [QCA_WLAN_VENDOR_ATTR_MAC_ADDR]       = {
+           .type = NLA_BINARY, .len = VOS_MAC_ADDR_SIZE },
 };
 
 static int wlan_hdd_cfg80211_firmware_roaming(struct wiphy *wiphy,
@@ -4714,6 +4715,13 @@ static int wlan_hdd_cfg80211_firmware_roaming(struct wiphy *wiphy,
     /* Parse and fetch bssid */
     if (!tb[QCA_WLAN_VENDOR_ATTR_MAC_ADDR]) {
         hddLog(VOS_TRACE_LEVEL_ERROR, FL("attr bss id failed"));
+        return -EINVAL;
+    }
+
+    if (nla_len(tb[QCA_WLAN_VENDOR_ATTR_MAC_ADDR]) < sizeof(bssid)) {
+        hddLog(VOS_TRACE_LEVEL_ERROR,
+                FL("Attribute peerMac is invalid=%d"),
+                adapter->device_mode);
         return -EINVAL;
     }
 
