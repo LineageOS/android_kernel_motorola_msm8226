@@ -30,7 +30,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/of_batterydata.h>
 #include <linux/qpnp-revid.h>
-#include <linux/android_alarm.h>
+#include <linux/alarmtimer.h>
 #include <linux/spinlock.h>
 #include <linux/batterydata-lib.h>
 #include <linux/usb/msm_ext_chg.h>
@@ -3841,8 +3841,6 @@ qpnp_chrg_ocv_work(struct work_struct *work)
 	int cc;
 	int percent_soc;
 	int batt_temp;
-	int curr_time =
-		ktime_to_timespec(alarm_get_elapsed_realtime()).tv_sec;
 
 	if (!chip->bms_psy || !qpnp_chg_is_usb_chg_plugged_in(chip)) {
 		chip->chrg_ocv_state = CHRG_OCV_NO_CHRG;
@@ -3856,6 +3854,12 @@ qpnp_chrg_ocv_work(struct work_struct *work)
 	cc = get_prop_charge_counter(chip);
 
 	if (chip->chrg_ocv_state == CHRG_OCV_OCV_WAIT) {
+		struct timespec ts;
+		int curr_time;
+
+		get_monotonic_boottime(&ts);
+		curr_time = ts.tv_sec;
+
 		if (chip->chrg_ocv_time == 0) {
 			chip->chrg_ocv_cc_bf_uah = cc;
 			chip->chrg_ocv_time = curr_time;
@@ -4446,7 +4450,7 @@ mutex_unlock:
 	return rc;
 }
 
-#define POWER_STAGE_REDUCE_CHECK_PERIOD_SECONDS		20
+#define POWER_STAGE_REDUCE_CHECK_PERIOD_NS		(20LL * NSEC_PER_SEC)
 #define POWER_STAGE_REDUCE_MAX_VBAT_UV			3900000
 #define POWER_STAGE_REDUCE_MIN_VCHG_UV			4800000
 #define POWER_STAGE_SEL_MASK				0x0F
@@ -4550,7 +4554,6 @@ int get_vbat_averaged(struct qpnp_chg_chip *chip, int sample_count)
 static void
 qpnp_chg_reduce_power_stage(struct qpnp_chg_chip *chip)
 {
-	struct timespec ts;
 	bool power_stage_reduced_in_hw = qpnp_chg_is_power_stage_reduced(chip);
 	bool reduce_power_stage = false;
 	int vbat_uv = get_vbat_averaged(chip, 16);
@@ -4610,11 +4613,8 @@ qpnp_chg_reduce_power_stage(struct qpnp_chg_chip *chip)
 	}
 
 	if (usb_present && usb_ma_above_wall) {
-		getnstimeofday(&ts);
-		ts.tv_sec += POWER_STAGE_REDUCE_CHECK_PERIOD_SECONDS;
-		alarm_start_range(&chip->reduce_power_stage_alarm,
-					timespec_to_ktime(ts),
-					timespec_to_ktime(ts));
+		ktime_t start = ns_to_ktime(POWER_STAGE_REDUCE_CHECK_PERIOD_NS);
+		alarm_start_relative(&chip->reduce_power_stage_alarm, start);
 	} else {
 		pr_debug("stopping power stage workaround\n");
 		chip->power_stage_workaround_running = false;
@@ -4649,13 +4649,15 @@ qpnp_chg_reduce_power_stage_work(struct work_struct *work)
 	qpnp_chg_reduce_power_stage(chip);
 }
 
-static void
-qpnp_chg_reduce_power_stage_callback(struct alarm *alarm)
+static enum alarmtimer_restart
+qpnp_chg_reduce_power_stage_callback(struct alarm *alarm, ktime_t now)
 {
 	struct qpnp_chg_chip *chip = container_of(alarm, struct qpnp_chg_chip,
 						reduce_power_stage_alarm);
 
 	schedule_work(&chip->reduce_power_stage_work);
+
+	return ALARMTIMER_NORESTART;
 }
 
 static int
@@ -5761,7 +5763,7 @@ qpnp_charger_probe(struct spmi_device *spmi)
 
 	mutex_init(&chip->jeita_configure_lock);
 	spin_lock_init(&chip->usbin_health_monitor_lock);
-	alarm_init(&chip->reduce_power_stage_alarm, ANDROID_ALARM_RTC_WAKEUP,
+	alarm_init(&chip->reduce_power_stage_alarm, ALARM_REALTIME,
 			qpnp_chg_reduce_power_stage_callback);
 	INIT_WORK(&chip->reduce_power_stage_work,
 			qpnp_chg_reduce_power_stage_work);
