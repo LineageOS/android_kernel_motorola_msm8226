@@ -4719,9 +4719,7 @@ static int wlan_hdd_cfg80211_firmware_roaming(struct wiphy *wiphy,
     }
 
     if (nla_len(tb[QCA_WLAN_VENDOR_ATTR_MAC_ADDR]) < sizeof(bssid)) {
-        hddLog(VOS_TRACE_LEVEL_ERROR,
-                FL("Attribute peerMac is invalid=%d"),
-                adapter->device_mode);
+        hddLog(VOS_TRACE_LEVEL_ERROR, FL("attr bss id is invalid"));
         return -EINVAL;
     }
 
