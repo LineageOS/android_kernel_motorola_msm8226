@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "36e700c4_8188f86e",
+        "filename": "drivers/md/dm-crypt.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1662,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2017-12-28T18:06:46Z",
+      "side": 1,
+      "message": "These spaces shouldn\u0027t be here.\n\nYou could also probably pick https://github.com/aosp-mirror/kernel_msm/commit/0a03cc03c9208cf65715bdde882a13685b576acb first.",
+      "range": {
+        "startLine": 1662,
+        "startChar": 4,
+        "endLine": 1662,
+        "endChar": 11
+      },
+      "revId": "76fdc0e057fdcebddc894e56924c43c587adc64a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
