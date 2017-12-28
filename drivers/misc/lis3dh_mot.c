@@ -82,8 +82,6 @@
 #define HIGH_RES	0x08
 #define BLK_UPDATE	0x80
 
-#define FUZZ			0
-#define FLAT			0
 #define I2C_RETRY_DELAY		5
 #define I2C_RETRIES		5
 #define AUTO_INCREMENT		0x80
@@ -511,9 +509,9 @@ static void lis3dh_report_values(struct lis3dh_data *lis, int *xyz)
 		ktime_to_timespec(timestamp).tv_sec);
 	input_event(lis->input_dev, EV_SYN, SYN_TIME_NSEC,
 		ktime_to_timespec(timestamp).tv_nsec);
-	input_report_abs(lis->input_dev, ABS_X, xyz[0]);
-	input_report_abs(lis->input_dev, ABS_Y, xyz[1]);
-	input_report_abs(lis->input_dev, ABS_Z, xyz[2]);
+	input_report_rel(lis->input_dev, REL_X, xyz[0]);
+	input_report_rel(lis->input_dev, REL_Y, xyz[1]);
+	input_report_rel(lis->input_dev, REL_Z, xyz[2]);
 	input_sync(lis->input_dev);
 }
 
@@ -972,11 +970,9 @@ static int lis3dh_input_init(struct lis3dh_data *lis)
 
 	input_set_drvdata(lis->input_dev, lis);
 
-	set_bit(EV_ABS, lis->input_dev->evbit);
-
-	input_set_abs_params(lis->input_dev, ABS_X, -G_MAX, G_MAX, FUZZ, FLAT);
-	input_set_abs_params(lis->input_dev, ABS_Y, -G_MAX, G_MAX, FUZZ, FLAT);
-	input_set_abs_params(lis->input_dev, ABS_Z, -G_MAX, G_MAX, FUZZ, FLAT);
+	input_set_capability(lis->input_dev, EV_REL, REL_X);
+	input_set_capability(lis->input_dev, EV_REL, REL_Y);
+	input_set_capability(lis->input_dev, EV_REL, REL_Z);
 	input_set_capability(lis->input_dev, EV_MSC, MSC_RAW);
 	input_set_capability(lis->input_dev, EV_MSC, MSC_GESTURE);
 
