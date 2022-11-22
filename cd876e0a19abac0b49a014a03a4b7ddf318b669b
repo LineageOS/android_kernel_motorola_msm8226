@@ -16,6 +16,24 @@
       "message": "Is there a reason this can\u0027t be merged?",
       "revId": "cd876e0a19abac0b49a014a03a4b7ddf318b669b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b24d2fc1_23018dc8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 32098
+      },
+      "writtenOn": "2022-11-22T19:30:50Z",
+      "side": 1,
+      "message": "I have no authority to answer, but deprecated repositories are much less likely to receive further changes.\n\nThere are instances of a msm8226 kernel being tended after still. I use the github network graph[1] to discover them. Those most likely already contain that fix as they had to build with gcc10.\n\n[1] https://github.com/LineageOS/android_kernel_motorola_msm8226/network",
+      "parentUuid": "a68922a0_52033bdb",
+      "revId": "cd876e0a19abac0b49a014a03a4b7ddf318b669b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
